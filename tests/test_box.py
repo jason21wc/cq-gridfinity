@@ -13,9 +13,13 @@ from common_test import (
     _edges_match,
     _faces_match,
     _export_files,
+    SKIP_TEST_BOX,
 )
 
 
+@pytest.mark.skipif(
+    SKIP_TEST_BOX, reason="Skipped intentionally by test scope environment variable"
+)
 def test_basic_box():
     b1 = GridfinityBox(2, 3, 5, no_lip=True)
     r = b1.render()
@@ -34,6 +38,9 @@ def test_basic_box():
         b1.save_step_file(path=EXPORT_STEP_FILE_PATH)
 
 
+@pytest.mark.skipif(
+    SKIP_TEST_BOX, reason="Skipped intentionally by test scope environment variable"
+)
 def test_invalid_box():
     with pytest.raises(ValueError):
         b1 = GridfinityBox(2, 3, 5, lite_style=True, solid=True)
@@ -52,6 +59,9 @@ def test_invalid_box():
         b1.render()
 
 
+@pytest.mark.skipif(
+    SKIP_TEST_BOX, reason="Skipped intentionally by test scope environment variable"
+)
 def test_lite_box():
     b1 = GridfinityBox(2, 3, 5, lite_style=True)
     r = b1.render()
@@ -82,6 +92,9 @@ def test_lite_box():
     assert _almost_same(size_3d(r), (41.5, 41.5, 17.8))
 
 
+@pytest.mark.skipif(
+    SKIP_TEST_BOX, reason="Skipped intentionally by test scope environment variable"
+)
 def test_empty_box():
     b1 = GridfinityBox(2, 3, 5, holes=True)
     r = b1.render()
@@ -113,6 +126,9 @@ def test_empty_box():
     assert _almost_same(size_3d(r), (41.5, 41.5, 17.8))
 
 
+@pytest.mark.skipif(
+    SKIP_TEST_BOX, reason="Skipped intentionally by test scope environment variable"
+)
 def test_solid_box():
     b1 = GridfinitySolidBox(4, 2, 3)
     r = b1.render()
@@ -131,6 +147,9 @@ def test_solid_box():
     assert _almost_same(b1.top_ref_height, 14)
 
 
+@pytest.mark.skipif(
+    SKIP_TEST_BOX, reason="Skipped intentionally by test scope environment variable"
+)
 def test_divided_box():
     b1 = GridfinityBox(3, 3, 3, holes=True, length_div=2, width_div=1)
     r = b1.render()
@@ -147,6 +166,9 @@ def test_divided_box():
     assert b1.filename() == "gf_box_3x3x3_div2x1_holes"
 
 
+@pytest.mark.skipif(
+    SKIP_TEST_BOX, reason="Skipped intentionally by test scope environment variable"
+)
 def test_all_features_box():
     b1 = GridfinityBox(
         4, 2, 5, holes=True, length_div=2, width_div=1, scoops=True, labels=True

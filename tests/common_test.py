@@ -2,6 +2,12 @@ import os
 
 EXPORT_STEP_FILE_PATH = "./tests/testfiles"
 
+env = dict(os.environ)
+SKIP_TEST_BOX = "SKIP_TEST_BOX" in env
+SKIP_TEST_RBOX = "SKIP_TEST_RBOX" in env
+SKIP_TEST_SPACER = "SKIP_TEST_SPACER" in env
+SKIP_TEST_BASEPLATE = "SKIP_TEST_BASEPLATE" in env
+
 
 def INCHES(x):
     return x * 25.4
@@ -24,7 +30,6 @@ def _almost_same(x, y, tol=1e-3):
 
 
 def _export_files(spec="all"):
-    env = dict(os.environ)
     if "EXPORT_STEP_FILES" in env:
         exp_var = env["EXPORT_STEP_FILES"].lower()
         if exp_var == "all":

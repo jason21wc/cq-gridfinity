@@ -1,4 +1,5 @@
 # Gridfinity tests
+import pytest
 
 # my modules
 from cqgridfinity import *
@@ -10,6 +11,7 @@ from common_test import (
     EXPORT_STEP_FILE_PATH,
     _almost_same,
     _export_files,
+    SKIP_TEST_RBOX,
 )
 
 
@@ -28,6 +30,9 @@ def _rugged_box():
     return b1
 
 
+@pytest.mark.skipif(
+    SKIP_TEST_RBOX, reason="Skipped intentionally by test scope environment variable"
+)
 def test_rugged_box():
     b1 = _rugged_box()
     assert b1.filename() == "gf_ruggedbox_5x4x6_fr-hl_sd-hc_stack_lidbp"
@@ -38,6 +43,9 @@ def test_rugged_box():
         b1.save_step_file(path=EXPORT_STEP_FILE_PATH)
 
 
+@pytest.mark.skipif(
+    SKIP_TEST_RBOX, reason="Skipped intentionally by test scope environment variable"
+)
 def test_rugged_box_lid():
     b1 = _rugged_box()
     r = b1.render_lid()
@@ -48,6 +56,9 @@ def test_rugged_box_lid():
         b1.save_step_file(path=EXPORT_STEP_FILE_PATH)
 
 
+@pytest.mark.skipif(
+    SKIP_TEST_RBOX, reason="Skipped intentionally by test scope environment variable"
+)
 def test_rugged_box_acc():
     b1 = _rugged_box()
     r = b1.render_accessories()
@@ -57,6 +68,9 @@ def test_rugged_box_acc():
         b1.save_step_file(path=EXPORT_STEP_FILE_PATH)
 
 
+@pytest.mark.skipif(
+    SKIP_TEST_RBOX, reason="Skipped intentionally by test scope environment variable"
+)
 def test_rugged_box_parts():
     b1 = _rugged_box()
     r = b1.render_handle()
@@ -84,6 +98,9 @@ def test_rugged_box_parts():
         b1.save_step_file(path=EXPORT_STEP_FILE_PATH)
 
 
+@pytest.mark.skipif(
+    SKIP_TEST_RBOX, reason="Skipped intentionally by test scope environment variable"
+)
 def test_rugged_box_assembly():
     if _export_files("rbox"):
         b1 = _rugged_box()

@@ -48,7 +48,20 @@ lint-check: ## check if lint status is consistent between commits
 	@black --diff --check tests/*.py
 
 test: ## run tests quickly with the default Python
-	@py.test -s -v --cov -W ignore::DeprecationWarning:nptyping.typing_
+	py.test -s -v --cov -W ignore::DeprecationWarning:nptyping.typing_
+
+# @export SKIP_TEST_BOX="all" && \
+# export SKIP_TEST_RBOX="all" && \
+# export SKIP_TEST_SPACER="all" && \
+# export SKIP_TEST_BASEPLATE="all" && \
+# export EXPORT_STEP_FILES="all" && \
+
+test-some: ## run selective tests quickly with the default Python
+	@export SKIP_TEST_BOX="all" && \
+	export SKIP_TEST_RBOX="all" && \
+	export SKIP_TEST_BASEPLATE="all" && \
+	export EXPORT_STEP_FILES="all" && \
+	py.test -s -v --cov -W ignore::DeprecationWarning:nptyping.typing_
 
 test-files: ## run tests and export test files artifacts
 	@export EXPORT_STEP_FILES="all" && \

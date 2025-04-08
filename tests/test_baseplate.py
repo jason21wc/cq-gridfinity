@@ -1,5 +1,5 @@
 # Gridfinity tests
-
+import pytest
 
 # my modules
 from cqgridfinity import *
@@ -10,9 +10,14 @@ from common_test import (
     _almost_same,
     _faces_match,
     _export_files,
+    SKIP_TEST_BASEPLATE,
 )
 
 
+@pytest.mark.skipif(
+    SKIP_TEST_BASEPLATE,
+    reason="Skipped intentionally by test scope environment variable",
+)
 def test_make_baseplate():
     bp = GridfinityBaseplate(4, 3)
     r = bp.render()
@@ -26,6 +31,10 @@ def test_make_baseplate():
     assert edge_diff < 3
 
 
+@pytest.mark.skipif(
+    SKIP_TEST_BASEPLATE,
+    reason="Skipped intentionally by test scope environment variable",
+)
 def test_make_ext_baseplate():
     bp = GridfinityBaseplate(5, 4, ext_depth=5, corner_screws=True)
     r = bp.render()

@@ -37,6 +37,10 @@ class GridfinityDrawerSpacer(GridfinityObject):
     snugly into a drawer.  The spacers consist of 4x corner elements plus a left/right
     pair and front/back pair. If the spacers are wide enough, they will include
     interlocking alignment pegs/holes.
+    Normally spacers are made for the front and back of the drawer of the same size.
+    However, if front_and_back is False, then only a back spacer (2x thicker) is made.
+    This will place the gridfinity grid flush behind the drawer face, rather than
+    equally spaced between the face and back wall.
     """
 
     def __init__(self, dr_width=None, dr_depth=None, **kwargs):
@@ -57,6 +61,7 @@ class GridfinityDrawerSpacer(GridfinityObject):
         self.align_min = 8
         self.min_margin = 4
         self.tolerance = GR_TOL
+        self.front_and_back = True
         for k, v in kwargs.items():
             if k in self.__dict__:
                 self.__dict__[k] = v
@@ -83,10 +88,18 @@ class GridfinityDrawerSpacer(GridfinityObject):
         self.align_l = min(self.align_l, 16)
         if verbose:
             print("Best fit for %.2f x %.2f mm is %dU x %dU" % (length, width, lu, wu))
-            print(
-                "with %.2f mm margin each side and %.2f mm margin front and back"
-                % (lm, wm)
-            )
+            if self.front_and_back:
+                print(
+                    "with %.2f mm margin each side and %.2f mm margin front and back"
+                    % (lm, wm)
+                )
+            else:
+                print(
+                    "with %.2f mm margin each side and %.2f mm back (or front) margin"
+                    % (lm, 2 * wm)
+                )
+            if not self.front_and_back:
+                print("Corner spacers only generated for either front or back wall")
             if self.wide_enough and self.deep_enough:
                 print(
                     "Corner spacers     : %dU wide x %dU deep"
@@ -100,14 +113,20 @@ class GridfinityDrawerSpacer(GridfinityObject):
             elif self.deep_enough:
                 print(
                     "Corner spacers     : %dU wide x %.2f mm"
-                    % (self.length_u, self.length_th)
+                    % (self.length_u, self.fb_length_th)
                 )
 
             if self.deep_enough:
-                print(
-                    "Front/back spacers : %dU wide x %.2f mm +%.2f mm tolerance"
-                    % (self.length_fill / GRU, self.length_th, self.tolerance)
-                )
+                if self.front_and_back:
+                    print(
+                        "Front/back spacers : %dU wide x %.2f mm +%.2f mm tolerance"
+                        % (self.length_fill / GRU, self.length_th, self.tolerance)
+                    )
+                else:
+                    print(
+                        "Back spacer        : %dU wide x %.2f mm +%.2f mm tolerance"
+                        % (self.length_fill / GRU, self.fb_length_th, self.tolerance)
+                    )
             else:
                 print("Front/back spacers : not required")
             if self.wide_enough:
@@ -115,6 +134,10 @@ class GridfinityDrawerSpacer(GridfinityObject):
                     "Left/right spacers : %dU deep x %.2f mm +%.2f mm tolerance"
                     % (self.width_fill / GRU, self.width_th, self.tolerance)
                 )
+                if not self.front_and_back:
+                    print(
+                        "Extra left/right spacers generated %dU deep" % (self.width_u)
+                    )
             else:
                 print("Left/right spacers : not required")
 
@@ -144,6 +167,12 @@ class GridfinityDrawerSpacer(GridfinityObject):
     def deep_enough(self):
         return self.length_th > self.min_margin
 
+    @property
+    def fb_length_th(self):
+        if not self.front_and_back:
+            return 2 * self.length_th
+        return self.length_th
+
     def check_dimensions(self):
         """Check required size does not fall below specified minimum margin."""
         if not self.wide_enough and not self.deep_enough:
@@ -159,7 +188,7 @@ class GridfinityDrawerSpacer(GridfinityObject):
             return False
         return True
 
-    def render(self, arrows_top=True, arrows_bottom=True):
+    def render(self, arrows_top=True, arrows_bottom=True, front_and_back=True):
         """Renders a corner spacer component. This component can be used for any of
         the four corners due to symmetry.  Optional arrows can be cut into the
         component on the top or bottom to show the drawer sliding/depth-wise direction
@@ -167,25 +196,28 @@ class GridfinityDrawerSpacer(GridfinityObject):
         if not self.check_dimensions():
             return None
         sp_length = self.length + self.width_th + self.tolerance
-        sp_width = self.width + self.length_th + self.tolerance
+        sp_width = self.width + self.fb_length_th + self.tolerance
         r, rd = None, None
-        if self.deep_enough:
+        if self.deep_enough and front_and_back:
             r = (
                 cq.Workplane("XY")
-                .rect(sp_length, self.length_th)
+                .rect(sp_length, self.fb_length_th)
                 .extrude(self.thickness)
             )
-            er = min(GR_RAD, self.length_th / 4)
-            r = r.translate((sp_length / 2, self.length_th / 2, 0))
+            er = min(GR_RAD, max(self.length_th, self.width_th) / 4)
+            r = r.translate((sp_length / 2, self.fb_length_th / 2, 0))
             r = r.edges("|Z").edges("<XY").fillet(er)
             r = r.edges("|Z").fillet(self.fillet_rad)
+
         if self.wide_enough:
+            if not front_and_back:
+                sp_width -= self.fb_length_th
             rd = (
                 cq.Workplane("XY").rect(self.width_th, sp_width).extrude(self.thickness)
             )
-            er = min(GR_RAD, self.width_th / 4)
+            er = min(GR_RAD, max(self.length_th, self.width_th) / 4)
             rd = rd.translate((self.width_th / 2, sp_width / 2, 0))
-            rd = rd.edges("|Z").edges("<XY").fillet(er)
+            rd = rd.edges("|Z").edges("<Y").fillet(er)
             rd = rd.edges("|Z").fillet(self.fillet_rad)
 
         if r is not None and rd is not None:
@@ -196,9 +228,9 @@ class GridfinityDrawerSpacer(GridfinityObject):
         r = self.orientation_arrows(
             r, self.width_th / 2, sp_width / 2, top=arrows_top, bottom=arrows_bottom
         )
-        if self.align_features and self.length_th > self.align_min:
+        if self.align_features and self.fb_length_th > self.align_min:
             rc = self.alignment_feature(as_cutter=True)
-            r = r.cut(rc.translate((sp_length, self.length_th / 2, 0)))
+            r = r.cut(rc.translate((sp_length, self.fb_length_th / 2, 0)))
         if self.align_features and self.width_th > self.align_min:
             rc = self.alignment_feature(as_cutter=False, horz=False)
             r = r.union(rc.translate((self.width_th / 2, sp_width, 0)))
@@ -208,7 +240,7 @@ class GridfinityDrawerSpacer(GridfinityObject):
 
     def alignment_feature(self, as_cutter=False, horz=True):
         """Renders optional mating alignment pegs/holes for connecting the spacer components."""
-        x, y = self.align_l, self.length_th / 2
+        x, y = self.align_l, self.fb_length_th / 2
         if not horz:
             y = self.width_th / 2
         fr = min(GR_RAD / 2, y / 3)
@@ -273,12 +305,12 @@ class GridfinityDrawerSpacer(GridfinityObject):
             return None
         r = (
             cq.Workplane("XY")
-            .rect(self.length_fill, self.length_th)
+            .rect(self.length_fill, self.fb_length_th)
             .extrude(self.thickness)
         )
         r = r.edges("|Z").fillet(self.fillet_rad)
         r = r.faces(">Z or <Z").chamfer(self.safe_chamfer_rad)
-        if self.align_features and self.length_th > self.align_min:
+        if self.align_features and self.fb_length_th > self.align_min:
             if alignment_type == "hole":
                 ra = self.alignment_feature(as_cutter=True)
                 r = r.cut(ra.translate((self.length_fill / 2, 0, 0)))
@@ -320,29 +352,47 @@ class GridfinityDrawerSpacer(GridfinityObject):
         # Four corners top/bottom left + top/bottom right
         if not self.check_dimensions():
             return None
-        bl = self.render()
-        tl = rotate_x(bl, 180).translate((0, self.size[1], self.thickness))
-        br = rotate_y(bl, 180).translate((self.size[0], 0, self.thickness))
-        tr = rotate_z(bl, 180).translate((*self.size, 0))
-        r = bl.union(tl).union(br).union(tr)
+        if self.front_and_back:
+            bl = self.render()
+            tl = rotate_x(bl, 180).translate((0, self.size[1], self.thickness))
+            br = rotate_y(bl, 180).translate((self.size[0], 0, self.thickness))
+            tr = rotate_z(bl, 180).translate((*self.size, 0))
+        else:
+            bl = self.render(arrows_bottom=False)
+            br = self.render(arrows_top=False)
+            br = rotate_y(br, 180).translate((self.size[0], 0, self.thickness))
+            tl = self.render(arrows_bottom=False, front_and_back=False)
+            tl = rotate_z(tl, 180).translate((self.width_th, self.size[1], 0))
+            tr = self.render(arrows_top=False, front_and_back=False)
+            tr = rotate_y(tr, 180)
+            tr = rotate_z(tr, 180)
+            tr = tr.translate((*self.size, 0))
+            tr = tr.translate((-self.width_th, 0, self.thickness))
 
+        r = bl.union(tl).union(br).union(tr)
         # 2x length-wise (drawer width) fillers
         if self.deep_enough:
             lf = self.render_length_filler()
-            r = r.union(lf.translate((self.size[0] / 2, self.length_th / 2, 0)))
-            r = r.union(
-                lf.translate((self.size[0] / 2, self.size[1] - self.length_th / 2, 0))
-            )
+            r = r.union(lf.translate((self.size[0] / 2, self.fb_length_th / 2, 0)))
+            if self.front_and_back:
+                r = r.union(
+                    lf.translate(
+                        (self.size[0] / 2, self.size[1] - self.fb_length_th / 2, 0)
+                    )
+                )
         # 2x width-wise (drawer depth) fillers
         if self.wide_enough:
             wf = self.render_width_filler()
-            r = r.union(wf.translate((self.width_th / 2, self.size[1] / 2, 0)))
-            r = r.union(
-                wf.translate((self.size[0] - self.width_th / 2, self.size[1] / 2, 0))
-            )
+            yo = self.size[1] / 2
+            if not self.front_and_back:
+                yo += self.fb_length_th / 2
+            r = r.union(wf.translate((self.width_th / 2, yo, 0)))
+            r = r.union(wf.translate((self.size[0] - self.width_th / 2, yo, 0)))
         if include_baseplate:
             bp = GridfinityBaseplate(*self.size_u)
             rb = bp.render().translate((self.size[0] / 2, self.size[1] / 2, 0))
+            if not self.front_and_back:
+                rb = rb.translate((0, self.fb_length_th / 2, 0))
             r = r.union(rb)
         self._cq_obj = r
         self._obj_label = "full_set"
@@ -351,7 +401,11 @@ class GridfinityDrawerSpacer(GridfinityObject):
     def render_half_set(self):
         """Renders half of the full set of spacer components arranged for convenience
         for 3D printing.  This resulting compound object can then be printed twice to
-        yield a complete set of spacer components for a drawer."""
+        yield a complete set of spacer components for a drawer.
+        If front_and_back is False, then this function will render all of the
+        components to fill the drawer since only one set of corner spacers is
+        required and the remaining spacers are typically slim enough to fit together
+        on a build plate."""
         # one of each corner
         if not self.check_dimensions():
             return None
@@ -359,7 +413,7 @@ class GridfinityDrawerSpacer(GridfinityObject):
         br = self.render(arrows_top=False)
         if self.deep_enough:
             xo = self.length + 2.5 * self.width_th
-            yo = 1.5 * self.length_th
+            yo = 1.5 * self.fb_length_th
         else:
             xo = 2.5 * self.width_th
             yo = 0
@@ -370,24 +424,29 @@ class GridfinityDrawerSpacer(GridfinityObject):
             xl = self.length_fill / 2 - (
                 self.length_fill - (self.length + self.width_th)
             )
-            if self.length_th > self.align_min:
+            if self.fb_length_th > self.align_min:
                 xl -= self.align_l / 2
             if self.wide_enough:
-                yt = self.width + self.length_th
+                yt = self.width + self.fb_length_th
                 if self.width_th > self.align_min:
                     yt += self.align_l / 2
                 yl = max(yt, self.width_fill)
-                yl += max(self.length_th, self.align_l / 2)
+                yl += max(self.fb_length_th, self.align_l / 2)
             else:
-                yl = 3.5 * self.length_th
+                yl = 3.5 * self.fb_length_th
             r = r.union(self.render_length_filler().translate((xl, yl, 0)))
         # width-wise (drawer depth) filler
         if self.wide_enough:
-            r = r.union(
-                self.render_width_filler(arrows_bottom=False).translate(
-                    (-2 * self.width_th / 2, self.width_fill / 2, 0)
+            wf = self.render_width_filler(arrows_bottom=False)
+            r = r.union(wf.translate((-self.width_th, self.width_fill / 2, 0)))
+            if not self.front_and_back:
+                r = r.union(
+                    wf.translate((-2.5 * self.width_th, self.width_fill / 2, 0))
                 )
-            )
+                fb = self.render(arrows_bottom=False, front_and_back=False)
+                r = r.union(fb.translate((-4.5 * self.width_th, 0, 0)))
+                r = r.union(fb.translate((-6 * self.width_th, 0, 0)))
+
         self._cq_obj = r
         self._obj_label = "half_set"
         return r

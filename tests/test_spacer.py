@@ -1,5 +1,5 @@
 # Gridfinity tests
-import datetime
+import pytest
 
 # my modules
 from cadquery import exporters
@@ -7,9 +7,18 @@ from cqgridfinity import *
 from cqkit.cq_helpers import size_3d
 from cqkit import export_step_file
 
-from common_test import EXPORT_STEP_FILE_PATH, _almost_same, _export_files, INCHES
+from common_test import (
+    EXPORT_STEP_FILE_PATH,
+    _almost_same,
+    _export_files,
+    INCHES,
+    SKIP_TEST_SPACER,
+)
 
 
+@pytest.mark.skipif(
+    SKIP_TEST_SPACER, reason="Skipped intentionally by test scope environment variable"
+)
 def test_spacer():
     s0 = GridfinityDrawerSpacer(582, 481, tolerance=0.25)
     assert s0.size_u[0] == 13
@@ -53,6 +62,9 @@ def test_spacer():
     assert _almost_same(s1.width_th, 19.80, tol=0.01)
 
 
+@pytest.mark.skipif(
+    SKIP_TEST_SPACER, reason="Skipped intentionally by test scope environment variable"
+)
 def test_spacer_render():
     s1 = GridfinityDrawerSpacer(tolerance=0.25)
     dx, dy = INCHES(22 + 15 / 16), INCHES(16.25)
@@ -94,12 +106,34 @@ def test_spacer_render():
         s1.save_step_file(path=EXPORT_STEP_FILE_PATH)
 
 
-# def test_spacer_render():
-#     s1 = GridfinityDrawerSpacer(tolerance=0.25)
-#     dx, dy = INCHES(22 + 7 / 8) - 0.5, INCHES(16 + 3 / 16) - 0.5
-#     s1.best_fit_to_dim(dx, dy, verbose=True)
-#     rh = s1.render_half_set()
-#     #     assert _almost_same(size_3d(rh), (253.084, 177.0625, 5))
-#     # assert s1.filename() == "gf_drawer_4x3_half_set"
-#     # if _export_files("spacer"):
-#     s1.save_step_file(path=EXPORT_STEP_FILE_PATH)
+@pytest.mark.skipif(
+    SKIP_TEST_SPACER, reason="Skipped intentionally by test scope environment variable"
+)
+def test_back_only_spacer():
+    s0 = GridfinityDrawerSpacer(tolerance=0.25, front_and_back=False)
+    dx, dy = 414, 366
+    s0.best_fit_to_dim(dx, dy, verbose=False)
+    assert s0.size_u[0] == 9
+    assert s0.size_u[1] == 8
+    assert s0.length_u == 3
+    assert s0.width_u == 2
+    assert s0.wide_enough
+    assert s0.deep_enough
+    assert _almost_same(s0.fb_length_th, 29.5, tol=0.01)
+    assert _almost_same(s0.width_th, 17.75, tol=0.01)
+    r = s0.render_full_set()
+    assert _almost_same(size_3d(r), (414, 366, 4.75))
+
+    s0 = GridfinityDrawerSpacer(tolerance=0.25, front_and_back=True)
+    dx, dy = 414, 366
+    s0.best_fit_to_dim(dx, dy, verbose=False)
+    assert s0.size_u[0] == 9
+    assert s0.size_u[1] == 8
+    assert s0.length_u == 3
+    assert s0.width_u == 2
+    assert s0.wide_enough
+    assert s0.deep_enough
+    assert _almost_same(s0.fb_length_th, 14.75, tol=0.01)
+    assert _almost_same(s0.width_th, 17.75, tol=0.01)
+    r = s0.render_full_set()
+    assert _almost_same(size_3d(r), (414, 366, 4.75))
