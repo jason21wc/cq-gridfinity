@@ -203,6 +203,7 @@ class GridfinityObject:
             GridfinityBox,
             GridfinityDrawerSpacer,
             GridfinityRuggedBox,
+            GridfinityLid,
         )
 
         if prefix is not None:
