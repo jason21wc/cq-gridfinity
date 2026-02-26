@@ -99,7 +99,7 @@ class GridfinityObject:
 
     @property
     def lip_width(self):
-        if self.no_lip:
+        if self.lip_style == "none":
             return self.wall_th
         return GR_UNDER_H + self.wall_th
 
@@ -157,9 +157,12 @@ class GridfinityObject:
 
     @property
     def safe_fillet_rad(self):
-        if not any([self.scoops, self.labels, self.length_div, self.width_div]):
-            return GR_FILLET
-        return min(GR_FILLET, (GR_UNDER_H + GR_WALL) - self.wall_th - 0.05)
+        rad = getattr(self, 'fillet_rad', None) or GR_FILLET
+        # Always clamp to inner corner radius to prevent CAD kernel crash
+        rad = min(rad, self.inner_rad - 0.05)
+        if any([self.scoops, self.labels, self.length_div, self.width_div]):
+            rad = min(rad, (GR_UNDER_H + GR_WALL) - self.wall_th - 0.05)
+        return max(rad, 0)
 
     @property
     def grid_centres(self):
@@ -185,9 +188,16 @@ class GridfinityObject:
         return obj
 
     def filename(self, prefix=None, path=None):
-        """Returns a descriptive readable filename which represents a Gridfinity object.
-        The filename can be optionally prefixed with arbitrary text and
-        an optional path prefix can also be specified."""
+        """Returns a descriptive readable filename representing a Gridfinity object.
+
+        Naming convention (sorted for filesystem browsing):
+          gf_{type}_{LxW[xH]}[_{style}][_{lip}][_{pattern}][_{bottom}][_{interior}][_{hardware}][_{params}]
+
+        Examples:
+          gf_baseplate_4x3_mag-screw_csk
+          gf_bin_3x2x5_hex-circ_mag_scoops_labels
+          gf_bin_2x2x3_vase
+        """
         from cqgridfinity import (
             GridfinityBaseplate,
             GridfinityBox,
@@ -200,9 +210,7 @@ class GridfinityObject:
         elif isinstance(self, GridfinityBaseplate):
             prefix = "gf_baseplate_"
         elif isinstance(self, GridfinityBox):
-            prefix = "gf_box_"
-            if self.lite_style:
-                prefix = prefix + "lite_"
+            prefix = "gf_bin_"
         elif isinstance(self, GridfinityDrawerSpacer):
             prefix = "gf_drawer_"
         elif isinstance(self, GridfinityRuggedBox):
@@ -217,26 +225,44 @@ class GridfinityObject:
         fn = fn + "%dx%d" % (self.length_u, self.width_u)
         if isinstance(self, GridfinityBox):
             fn = fn + "x%d" % (self.height_u)
-            if self.length_div and not self.solid:
-                fn = fn + "_div%d" % (self.length_div)
-            if self.width_div and not self.solid:
-                if self.length_div:
-                    fn = fn + "x%d" % (self.width_div)
-                else:
-                    fn = fn + "_div_x%d" % (self.width_div)
-            if abs(self.wall_th - GR_WALL) > 1e-3:
-                fn = fn + "_%.2f" % (self.wall_th)
-            if self.no_lip:
-                fn = fn + "_basic"
-            if self.holes:
-                fn = fn + "_holes"
-            if self.solid:
+            # 1. Construction style (broadest differentiator)
+            if self.vase_mode:
+                fn = fn + "_vase"
+            elif self.lite_style:
+                fn = fn + "_lite"
+            elif self.solid:
                 fn = fn + "_solid"
-            else:
+            # 2. Lip style (omit for normal/default, implied by vase)
+            if not self.vase_mode:
+                if self.lip_style == "none":
+                    fn = fn + "_nolip"
+                elif self.lip_style == "reduced":
+                    fn = fn + "_reduced"
+            # 3. Wall pattern (layout-shape)
+            if self.wall_pattern and not self.solid:
+                fn = fn + "_" + self._pattern_name
+            # 4. Bottom features
+            if self.holes:
+                fn = fn + "_mag"
+            # 5. Interior features
+            if not self.solid:
                 if self.scoops:
                     fn = fn + "_scoops"
                 if self.labels:
                     fn = fn + "_labels"
+                if self.length_div:
+                    fn = fn + "_div%d" % (self.length_div)
+                if self.width_div:
+                    if self.length_div:
+                        fn = fn + "x%d" % (self.width_div)
+                    else:
+                        fn = fn + "_divx%d" % (self.width_div)
+            # 6. Hardware
+            if self.thumbscrew:
+                fn = fn + "_thumb"
+            # 7. Non-default parameters
+            if abs(self.wall_th - GR_WALL) > 1e-3:
+                fn = fn + "_w%.2f" % (self.wall_th)
         elif isinstance(self, GridfinityRuggedBox):
             fn = fn + "x%d" % (self.height_u)
             if self._obj_label is not None:
@@ -263,11 +289,56 @@ class GridfinityObject:
             if self._obj_label is not None:
                 fn = fn + "_%s" % (self._obj_label)
         elif isinstance(self, GridfinityBaseplate):
-            if self.ext_depth > 0:
-                fn = fn + "x%.1f" % (self.ext_depth)
+            # 1. Base style (weighted/skeletal)
+            if self.weighted:
+                fn = fn + "_weighted"
+            elif self.skeletal:
+                fn = fn + "_skeletal"
+            # 2. Hole features
+            if self.magnet_holes and self.screw_holes:
+                fn = fn + "_mag-screw"
+            elif self.magnet_holes:
+                fn = fn + "_mag"
+            elif self.screw_holes:
+                fn = fn + "_screw"
+            # 3. Mounting
             if self.corner_screws:
-                fn = fn + "_screwtabs"
+                fn = fn + "_csk"
+            # 4. Manual ext_depth (only if no features auto-set it)
+            if (self.ext_depth > 0
+                    and not self._has_bottom_features
+                    and not self.corner_screws):
+                fn = fn + "_d%.1f" % (self.ext_depth)
         return fn
+
+    @property
+    def _pattern_name(self):
+        """Generate pattern descriptor string: layout[-shape].
+
+        Short form when layout matches natural hole shape:
+          hexgrid + 6 sides = 'hex', grid + 4 sides = 'grid'
+        Long form otherwise:
+          hexgrid + circles = 'hex-circ', grid + hex = 'grid-hex'
+        """
+        sides = self.wall_pattern_sides
+        if sides == 6:
+            shape = "hex"
+        elif sides == 4:
+            shape = "sq"
+        elif sides >= 32:
+            shape = "circ"
+        elif sides == 8:
+            shape = "oct"
+        else:
+            shape = "%ds" % sides
+        layout = self.wall_pattern_style
+        if layout == "hexgrid" and shape == "hex":
+            return "hex"
+        elif layout == "grid" and shape == "sq":
+            return "grid"
+        else:
+            pfx = "hex" if layout == "hexgrid" else "grid"
+            return "%s-%s" % (pfx, shape)
 
     def save_step_file(self, filename=None, path=None, prefix=None):
         fn = (

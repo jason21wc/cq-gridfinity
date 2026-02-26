@@ -48,7 +48,7 @@ GR_BASE_CLR = 0.25  # clearance above the nominal base height
 GR_BASE_HEIGHT = 4.75  # nominal base height
 
 # baseplate extrusion profile
-GR_BASE_CHAMF_H = 0.98994949 / SQRT2
+GR_BASE_CHAMF_H = 0.8
 GR_STR_H = 1.8
 GR_BASE_TOP_CHAMF = GR_BASE_HEIGHT - GR_BASE_CHAMF_H - GR_STR_H
 GR_BASE_PROFILE = (
@@ -92,6 +92,14 @@ for h in GR_LIP_PROFILE:
         GR_LIP_H += h
 GR_NO_PROFILE = (GR_LIP_H,)
 
+# Reduced lip profile: keeps underside chamfer for stacking compatibility
+# but replaces overhanging sections with straight wall for easier printing
+GR_REDUCED_LIP_PROFILE = (
+    (GR_UNDER_H * SQRT2, 45),
+    GR_TOPSIDE_H,
+    0.7 + 1.8 + 1.3,
+)
+
 # bottom hole nominal dimensions
 GR_HOLE_D = 6.5
 GR_HOLE_H = 2.4
@@ -99,6 +107,27 @@ GR_BOLT_D = 3.0
 GR_BOLT_H = 3.6 + GR_HOLE_H
 GR_HOLE_DIST = 26 / 2
 GR_HOLE_SLICE = 0.25
+
+# Weighted baseplate constants (from kennetek standard.scad)
+GR_BP_BOT_H = 6.4  # bottom height for weighted baseplate
+GR_BP_CUT_SIZE = 21.4  # weight pocket square size
+GR_BP_CUT_DEPTH = 4.0  # weight pocket depth
+GR_BP_RCUT_W = 8.5  # weight pocket cross-channel width
+GR_BP_RCUT_L = 4.25  # weight pocket cross-channel length
+GR_BP_RCUT_D = 2.0  # weight pocket cross-channel depth
+
+# Skeletal baseplate constants
+GR_BP_SKEL_R = 2.0  # skeleton fillet radius
+GR_BP_SKEL_H = 1.0  # minimum remaining material height
+
+# Wall pattern defaults (from ostat gridfinity_extended spec reference)
+GR_PAT_CELL = 10.0  # default hole size (mm)
+GR_PAT_SPACING = 2.0  # default web thickness between holes (mm)
+GR_PAT_SIDES = 6  # default hole polygon sides (6=hex, 4=square)
+GR_PAT_CORNER_RAD = 0.5  # default hole corner radius (mm)
+GR_PAT_FLOOR_CLR = 5.0  # pattern floor clearance above bin bottom (mm)
+GR_PAT_LIP_CLR = 5.6  # pattern clearance below top (normal lip, mm)
+GR_PAT_CORNER_INSET = 3.75  # inset from bin corner radius (mm)
 
 # Rugged Box constant parameters
 GR_RBOX_WALL = 2.5
