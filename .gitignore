@@ -6,6 +6,9 @@
 /tests/testfiles/*.step
 /tests/testfiles/*.iges
 /tests/testfiles/*.stl
+
+# generated example output
+/examples/output/
 *.graffle
 
 # editors
