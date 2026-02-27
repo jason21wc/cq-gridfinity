@@ -17,5 +17,3 @@ from .gf_baseplate import GridfinityBaseplate
 from .gf_box import GridfinityBox, GridfinitySolidBox
 from .gf_drawer import GridfinityDrawerSpacer
 from .gf_ruggedbox import GridfinityRuggedBox
-from .extended import GridfinityLid, GridfinityItemHolder, GridfinityTray
-from .extended import CutoutProfile, RoundCutout, RectCutout
