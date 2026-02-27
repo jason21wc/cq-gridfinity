@@ -35,3 +35,5 @@ When debugging boolean operations, compare `r.val().Volume()` before and after t
 - `Workplane("XZ").extrude(-h)` → +Y direction
 - `Workplane("YZ").extrude(h)` → +X direction
 Always verify with `.val().BoundingBox()` when cutting through walls at specific orientations.
+
+**Best practice:** For rails, grooves, and through-cuts that run along a specific axis, prefer building the cross-section on XY plane (where extrusion direction is obvious: +Z), then use `.translate()` to position. This avoids the XZ/YZ extrusion direction confusion entirely. Example: a rail running along Y is a `rect(thickness, length)` on XY, extruded by width in Z, then translated to the correct Z position.
