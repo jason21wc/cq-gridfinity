@@ -187,6 +187,21 @@ class GridfinityObject:
             return obj.edges(selector).fillet(rad)
         return obj
 
+    @property
+    def _filename_prefix(self) -> str:
+        """Override in subclasses to set the filename type prefix.
+
+        Examples: "gf_baseplate_", "gf_bin_", "gf_drawer_"
+        """
+        return "gf_"
+
+    def _filename_suffix(self) -> str:
+        """Override in subclasses to add type-specific filename parts.
+
+        Returns a string to append after the LxW dimension portion.
+        """
+        return ""
+
     def filename(self, prefix=None, path=None):
         """Returns a descriptive readable filename representing a Gridfinity object.
 
@@ -196,107 +211,16 @@ class GridfinityObject:
         Examples:
           gf_baseplate_4x3_mag-screw_csk
           gf_bin_3x2x5_mag_scoops_labels
-        """
-        from cqgridfinity import (
-            GridfinityBaseplate,
-            GridfinityBox,
-            GridfinityDrawerSpacer,
-            GridfinityRuggedBox,
-        )
 
-        if prefix is not None:
-            prefix = prefix
-        elif isinstance(self, GridfinityBaseplate):
-            prefix = "gf_baseplate_"
-        elif isinstance(self, GridfinityBox):
-            prefix = "gf_bin_"
-        elif isinstance(self, GridfinityDrawerSpacer):
-            prefix = "gf_drawer_"
-        elif isinstance(self, GridfinityRuggedBox):
-            prefix = "gf_ribbox_" if self.rib_style else "gf_ruggedbox_"
-        else:
-            prefix = ""
+        Subclasses override _filename_prefix and _filename_suffix() to
+        provide type-specific naming without isinstance chains.
+        """
         fn = ""
         if path is not None:
-            fn = fn.replace(os.sep, "")
             fn = path + os.sep
-        fn = fn + prefix
-        fn = fn + "%dx%d" % (self.length_u, self.width_u)
-        if isinstance(self, GridfinityBox):
-            fn = fn + "x%d" % (self.height_u)
-            # 1. Construction style (broadest differentiator)
-            if self.lite_style:
-                fn = fn + "_lite"
-            elif self.solid:
-                fn = fn + "_solid"
-            # 2. Lip style (omit for normal/default)
-            if self.lip_style == "none":
-                fn = fn + "_nolip"
-            elif self.lip_style == "reduced":
-                fn = fn + "_reduced"
-            # 3. Bottom features
-            if self.holes:
-                fn = fn + "_mag"
-            # 5. Interior features
-            if not self.solid:
-                if self.scoops:
-                    fn = fn + "_scoops"
-                if self.labels:
-                    fn = fn + "_labels"
-                if self.length_div:
-                    fn = fn + "_div%d" % (self.length_div)
-                if self.width_div:
-                    if self.length_div:
-                        fn = fn + "x%d" % (self.width_div)
-                    else:
-                        fn = fn + "_divx%d" % (self.width_div)
-            # 6. Non-default parameters
-            if abs(self.wall_th - GR_WALL) > 1e-3:
-                fn = fn + "_w%.2f" % (self.wall_th)
-        elif isinstance(self, GridfinityRuggedBox):
-            fn = fn + "x%d" % (self.height_u)
-            if self._obj_label is not None:
-                fn = fn + "_%s" % (self._obj_label)
-            if self.front_handle or self.front_label:
-                fn = fn + "_fr-"
-                if self.front_handle:
-                    fn = fn + "h"
-                if self.front_label:
-                    fn = fn + "l"
-            if self.side_handles or self.side_clasps:
-                fn = fn + "_sd-"
-                if self.side_handles:
-                    fn = fn + "h"
-                if self.side_clasps:
-                    fn = fn + "c"
-            if self.stackable:
-                fn = fn + "_stack"
-            if self.lid_baseplate:
-                fn = fn + "_lidbp"
-            if self.lid_window:
-                fn = fn + "_win"
-        elif isinstance(self, GridfinityDrawerSpacer):
-            if self._obj_label is not None:
-                fn = fn + "_%s" % (self._obj_label)
-        elif isinstance(self, GridfinityBaseplate):
-            # 1. Base style
-            if self.weighted:
-                fn = fn + "_weighted"
-            # 2. Hole features
-            if self.magnet_holes and self.screw_holes:
-                fn = fn + "_mag-screw"
-            elif self.magnet_holes:
-                fn = fn + "_mag"
-            elif self.screw_holes:
-                fn = fn + "_screw"
-            # 3. Mounting
-            if self.corner_screws:
-                fn = fn + "_csk"
-            # 4. Manual ext_depth (only if no features auto-set it)
-            if (self.ext_depth > 0
-                    and not self._has_bottom_features
-                    and not self.corner_screws):
-                fn = fn + "_d%.1f" % (self.ext_depth)
+        fn += prefix if prefix is not None else self._filename_prefix
+        fn += "%dx%d" % (self.length_u, self.width_u)
+        fn += self._filename_suffix()
         return fn
 
     def save_step_file(self, filename=None, path=None, prefix=None):

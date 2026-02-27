@@ -9,6 +9,7 @@
 
 # generated example output
 /examples/output/
+/output/
 *.graffle
 
 # editors

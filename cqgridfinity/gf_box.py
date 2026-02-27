@@ -156,6 +156,43 @@ class GridfinityBox(GridfinityObject):
         s.append("  Auto filename: %s" % (self.filename()))
         return "\n".join(s)
 
+    @property
+    def _filename_prefix(self) -> str:
+        return "gf_bin_"
+
+    def _filename_suffix(self) -> str:
+        fn = "x%d" % (self.height_u)
+        # 1. Construction style (broadest differentiator)
+        if self.lite_style:
+            fn += "_lite"
+        elif self.solid:
+            fn += "_solid"
+        # 2. Lip style (omit for normal/default)
+        if self.lip_style == "none":
+            fn += "_nolip"
+        elif self.lip_style == "reduced":
+            fn += "_reduced"
+        # 3. Bottom features
+        if self.holes:
+            fn += "_mag"
+        # 4. Interior features
+        if not self.solid:
+            if self.scoops:
+                fn += "_scoops"
+            if self.labels:
+                fn += "_labels"
+            if self.length_div:
+                fn += "_div%d" % (self.length_div)
+            if self.width_div:
+                if self.length_div:
+                    fn += "x%d" % (self.width_div)
+                else:
+                    fn += "_divx%d" % (self.width_div)
+        # 5. Non-default parameters
+        if abs(self.wall_th - GR_WALL) > 1e-3:
+            fn += "_w%.2f" % (self.wall_th)
+        return fn
+
     def render(self):
         """Returns a CadQuery Workplane object representing this Gridfinity box."""
         self._int_shell = None

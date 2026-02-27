@@ -1,6 +1,10 @@
 The MIT License (MIT)
 
 Copyright (c) 2023 Michael Gale
+Copyright (c) 2024-2026 Jason Collier
+
+Note: Some components carry additional license requirements (CC BY-NC-SA 4.0,
+CC BY-SA 4.0). See LICENSE-COMPONENTS.md for per-module license details.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

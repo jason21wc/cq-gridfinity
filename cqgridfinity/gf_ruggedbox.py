@@ -1,27 +1,19 @@
 #! /usr/bin/env python3
 #
-# Copyright (C) 2023  Michael Gale
-# This file is part of the cq-gridfinity python module.
-# Permission is hereby granted, free of charge, to any person
-# obtaining a copy of this software and associated documentation
-# files (the "Software"), to deal in the Software without restriction,
-# including without limitation the rights to use, copy, modify, merge,
-# publish, distribute, sublicense, and/or sell copies of the Software,
-# and to permit persons to whom the Software is furnished to do so,
-# subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be
-# included in all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
-# OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-# IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-# CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
-# TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
-# SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-#
 # Gridfinity Rugged Boxes
+#
+# CadQuery implementation: Copyright (C) 2023 Michael Gale (MIT License)
+# Original rugged box design: Pred (CC BY-NC-SA 4.0)
+#   https://www.printables.com/model/356785-gridfinity-rugged-box
+#
+# This module implements Pred's Gridfinity Rugged Box design in CadQuery.
+# The rugged box design is licensed under Creative Commons
+# Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0).
+# See LICENSE-COMPONENTS.md for full attribution and license details.
+#
+# The CadQuery implementation code is part of the cq-gridfinity python module
+# and is licensed under MIT. The design itself retains its original CC BY-NC-SA 4.0
+# license — derivative works of this component must comply with both licenses.
 
 import math
 
@@ -88,6 +80,34 @@ class GridfinityRuggedBox(GridfinityObject):
         for k, v in kwargs.items():
             if k in self.__dict__:
                 self.__dict__[k] = v
+
+    @property
+    def _filename_prefix(self) -> str:
+        return "gf_ribbox_" if self.rib_style else "gf_ruggedbox_"
+
+    def _filename_suffix(self) -> str:
+        fn = "x%d" % (self.height_u)
+        if self._obj_label is not None:
+            fn += "_%s" % (self._obj_label)
+        if self.front_handle or self.front_label:
+            fn += "_fr-"
+            if self.front_handle:
+                fn += "h"
+            if self.front_label:
+                fn += "l"
+        if self.side_handles or self.side_clasps:
+            fn += "_sd-"
+            if self.side_handles:
+                fn += "h"
+            if self.side_clasps:
+                fn += "c"
+        if self.stackable:
+            fn += "_stack"
+        if self.lid_baseplate:
+            fn += "_lidbp"
+        if self.lid_window:
+            fn += "_win"
+        return fn
 
     def check_dimensions(self):
         """Verifies that the specified box dimensions are within specification."""

@@ -26,6 +26,7 @@
 import cadquery as cq
 
 from cqgridfinity import *
+from cqgridfinity.gf_holes import cut_magnet_holes, cut_screw_holes
 from cqkit.cq_helpers import (
     rounded_rect_sketch,
     composite_from_pts,
@@ -124,6 +125,32 @@ class GridfinityBaseplate(GridfinityObject):
             for j in (-1, 1)
         ]
 
+    @property
+    def _filename_prefix(self) -> str:
+        return "gf_baseplate_"
+
+    def _filename_suffix(self) -> str:
+        fn = ""
+        # 1. Base style
+        if self.weighted:
+            fn += "_weighted"
+        # 2. Hole features
+        if self.magnet_holes and self.screw_holes:
+            fn += "_mag-screw"
+        elif self.magnet_holes:
+            fn += "_mag"
+        elif self.screw_holes:
+            fn += "_screw"
+        # 3. Mounting
+        if self.corner_screws:
+            fn += "_csk"
+        # 4. Manual ext_depth (only if no features auto-set it)
+        if (self.ext_depth > 0
+                and not self._has_bottom_features
+                and not self.corner_screws):
+            fn += "_d%.1f" % (self.ext_depth)
+        return fn
+
     def render(self):
         profile = GR_BASE_PROFILE if not self.straight_bottom else GR_STR_BASE_PROFILE
         total_h = GR_BASE_HEIGHT + self.ext_depth
@@ -183,26 +210,12 @@ class GridfinityBaseplate(GridfinityObject):
         """
         pts = self._bp_hole_centres
         if self.magnet_holes:
-            # Magnet recesses: 6.5mm dia, 2.4mm deep from receptacle floor
-            mag = (
-                cq.Workplane("XY")
-                .circle(GR_HOLE_D / 2)
-                .extrude(GR_HOLE_H + EPS)
-                .translate((0, 0, self.ext_depth - GR_HOLE_H))
+            obj = cut_magnet_holes(
+                obj, pts, z_offset=self.ext_depth - GR_HOLE_H
             )
-            holes = composite_from_pts(mag, [(x, y, 0) for x, y in pts])
-            obj = obj.cut(holes)
         if self.screw_holes:
-            # Screw through-holes: 3.0mm dia from bottom to receptacle floor
-            # (or to bottom of magnet recess if both enabled)
             top = self.ext_depth - GR_HOLE_H if self.magnet_holes else self.ext_depth
-            screw = (
-                cq.Workplane("XY")
-                .circle(GR_BOLT_D / 2)
-                .extrude(top + EPS)
-            )
-            holes = composite_from_pts(screw, [(x, y, 0) for x, y in pts])
-            obj = obj.cut(holes)
+            obj = cut_screw_holes(obj, pts, depth=top)
         return obj
 
     def _render_weight_pockets(self, obj):

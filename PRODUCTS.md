@@ -80,17 +80,24 @@ A **feature-rich extension** of Gridfinity that adds dozens of options not in th
 - **Precision** — No faceting artifacts on curves and fillets
 - **Professional** — STEP is the standard exchange format for manufacturing
 
-**Our coverage:**
+**Our coverage (current + planned):**
 
 | Feature | Rebuilt | Extended | This Project |
 |---------|---------|----------|-------------|
 | Plain baseplates | Yes | Yes | Yes |
 | Magnet/screw baseplates | Yes | Yes | Yes |
 | Weighted baseplates | Yes | Yes | Yes |
+| Skeleton baseplates | Yes | Yes | Planned (1B) |
 | Standard bins | Yes | Yes | Yes |
 | Lite-style bins | Yes | Yes | Yes |
 | Lip style variants | Partial | Yes | Yes |
-| Rugged boxes | No | No | Yes (upstream) |
+| Enhanced holes | Yes | No | Planned (1B) |
+| Wall/floor patterns | No | Yes | Planned (1C) |
+| Rugged boxes (Pred) | No | No | Yes (upstream) |
+| Rugged boxes (smkent) | No | No | Planned (1E) |
+| Lids (Anylid) | No | No | Planned (1D) |
+| Click-in labels | No | No | Planned (1D) |
+| Segmented baseplates | No | No | Planned (1F) |
 | STEP output | No | No | **Yes** |
 
 ---
@@ -421,4 +428,4 @@ GridfinityBox(2, 1, 3, lip_style="none", length_div=3)
 
 ---
 
-*This document covers features available in the cq-gridfinity STEP Generator. Only features that exist in kennetek/gridfinity-rebuilt-openscad or cq-gridfinity upstream are in scope.*
+*This document covers features available in the cq-gridfinity STEP Generator. Features are sourced from 6 Perplexing Labs Gridfinity projects + cq-gridfinity upstream, all as independent CadQuery implementations. See LICENSE-COMPONENTS.md for per-module licensing.*

@@ -69,6 +69,15 @@ class GridfinityDrawerSpacer(GridfinityObject):
             verbose = kwargs["verbose"] if "verbose" in kwargs else False
             self.best_fit_to_dim(dr_width, dr_depth, verbose=verbose)
 
+    @property
+    def _filename_prefix(self) -> str:
+        return "gf_drawer_"
+
+    def _filename_suffix(self) -> str:
+        if self._obj_label is not None:
+            return "_%s" % (self._obj_label)
+        return ""
+
     def best_fit_to_dim(self, length, width, verbose=False):
         """Computes the best fit of Gridfinity units to fill a drawer dimensions.
         The geometry of all the spacer elements is then computed to securely
