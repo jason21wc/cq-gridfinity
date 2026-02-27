@@ -39,7 +39,7 @@ class GridfinityBaseplate(GridfinityObject):
     """Gridfinity Baseplate
 
     This class represents a Gridfinity baseplate object with optional
-    magnet holes, screw holes, weighted bottom, and skeletal lightweight style.
+    magnet holes, screw holes, and weighted bottom.
 
       length_u - length in U (42 mm / U)
       width_u - width in U (42 mm / U)
@@ -53,7 +53,6 @@ class GridfinityBaseplate(GridfinityObject):
       magnet_holes - add magnet recesses in receptacle floors (6.5mm dia, 2.4mm deep)
       screw_holes - add screw through-holes in receptacle floors (3.0mm dia)
       weighted - add weight pockets in baseplate bottom
-      skeletal - remove material from bottom for lightweight baseplate
     """
 
     def __init__(self, length_u, width_u, **kwargs):
@@ -70,12 +69,9 @@ class GridfinityBaseplate(GridfinityObject):
         self.magnet_holes = False
         self.screw_holes = False
         self.weighted = False
-        self.skeletal = False
         for k, v in kwargs.items():
             if k in self.__dict__ and v is not None:
                 self.__dict__[k] = v
-        if self.weighted and self.skeletal:
-            raise ValueError("Cannot select both weighted and skeletal styles together")
         # Auto-adjust ext_depth to ensure enough material for features
         if self.weighted:
             self.ext_depth = max(self.ext_depth, GR_BP_BOT_H)
@@ -85,15 +81,13 @@ class GridfinityBaseplate(GridfinityObject):
             self.ext_depth = max(self.ext_depth, GR_HOLE_H)
         elif self.screw_holes:
             self.ext_depth = max(self.ext_depth, 4.0)
-        if self.skeletal:
-            self.ext_depth = max(self.ext_depth, GR_BP_SKEL_H + 1.0)
         if self.corner_screws:
             self.ext_depth = max(self.ext_depth, 5.0)
 
     @property
     def _has_bottom_features(self):
         """True if this baseplate needs a solid slab below the receptacle."""
-        return self.magnet_holes or self.screw_holes or self.weighted or self.skeletal
+        return self.magnet_holes or self.screw_holes or self.weighted
 
     @property
     def _bp_cell_centres(self):
@@ -177,8 +171,6 @@ class GridfinityBaseplate(GridfinityObject):
             r = self._render_baseplate_holes(r)
         if self.weighted:
             r = self._render_weight_pockets(r)
-        if self.skeletal:
-            r = self._render_skeletal(r)
         return r
 
     def _render_baseplate_holes(self, obj):
@@ -247,28 +239,3 @@ class GridfinityBaseplate(GridfinityObject):
         obj = obj.cut(pockets)
         return obj
 
-    def _render_skeletal(self, obj):
-        """Remove material from bottom for a lightweight skeletal baseplate.
-
-        Cuts rectangular pockets from the bottom of each grid cell, leaving
-        structural ribs at cell boundaries and the perimeter.
-        """
-        rib_width = 4.0  # structural rib width at cell boundaries
-        cell_pocket_size = GRU - rib_width
-        pocket_depth = self.ext_depth - GR_BP_SKEL_H
-        if pocket_depth <= 0:
-            return obj
-        # Offset below Z=0 to avoid coplanar face issues
-        pocket = (
-            cq.Workplane("XY")
-            .rect(cell_pocket_size, cell_pocket_size)
-            .extrude(pocket_depth + EPS)
-            .translate((0, 0, -EPS))
-        )
-        if GR_BP_SKEL_R > 0:
-            pocket = pocket.edges("|Z").fillet(GR_BP_SKEL_R)
-        pockets = composite_from_pts(
-            pocket, [(x, y, 0) for x, y in self._bp_cell_centres]
-        )
-        obj = obj.cut(pockets)
-        return obj

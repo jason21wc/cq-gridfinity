@@ -29,9 +29,6 @@ import cadquery as cq
 from cqkit import HasZCoordinateSelector, VerticalEdgeSelector, FlatEdgeSelector
 from cqkit.cq_helpers import rounded_rect_sketch, composite_from_pts
 from cqgridfinity import *
-from cqgridfinity.gf_wall_pattern import make_wall_pattern
-
-
 class GridfinityBox(GridfinityObject):
     """Gridfinity Box
 
@@ -90,31 +87,12 @@ class GridfinityBox(GridfinityObject):
         self.fillet_rad = None  # user-configurable interior fillet (None = use default)
         self.wall_th = GR_WALL
         self.hole_diam = GR_HOLE_D  # magnet/bolt hole diameter
-        self.wall_pattern = False  # enable wall pattern cutouts
-        self.wall_pattern_style = "hexgrid"  # "hexgrid" or "grid"
-        self.wall_pattern_cell = GR_PAT_CELL  # hole size (mm)
-        self.wall_pattern_spacing = GR_PAT_SPACING  # web thickness (mm)
-        self.wall_pattern_sides = GR_PAT_SIDES  # polygon sides
-        self.wall_pattern_walls = (True, True, True, True)  # front, back, left, right
-        self.thumbscrew = False  # add thumbscrew hole in front wall
-        self.thumbscrew_diam = 4.0  # thumbscrew clearance hole diameter (mm)
-        self.vase_mode = False  # single-wall construction for slicer spiralize
         for k, v in kwargs.items():
             if k in self.__dict__:
                 self.__dict__[k] = v
         # Backward compat: no_lip=True maps to lip_style="none"
         if self.no_lip and self.lip_style == "normal":
             self.lip_style = "none"
-        # Vase mode forces no-lip, no interior features
-        if self.vase_mode:
-            self.lip_style = "none"
-            self.scoops = False
-            self.labels = False
-            self.holes = False
-            self.length_div = 0
-            self.width_div = 0
-            self.solid = False
-            self.wall_pattern = False
         if self.lip_style not in ("normal", "reduced", "none"):
             raise ValueError(
                 "lip_style must be 'normal', 'reduced', or 'none', "
@@ -204,8 +182,6 @@ class GridfinityBox(GridfinityObject):
             raise ValueError("Wall thickness cannot exceed 2.5 mm")
         if self.wall_th < 0.5:
             raise ValueError("Wall thickness must be at least 0.5 mm")
-        if self.vase_mode:
-            return self.render_vase_mode()
         r = self.render_shell()
         rd = self.render_dividers()
         rs = self.render_scoops()
@@ -246,10 +222,6 @@ class GridfinityBox(GridfinityObject):
         r = r.translate((-self.half_l, -self.half_w, GR_BASE_HEIGHT))
         if self.unsupported_holes:
             r = self.render_hole_fillers(r)
-        if self.wall_pattern and not self.solid:
-            r = self.render_wall_patterns(r)
-        if self.thumbscrew and not self.solid:
-            r = self.render_thumbscrew(r)
         return r
 
     @property
@@ -508,83 +480,6 @@ class GridfinityBox(GridfinityObject):
             .cboreHole(GR_BOLT_D, self.hole_diam, h, depth=GR_BOLT_H)
         )
 
-    def render_vase_mode(self):
-        """Render a vase-mode (spiralize) compatible bin.
-
-        Creates a single-walled, open-top bin with standard Gridfinity base
-        profile for stacking compatibility. The slicer's vase/spiral mode
-        handles turning this into a continuous single-perimeter print.
-
-        Construction:
-        1. Standard base profile per grid cell (for baseplate mating)
-        2. Thin-walled enclosure from floor to top (no lip, no floor fill)
-        """
-        # 1. Build the standard base footprint (same as normal box)
-        r = self.extrude_profile(
-            rounded_rect_sketch(GRU, GRU, self.outer_rad + GR_BASE_CLR),
-            GR_BOX_PROFILE,
-        )
-        r = r.translate((0, 0, -GR_BASE_CLR))
-        r = r.mirror(mirrorPlane="XY")
-        r = composite_from_pts(r, self.grid_centres)
-        rs = rounded_rect_sketch(*self.outer_dim, self.outer_rad)
-        # Outer block: base to bin top
-        rw = (
-            cq.Workplane("XY")
-            .placeSketch(rs)
-            .extrude(self.bin_height - GR_BASE_CLR)
-            .translate((*self.half_dim, GR_BASE_CLR))
-        )
-        rc = (
-            cq.Workplane("XY")
-            .placeSketch(rs)
-            .extrude(-GR_BASE_HEIGHT - 1)
-            .translate((*self.half_dim, 0.5))
-        )
-        outer = rc.intersect(r).union(rw)
-
-        # 2. Cut interior — simple box offset by wall_th, from floor to top
-        # (no lip profile, no elevated floor — just a thin shell)
-        ri_sketch = rounded_rect_sketch(*self.inner_dim, self.inner_rad)
-        inner = (
-            cq.Workplane("XY")
-            .placeSketch(ri_sketch)
-            .extrude(self.bin_height)
-            .translate((*self.half_dim, self.floor_h))
-        )
-        r = outer.cut(inner)
-
-        # 3. Translate to centered coordinates (same as normal render)
-        r = r.translate((-self.half_l, -self.half_w, GR_BASE_HEIGHT))
-        return r
-
-    def render_thumbscrew(self, obj):
-        """Cut a thumbscrew clearance hole through the front wall of the bin.
-
-        After the main translate, the bin is centered at XY origin with Z=0
-        at the base bottom. The front wall outer face is at Y = -outer_w/2.
-        One hole per grid unit, centered on each cell at floor height.
-        """
-        rad = self.thumbscrew_diam / 2
-        oy = self.outer_w
-        # Hole at floor height (just above base profile)
-        z_hole = GR_BASE_HEIGHT + GR_FLOOR + rad + 1.0
-        # XZ workplane: extrude(+) goes -Y, extrude(-) goes +Y
-        # We need +Y (inward from front wall), so use negative extrude
-        cut_depth = self.wall_th * 3
-        # One hole per grid unit along X
-        for i in range(self.length_u):
-            x = (i - (self.length_u - 1) / 2) * GRU
-            hole = (
-                cq.Workplane("XZ")
-                .center(x, z_hole)
-                .circle(rad)
-                .extrude(-cut_depth)
-                .translate((0, -oy / 2 - EPS, 0))
-            )
-            obj = obj.cut(hole)
-        return obj
-
     def render_hole_fillers(self, obj):
         rc = (
             cq.Workplane("XY")
@@ -595,92 +490,6 @@ class GridfinityBox(GridfinityObject):
         rs = composite_from_pts(rc, [(-xo, 0, GR_HOLE_H), (xo, 0, GR_HOLE_H)])
         rs = composite_from_pts(rs, self.hole_centres)
         return obj.union(rs.translate((-self.half_l, self.half_w, 0)))
-
-    def render_wall_patterns(self, obj):
-        """Cut wall patterns into the exterior walls of the bin.
-
-        After the main render translate, the bin is centered at XY origin
-        with Z=0 at the bottom of the base. Pattern canvas is inset from
-        corners, floor, and lip to avoid cutting into structural features.
-        """
-        # Pattern area vertical bounds (in the translated coordinate system)
-        z_bot = GR_BASE_HEIGHT + GR_PAT_FLOOR_CLR
-        z_top = self.height - GR_PAT_LIP_CLR
-        if self.lip_style == "none":
-            z_top = self.height - 1.0  # small margin for no-lip
-        elif self.lip_style == "reduced":
-            z_top = self.height - GR_PAT_LIP_CLR + 0.6
-        canvas_h = z_top - z_bot
-        if canvas_h < self.wall_pattern_cell:
-            return obj
-
-        # Outer dimensions (centered at origin after translate)
-        ox = self.outer_l  # length_u * GRU - GR_TOL
-        oy = self.outer_w  # width_u * GRU - GR_TOL
-        inset = GR_PAT_CORNER_INSET
-        depth = self.wall_th + EPS  # cut fully through wall
-
-        front, back, left, right = self.wall_pattern_walls
-
-        # Front/back walls run along X axis
-        canvas_x = ox - 2 * inset
-        if canvas_x >= self.wall_pattern_cell:
-            pat_fb = make_wall_pattern(
-                canvas_x, canvas_h, depth,
-                style=self.wall_pattern_style,
-                cell_size=self.wall_pattern_cell,
-                spacing=self.wall_pattern_spacing,
-                sides=self.wall_pattern_sides,
-            )
-            if pat_fb is not None:
-                z_mid = (z_bot + z_top) / 2
-                if front:
-                    # Front wall: Y = -oy/2, pattern on YZ plane
-                    pf = (
-                        pat_fb
-                        .rotate((0, 0, 0), (1, 0, 0), 90)
-                        .translate((0, -oy / 2 + depth / 2 - EPS, z_mid))
-                    )
-                    obj = obj.cut(pf)
-                if back:
-                    pb = (
-                        pat_fb
-                        .rotate((0, 0, 0), (1, 0, 0), 90)
-                        .translate((0, oy / 2 - depth / 2 + EPS, z_mid))
-                    )
-                    obj = obj.cut(pb)
-
-        # Left/right walls run along Y axis
-        canvas_y = oy - 2 * inset
-        if canvas_y >= self.wall_pattern_cell:
-            pat_lr = make_wall_pattern(
-                canvas_y, canvas_h, depth,
-                style=self.wall_pattern_style,
-                cell_size=self.wall_pattern_cell,
-                spacing=self.wall_pattern_spacing,
-                sides=self.wall_pattern_sides,
-            )
-            if pat_lr is not None:
-                z_mid = (z_bot + z_top) / 2
-                if left:
-                    pl = (
-                        pat_lr
-                        .rotate((0, 0, 0), (1, 0, 0), 90)
-                        .rotate((0, 0, 0), (0, 0, 1), 90)
-                        .translate((-ox / 2 + depth / 2 - EPS, 0, z_mid))
-                    )
-                    obj = obj.cut(pl)
-                if right:
-                    pr = (
-                        pat_lr
-                        .rotate((0, 0, 0), (1, 0, 0), 90)
-                        .rotate((0, 0, 0), (0, 0, 1), 90)
-                        .translate((ox / 2 - depth / 2 + EPS, 0, z_mid))
-                    )
-                    obj = obj.cut(pr)
-
-        return obj
-
 
 class GridfinitySolidBox(GridfinityBox):
     """Convenience class to represent a solid Gridfinity box."""

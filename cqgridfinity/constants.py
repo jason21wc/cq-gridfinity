@@ -116,19 +116,6 @@ GR_BP_RCUT_W = 8.5  # weight pocket cross-channel width
 GR_BP_RCUT_L = 4.25  # weight pocket cross-channel length
 GR_BP_RCUT_D = 2.0  # weight pocket cross-channel depth
 
-# Skeletal baseplate constants
-GR_BP_SKEL_R = 2.0  # skeleton fillet radius
-GR_BP_SKEL_H = 1.0  # minimum remaining material height
-
-# Wall pattern defaults (from ostat gridfinity_extended spec reference)
-GR_PAT_CELL = 10.0  # default hole size (mm)
-GR_PAT_SPACING = 2.0  # default web thickness between holes (mm)
-GR_PAT_SIDES = 6  # default hole polygon sides (6=hex, 4=square)
-GR_PAT_CORNER_RAD = 0.5  # default hole corner radius (mm)
-GR_PAT_FLOOR_CLR = 5.0  # pattern floor clearance above bin bottom (mm)
-GR_PAT_LIP_CLR = 5.6  # pattern clearance below top (normal lip, mm)
-GR_PAT_CORNER_INSET = 3.75  # inset from bin corner radius (mm)
-
 # Rugged Box constant parameters
 GR_RBOX_WALL = 2.5
 GR_RBOX_FLOOR = 1.2

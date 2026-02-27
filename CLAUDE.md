@@ -18,21 +18,11 @@ Fork-and-extend of `cq-gridfinity` (MIT, by Michael Gale) to cover the full Grid
 ```
 cqgridfinity/              # Core library (from fork + extensions)
 ├── constants.py           # Gridfinity spec constants
-├── gf_baseplate.py        # Baseplates (extend with magnets/screws/skeletal)
-├── gf_box.py              # Bins (extend with wall patterns, lip styles)
-├── gf_rugged_box.py       # Rugged box (existing)
-├── gf_drawer_spacer.py    # Drawer spacers (existing)
-├── extended/              # NEW — Gridfinity Extended components
-│   ├── item_holder.py     # Battery, bit, card holders
-│   ├── tray.py            # Catch-all trays
-│   ├── drawer.py          # Modular drawers
-│   ├── cutouts.py         # Custom cutout profiles
-│   └── lids.py            # Anylid and cover systems
-├── wall_mount/            # NEW — Wall-mount systems (Tier 3)
-│   ├── multiboard.py
-│   ├── honeycomb.py
-│   └── grips.py
-└── utils.py               # Shared geometry helpers
+├── gf_baseplate.py        # Baseplates (magnets, screws, weighted)
+├── gf_box.py              # Bins (lip styles, dividers, scoops, labels)
+├── gf_rugged_box.py       # Rugged box (existing upstream)
+├── gf_drawer_spacer.py    # Drawer spacers (existing upstream)
+└── gf_obj.py              # Base class for all Gridfinity objects
 ```
 
 ## Gridfinity Spec
@@ -47,9 +37,8 @@ See **GRIDFINITY-SPEC.md** for full dimensional reference (base profile, stackin
 ## Development Phases
 1. **Phase 1 — Library + CLI** ← CURRENT
    - Fork cq-gridfinity, set up dev environment
-   - Tier 1: Advanced baseplates → Extended bin features
-   - Tier 2: Item holders, trays, drawers, lids
-   - Tier 3: Wall-mount systems
+   - Convert features from kennetek/gridfinity-rebuilt-openscad (MIT) to CadQuery
+   - Only implement features that exist in kennetek or cq-gridfinity upstream
 2. **Phase 2 — Local Web UI** (FastAPI + Three.js)
 3. **Phase 3 — Deploy** (Docker, job queue, caching)
 

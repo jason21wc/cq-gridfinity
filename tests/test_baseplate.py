@@ -110,27 +110,3 @@ def test_weighted_baseplate():
         bp.save_step_file(filename="./tests/testfiles/gf_baseplate_2x2_weighted.step")
 
 
-@pytest.mark.skipif(
-    SKIP_TEST_BASEPLATE,
-    reason="Skipped intentionally by test scope environment variable",
-)
-def test_skeletal_baseplate():
-    """Skeletal lightweight baseplate with material removed from bottom."""
-    bp = GridfinityBaseplate(2, 2, skeletal=True, magnet_holes=True)
-    r = bp.render()
-    # ext_depth should be at least GR_HOLE_H (2.4) and GR_BP_SKEL_H + 1.0 (2.0)
-    assert bp.ext_depth == GR_HOLE_H
-    expected_h = GR_BASE_HEIGHT + bp.ext_depth
-    assert _almost_same(size_3d(r), (84, 84, expected_h), tol=0.1)
-    if _export_files("baseplate"):
-        bp.save_step_file(filename="./tests/testfiles/gf_baseplate_2x2_skeletal.step")
-
-
-@pytest.mark.skipif(
-    SKIP_TEST_BASEPLATE,
-    reason="Skipped intentionally by test scope environment variable",
-)
-def test_weighted_skeletal_exclusive():
-    """Weighted and skeletal should be mutually exclusive."""
-    with pytest.raises(ValueError):
-        GridfinityBaseplate(2, 2, weighted=True, skeletal=True)

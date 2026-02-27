@@ -24,13 +24,10 @@
 ## Phase Gates
 
 ### Phase 1: Library + CLI
-- [ ] Fork set up and building
-- [ ] Dev environment working (CadQuery generates STEP)
-- [ ] Tier 1: Advanced baseplates complete
-- [ ] Tier 1: Extended bin features complete
-- [ ] Tier 2: Item holders, trays, drawers
-- [ ] Tier 2: Lids and covers
-- [ ] Tier 3: Wall-mount systems
+- [x] Fork set up and building
+- [x] Dev environment working (CadQuery generates STEP)
+- [x] Advanced baseplates (magnet, screw, weighted)
+- [x] Extended bin features (lip variants)
 - [ ] All tests passing, CLI entry points working
 
 ### Phase 2: Local Web UI

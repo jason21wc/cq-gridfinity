@@ -191,12 +191,11 @@ class GridfinityObject:
         """Returns a descriptive readable filename representing a Gridfinity object.
 
         Naming convention (sorted for filesystem browsing):
-          gf_{type}_{LxW[xH]}[_{style}][_{lip}][_{pattern}][_{bottom}][_{interior}][_{hardware}][_{params}]
+          gf_{type}_{LxW[xH]}[_{style}][_{lip}][_{bottom}][_{interior}][_{params}]
 
         Examples:
           gf_baseplate_4x3_mag-screw_csk
-          gf_bin_3x2x5_hex-circ_mag_scoops_labels
-          gf_bin_2x2x3_vase
+          gf_bin_3x2x5_mag_scoops_labels
         """
         from cqgridfinity import (
             GridfinityBaseplate,
@@ -226,22 +225,16 @@ class GridfinityObject:
         if isinstance(self, GridfinityBox):
             fn = fn + "x%d" % (self.height_u)
             # 1. Construction style (broadest differentiator)
-            if self.vase_mode:
-                fn = fn + "_vase"
-            elif self.lite_style:
+            if self.lite_style:
                 fn = fn + "_lite"
             elif self.solid:
                 fn = fn + "_solid"
-            # 2. Lip style (omit for normal/default, implied by vase)
-            if not self.vase_mode:
-                if self.lip_style == "none":
-                    fn = fn + "_nolip"
-                elif self.lip_style == "reduced":
-                    fn = fn + "_reduced"
-            # 3. Wall pattern (layout-shape)
-            if self.wall_pattern and not self.solid:
-                fn = fn + "_" + self._pattern_name
-            # 4. Bottom features
+            # 2. Lip style (omit for normal/default)
+            if self.lip_style == "none":
+                fn = fn + "_nolip"
+            elif self.lip_style == "reduced":
+                fn = fn + "_reduced"
+            # 3. Bottom features
             if self.holes:
                 fn = fn + "_mag"
             # 5. Interior features
@@ -257,10 +250,7 @@ class GridfinityObject:
                         fn = fn + "x%d" % (self.width_div)
                     else:
                         fn = fn + "_divx%d" % (self.width_div)
-            # 6. Hardware
-            if self.thumbscrew:
-                fn = fn + "_thumb"
-            # 7. Non-default parameters
+            # 6. Non-default parameters
             if abs(self.wall_th - GR_WALL) > 1e-3:
                 fn = fn + "_w%.2f" % (self.wall_th)
         elif isinstance(self, GridfinityRuggedBox):
@@ -289,11 +279,9 @@ class GridfinityObject:
             if self._obj_label is not None:
                 fn = fn + "_%s" % (self._obj_label)
         elif isinstance(self, GridfinityBaseplate):
-            # 1. Base style (weighted/skeletal)
+            # 1. Base style
             if self.weighted:
                 fn = fn + "_weighted"
-            elif self.skeletal:
-                fn = fn + "_skeletal"
             # 2. Hole features
             if self.magnet_holes and self.screw_holes:
                 fn = fn + "_mag-screw"
@@ -310,35 +298,6 @@ class GridfinityObject:
                     and not self.corner_screws):
                 fn = fn + "_d%.1f" % (self.ext_depth)
         return fn
-
-    @property
-    def _pattern_name(self):
-        """Generate pattern descriptor string: layout[-shape].
-
-        Short form when layout matches natural hole shape:
-          hexgrid + 6 sides = 'hex', grid + 4 sides = 'grid'
-        Long form otherwise:
-          hexgrid + circles = 'hex-circ', grid + hex = 'grid-hex'
-        """
-        sides = self.wall_pattern_sides
-        if sides == 6:
-            shape = "hex"
-        elif sides == 4:
-            shape = "sq"
-        elif sides >= 32:
-            shape = "circ"
-        elif sides == 8:
-            shape = "oct"
-        else:
-            shape = "%ds" % sides
-        layout = self.wall_pattern_style
-        if layout == "hexgrid" and shape == "hex":
-            return "hex"
-        elif layout == "grid" and shape == "sq":
-            return "grid"
-        else:
-            pfx = "hex" if layout == "hexgrid" else "grid"
-            return "%s-%s" % (pfx, shape)
 
     def save_step_file(self, filename=None, path=None, prefix=None):
         fn = (

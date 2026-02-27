@@ -80,20 +80,16 @@ A **feature-rich extension** of Gridfinity that adds dozens of options not in th
 - **Precision** — No faceting artifacts on curves and fillets
 - **Professional** — STEP is the standard exchange format for manufacturing
 
-**Our coverage** (Tier 1 — current):
+**Our coverage:**
 
 | Feature | Rebuilt | Extended | This Project |
 |---------|---------|----------|-------------|
 | Plain baseplates | Yes | Yes | Yes |
 | Magnet/screw baseplates | Yes | Yes | Yes |
 | Weighted baseplates | Yes | Yes | Yes |
-| Skeletal baseplates | No | Yes | Yes |
 | Standard bins | Yes | Yes | Yes |
 | Lite-style bins | Yes | Yes | Yes |
 | Lip style variants | Partial | Yes | Yes |
-| Wall patterns | No | Yes (8 styles) | Yes (hex, grid) |
-| Vase mode bins | No | Partial | Yes |
-| Thumbscrew holes | No | No | Yes |
 | Rugged boxes | No | No | Yes (upstream) |
 | STEP output | No | No | **Yes** |
 
@@ -176,22 +172,7 @@ GridfinityBaseplate(4, 3, weighted=True, magnet_holes=True)
 - When you want the baseplate to resist tipping without mounting it
 - Heavy-bin configurations where the base needs ballast
 
-**Trade-offs:** Heaviest baseplate. Requires weights. Cannot be combined with skeletal style.
-
-### Skeletal (Lightweight) Baseplate
-
-```python
-GridfinityBaseplate(4, 3, skeletal=True, magnet_holes=True)
-```
-
-**What it is:** Baseplate with large rectangular pockets cut from the bottom of each cell, leaving only structural ribs (4mm wide) at cell boundaries and the perimeter. Significant material savings.
-
-**When to use:**
-- Large baseplates where material/print time matters
-- When weight reduction is important
-- Drawer-mounted baseplates (the drawer provides structural support)
-
-**Trade-offs:** Less rigid than solid baseplates. Not suitable for weighted or heavy-load applications. Cannot be combined with weighted style.
+**Trade-offs:** Heaviest baseplate. Requires weights.
 
 ### Corner Screw Baseplate
 
@@ -217,9 +198,6 @@ Need bins to stay put?
 └── Need the baseplate itself stable?
     ├── Mounted to surface → Corner screw baseplate
     └── Freestanding → Weighted baseplate
-
-Large baseplate, want to save material?
-└── Skeletal baseplate (combine with magnets if needed)
 ```
 
 ---
@@ -284,24 +262,6 @@ GridfinityBox(4, 2, 3, solid=True, solid_ratio=0.75)
 - Spacers to fill unused baseplate positions
 - Weighted blocks for stability
 - `solid_ratio` controls fill level (0.0 = empty, 1.0 = fully solid)
-
-### Vase Mode Bin
-
-```python
-GridfinityBox(2, 2, 5, vase_mode=True)
-```
-
-**What it is:** A single-walled, open-top bin designed for your slicer's "vase mode" (spiral vase / spiralize outer contour). The geometry is a thin shell — one continuous perimeter from bottom to top. No stacking lip, no interior features.
-
-**When to use:**
-- **Fastest possible print time** — vase mode prints are dramatically faster
-- Decorative or light-duty storage
-- Quick prototyping to check sizes before printing a full bin
-- When you have a lot of bins to produce and speed matters more than strength
-
-**Trade-offs:** Single wall = fragile. No stacking lip (can't stack bins). No scoops, labels, dividers, or holes. Wall thickness is exactly one extrusion width (typically 0.4-0.6mm).
-
-**Slicer setup:** Enable "Spiralize Outer Contour" (Cura) or "Spiral Vase" (PrusaSlicer). Set bottom layers to 3-5 for a solid base.
 
 ### Rugged Box
 
@@ -382,83 +342,6 @@ GridfinityBox(2, 2, 3, no_lip=True)
 
 ---
 
-## Wall Patterns
-
-Wall patterns cut decorative or functional holes through the exterior walls of bins. Beyond aesthetics, they reduce material usage and allow visibility into the bin contents.
-
-### Hex Grid (`wall_pattern_style="hexgrid"`)
-
-```python
-GridfinityBox(3, 2, 5, wall_pattern=True)  # hexgrid is the default
-```
-
-**What it is:** Honeycomb pattern of hexagonal holes on the bin walls. The most popular decorative pattern in the Gridfinity community.
-
-**When to use:**
-- Visual identification of bin contents without labels
-- Material and weight reduction
-- Aesthetic preference — hex patterns are a Gridfinity visual signature
-
-### Square Grid (`wall_pattern_style="grid"`)
-
-```python
-GridfinityBox(3, 2, 5, wall_pattern=True, wall_pattern_style="grid", wall_pattern_sides=4)
-```
-
-**What it is:** Regular grid of square holes.
-
-**When to use:**
-- When you prefer a more industrial aesthetic
-- Slightly stronger than hex at the same density (more continuous vertical ribs)
-
-### Pattern Parameters
-
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `wall_pattern_cell` | 10.0 mm | Size of each hole |
-| `wall_pattern_spacing` | 2.0 mm | Web thickness between holes |
-| `wall_pattern_sides` | 6 | Polygon sides: 4=square, 6=hex, 8=octagon, 64=circle |
-| `wall_pattern_walls` | All four | `(front, back, left, right)` — True/False per wall |
-
-**Examples:**
-```python
-# Hex grid with circular holes
-GridfinityBox(3, 2, 5, wall_pattern=True, wall_pattern_sides=64)
-
-# Small hex pattern, only on front and back walls
-GridfinityBox(3, 2, 5, wall_pattern=True, wall_pattern_cell=6,
-              wall_pattern_walls=(True, True, False, False))
-
-# Dense square grid with thin webs
-GridfinityBox(3, 2, 5, wall_pattern=True, wall_pattern_style="grid",
-              wall_pattern_sides=4, wall_pattern_cell=8, wall_pattern_spacing=1.5)
-```
-
-**Printing note:** Wall patterns cut fully through the wall (0.95mm). Your slicer will print these as single-wall features. Ensure your extrusion width is calibrated for clean single walls.
-
----
-
-## Thumbscrew Holes
-
-```python
-GridfinityBox(3, 2, 5, thumbscrew=True)
-```
-
-**What it is:** A clearance hole (default 4mm diameter) through the front wall of the bin, one per grid unit, positioned just above the base profile. Allows a thumbscrew or bolt to pass through and secure the bin to the baseplate.
-
-**When to use:**
-- Vehicle tool organizers (vibration resistance)
-- Vertical or overhead mounting where gravity would pull bins out
-- Mobile workstations and carts
-- Any application where bins must not come loose
-
-**Parameters:**
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `thumbscrew_diam` | 4.0 mm | Hole diameter (M3 clearance + tolerance) |
-
----
-
 ## Feature Combinations
 
 Most features can be combined freely. Here are some popular configurations:
@@ -470,31 +353,17 @@ GridfinityBaseplate(6, 4, magnet_holes=True, corner_screws=True)
 GridfinityBox(2, 1, 3, holes=True, scoops=True, labels=True)
 ```
 
-### Mobile Tool Cart
+### Secure Transport
 ```python
-# Thumbscrew bins on magnet+screw baseplate, locked down for transport
+# Magnet+screw baseplate for vibration-prone environments
 GridfinityBaseplate(4, 3, magnet_holes=True, screw_holes=True)
-GridfinityBox(2, 1, 5, holes=True, thumbscrew=True, labels=True)
-```
-
-### Decorative Desktop Organizer
-```python
-# Hex pattern bins on weighted baseplate (freestanding)
-GridfinityBaseplate(3, 3, weighted=True)
-GridfinityBox(1, 1, 3, wall_pattern=True, lip_style="reduced")
-```
-
-### Rapid Prototyping Set
-```python
-# Vase mode bins for fast iteration
-GridfinityBaseplate(4, 2)
-GridfinityBox(2, 1, 3, vase_mode=True)  # prints in ~15 min
+GridfinityBox(2, 1, 5, holes=True, labels=True)
 ```
 
 ### Drawer Insert
 ```python
-# No-lip bins on skeletal baseplate inside a drawer
-GridfinityBaseplate(6, 3, skeletal=True)
+# No-lip bins in a drawer
+GridfinityBaseplate(6, 3)
 GridfinityBox(2, 1, 3, lip_style="none", length_div=3)
 ```
 
@@ -502,8 +371,6 @@ GridfinityBox(2, 1, 3, lip_style="none", length_div=3)
 
 | Combination | Why |
 |-------------|-----|
-| `weighted=True` + `skeletal=True` | Conflicting bottom treatments |
-| `vase_mode=True` + `scoops/labels/dividers/holes` | Vase mode is single-wall, no interior features |
 | `lite_style=True` + `solid=True` | Contradictory concepts |
 | `lite_style=True` + `holes=True` | Lite style has no elevated floor for holes |
 | `lite_style=True` + `wall_th > 1.5` | Lite style enforces thin walls |
@@ -534,10 +401,8 @@ GridfinityBox(2, 1, 3, lip_style="none", length_div=3)
 ### Per-Feature Notes
 
 - **Magnet holes:** Print with the baseplate top-side up. Holes face upward during printing and need no supports. Press magnets in after printing while the plastic is cool.
-- **Wall patterns:** Ensure single-wall extrusion is clean. Calibrate extrusion multiplier if webs between holes are too thin or too thick.
-- **Vase mode:** Enable spiral vase in slicer. Set 3-5 bottom layers for solid base. Print speed can be very high (80-120mm/s) since there are no retractions.
 - **Stacking lip (normal):** The innermost overhang is the trickiest part. If it sags, switch to `lip_style="reduced"` or slow down the top few layers.
-- **Large baseplates:** Print with a brim (5-10mm) to prevent corner lifting, especially with ABS/ASA. Skeletal baseplates warp less due to reduced material.
+- **Large baseplates:** Print with a brim (5-10mm) to prevent corner lifting, especially with ABS/ASA.
 
 ---
 
@@ -551,11 +416,9 @@ GridfinityBox(2, 1, 3, lip_style="none", length_div=3)
 | **Stacking lip** | The interlocking rim on top of bins that enables vertical stacking |
 | **Receptacle** | The shaped pocket in a baseplate where a bin's base profile sits |
 | **Lite style** | Economy bin with thinner walls and no elevated floor |
-| **Vase mode** | Single-wall printing technique where the slicer spiralizes the outer contour |
 | **Solid ratio** | 0.0 to 1.0 — how much of a solid block's interior is filled |
-| **Skeletal** | Baseplate with material removed from the bottom, leaving structural ribs |
 | **Weighted** | Baseplate with pockets for inserting metal weights |
 
 ---
 
-*This document covers features available in the cq-gridfinity STEP Generator (Tier 1). Additional components (item holders, trays, drawers, lids, wall-mount systems) are planned for Tier 2 and Tier 3.*
+*This document covers features available in the cq-gridfinity STEP Generator. Only features that exist in kennetek/gridfinity-rebuilt-openscad or cq-gridfinity upstream are in scope.*
