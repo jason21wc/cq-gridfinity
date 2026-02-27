@@ -22,12 +22,12 @@ Tier 2 — Extended components (lids, cutouts, item holders, trays, drawers)
   - **Cutouts DONE** (round, rect, grid layout — 7/7 tests passing)
   - **Item holders DONE** (preset + custom, auto-grid — 9/9 tests passing)
   - **Trays DONE** (shallow bins with tray defaults — 6/6 tests passing)
-  - **Drawers DONE** (drawer body + chest frame — 10/10 tests passing)
-  - **All Tier 2 complete**
+  - Drawers — not started
 
 ## Next Actions
-1. Tier 3 — CLI entry points
-2. Tier 3 — Wall-mount systems (multiboard, honeycomb, grips)
+1. Finish Tier 2 — Drawers (drawer body + chest)
+2. Tier 3 — CLI entry points
+3. Tier 3 — Wall-mount systems (multiboard, honeycomb, grips)
 
 ## Blockers
 None
