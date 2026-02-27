@@ -86,10 +86,10 @@ All features in this phase trace to **kennetek/gridfinity-rebuilt-openscad** (MI
 
 | # | Feature | Source File | Function/Module | Phase | Status | Acceptance |
 |---|---------|-------------|-----------------|-------|--------|------------|
-| 1B.1 | Crush rib magnet holes | `src/core/gridfinity-rebuilt-holes.scad` | `ribbed_cylinder()`, `block_base_hole()` with `crush_ribs=true` | 1B | Not Started | 8 ribs (`MAGNET_HOLE_CRUSH_RIB_COUNT`), 5.9mm inner dia (`MAGNET_HOLE_CRUSH_RIB_INNER_RADIUS=5.9/2`), 0.1mm rib width |
-| 1B.2 | Chamfered magnet holes | `src/core/gridfinity-rebuilt-holes.scad` | `block_base_hole()` with `chamfer_holes=true` | 1B | Not Started | 0.8mm chamfer radius (`CHAMFER_ADDITIONAL_RADIUS`), 45° angle (`CHAMFER_ANGLE`), applied at hole lip |
-| 1B.3 | Refined magnet holes | `src/core/gridfinity-rebuilt-holes.scad` | `refined_hole()`, `block_base_hole()` with `refined_holes=true` | 1B | Not Started | 5.86mm dia (`REFINED_HOLE_RADIUS=5.86/2`), `MAGNET_HEIGHT-0.1` deep (1.9mm), press-fit tolerance |
-| 1B.4 | Printable hole top | `src/core/gridfinity-rebuilt-holes.scad` | `make_hole_printable()`, `block_base_hole()` with `printable_hole_top=true` | 1B | Not Started | Thin bridge layer at hole top for FDM supportless printing, configurable layer count |
+| 1B.1 | Crush rib magnet holes | `src/core/gridfinity-rebuilt-holes.scad` | `ribbed_cylinder()`, `block_base_hole()` with `crush_ribs=true` | 1B | Complete | 8 ribs (`GR_CRUSH_RIB_COUNT`), 5.9mm inner dia (`GR_CRUSH_RIB_INNER_D`). Impl: `gf_holes.crush_rib_magnet_hole()`. Tests: `test_holes.py` (4 tests). |
+| 1B.2 | Chamfered magnet holes | `src/core/gridfinity-rebuilt-holes.scad` | `block_base_hole()` with `chamfer_holes=true` | 1B | Complete | 0.8mm chamfer (`GR_CHAMFER_EXTRA_R`), 45° angle (`GR_CHAMFER_ANGLE`). Impl: `gf_holes._chamfer_cone()` + `enhanced_magnet_hole(chamfer=True)`. Tests: `test_holes.py`. |
+| 1B.3 | Refined magnet holes | `src/core/gridfinity-rebuilt-holes.scad` | `refined_hole()`, `block_base_hole()` with `refined_holes=true` | 1B | Complete | 5.86mm dia (`GR_REFINED_HOLE_D`), 1.9mm deep (`GR_REFINED_HOLE_H`). Impl: `gf_holes.refined_magnet_hole()`. Tests: `test_holes.py`. |
+| 1B.4 | Printable hole top | `src/core/gridfinity-rebuilt-holes.scad` | `make_hole_printable()`, `block_base_hole()` with `printable_hole_top=true` | 1B | Complete | 0.4mm bridge disc at hole top. Impl: `gf_holes._printable_bridge()` + `enhanced_magnet_hole(printable_top=True)`. Tests: `test_holes.py`. |
 
 #### 1B Bin Features (scoop, tabs, depth, cylindrical)
 

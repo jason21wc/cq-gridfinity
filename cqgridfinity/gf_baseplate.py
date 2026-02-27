@@ -26,7 +26,11 @@
 import cadquery as cq
 
 from cqgridfinity import *
-from cqgridfinity.gf_holes import cut_magnet_holes, cut_screw_holes
+from cqgridfinity.gf_holes import (
+    cut_magnet_holes,
+    cut_screw_holes,
+    cut_enhanced_holes,
+)
 from cqkit.cq_helpers import (
     rounded_rect_sketch,
     composite_from_pts,
@@ -54,6 +58,10 @@ class GridfinityBaseplate(GridfinityObject):
       magnet_holes - add magnet recesses in receptacle floors (6.5mm dia, 2.4mm deep)
       screw_holes - add screw through-holes in receptacle floors (3.0mm dia)
       weighted - add weight pockets in baseplate bottom
+      refined_holes - use refined magnet holes (5.86mm dia, 1.9mm deep, tighter press-fit)
+      crush_ribs - add crush ribs to magnet holes for press-fit retention (8 ribs)
+      chamfer_holes - add entry chamfer to magnet holes (0.8mm at 45deg)
+      printable_hole_top - add thin bridge layer at hole top for supportless FDM printing
     """
 
     def __init__(self, length_u, width_u, **kwargs):
@@ -70,6 +78,10 @@ class GridfinityBaseplate(GridfinityObject):
         self.magnet_holes = False
         self.screw_holes = False
         self.weighted = False
+        self.refined_holes = False
+        self.crush_ribs = False
+        self.chamfer_holes = False
+        self.printable_hole_top = False
         for k, v in kwargs.items():
             if k in self.__dict__ and v is not None:
                 self.__dict__[k] = v
@@ -141,6 +153,18 @@ class GridfinityBaseplate(GridfinityObject):
             fn += "_mag"
         elif self.screw_holes:
             fn += "_screw"
+        # 2b. Enhanced hole options
+        if self.magnet_holes and self._has_enhanced_holes:
+            opts = []
+            if self.refined_holes:
+                opts.append("ref")
+            if self.crush_ribs:
+                opts.append("rib")
+            if self.chamfer_holes:
+                opts.append("chm")
+            if self.printable_hole_top:
+                opts.append("prt")
+            fn += "_" + "-".join(opts)
         # 3. Mounting
         if self.corner_screws:
             fn += "_csk"
@@ -200,6 +224,18 @@ class GridfinityBaseplate(GridfinityObject):
             r = self._render_weight_pockets(r)
         return r
 
+    @property
+    def _has_enhanced_holes(self):
+        """True if any enhanced hole option is enabled."""
+        return self.refined_holes or self.crush_ribs or self.chamfer_holes or self.printable_hole_top
+
+    @property
+    def _magnet_hole_depth(self):
+        """Effective magnet hole depth based on hole style."""
+        if self.refined_holes:
+            return GR_REFINED_HOLE_H
+        return GR_HOLE_H
+
     def _render_baseplate_holes(self, obj):
         """Cut magnet and/or screw holes into the solid slab below receptacles.
 
@@ -207,14 +243,29 @@ class GridfinityBaseplate(GridfinityObject):
         from Z=0 to Z=ext_depth where holes are cut.
         Magnet recesses are blind holes from the floor downward.
         Screw holes pass through the remaining material to the bottom.
+
+        When enhanced hole options are set (refined, crush_ribs, chamfer,
+        printable_top), uses cut_enhanced_holes() instead of basic cuts.
         """
         pts = self._bp_hole_centres
+        mag_depth = self._magnet_hole_depth
         if self.magnet_holes:
-            obj = cut_magnet_holes(
-                obj, pts, z_offset=self.ext_depth - GR_HOLE_H
-            )
+            if self._has_enhanced_holes:
+                obj = cut_enhanced_holes(
+                    obj,
+                    pts,
+                    z_offset=self.ext_depth - mag_depth,
+                    refined=self.refined_holes,
+                    crush_ribs=self.crush_ribs,
+                    chamfer=self.chamfer_holes,
+                    printable_top=self.printable_hole_top,
+                )
+            else:
+                obj = cut_magnet_holes(
+                    obj, pts, z_offset=self.ext_depth - GR_HOLE_H
+                )
         if self.screw_holes:
-            top = self.ext_depth - GR_HOLE_H if self.magnet_holes else self.ext_depth
+            top = self.ext_depth - mag_depth if self.magnet_holes else self.ext_depth
             obj = cut_screw_holes(obj, pts, depth=top)
         return obj
 

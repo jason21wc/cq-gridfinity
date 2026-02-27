@@ -108,6 +108,15 @@ GR_BOLT_H = 3.6 + GR_HOLE_H
 GR_HOLE_DIST = 26 / 2
 GR_HOLE_SLICE = 0.25
 
+# Enhanced hole types (from kennetek gridfinity-rebuilt-holes.scad)
+GR_MAGNET_H = 2.0  # actual magnet thickness (mm)
+GR_REFINED_HOLE_D = 5.86  # refined magnet hole diameter
+GR_REFINED_HOLE_H = GR_MAGNET_H - 0.1  # refined hole depth (1.9mm)
+GR_CRUSH_RIB_COUNT = 8  # number of crush ribs per hole
+GR_CRUSH_RIB_INNER_D = 5.9  # inner diameter at crush rib tips
+GR_CHAMFER_EXTRA_R = 0.8  # chamfer additional radius beyond hole edge
+GR_CHAMFER_ANGLE = 45  # chamfer angle (degrees)
+
 # Weighted baseplate constants (from kennetek standard.scad)
 GR_BP_BOT_H = 6.4  # bottom height for weighted baseplate
 GR_BP_CUT_SIZE = 21.4  # weight pocket square size
