@@ -87,9 +87,33 @@ class GridfinityBox(GridfinityObject):
         self.fillet_rad = None  # user-configurable interior fillet (None = use default)
         self.wall_th = GR_WALL
         self.hole_diam = GR_HOLE_D  # magnet/bolt hole diameter
+        self.label_style = None  # None=auto; "full"/"auto"/"left"/"center"/"right"/"none"
+        self.compartment_depth = 0  # raise compartment floor (mm), 0=full depth
+        self.height_internal = 0  # override internal height (mm), 0=default
+        self.cylindrical = False  # cut cylindrical compartments
+        self.cylinder_diam = GR_CYL_DIAM  # cylinder diameter (mm)
+        self.cylinder_chamfer = GR_CYL_CHAMFER  # cylinder top chamfer (mm)
         for k, v in kwargs.items():
             if k in self.__dict__:
                 self.__dict__[k] = v
+        # Normalize scoops: bool→float, clamp to [0, 1]
+        if isinstance(self.scoops, bool):
+            self.scoops = 1.0 if self.scoops else 0.0
+        else:
+            self.scoops = max(0.0, min(1.0, float(self.scoops)))
+        # Normalize label_style from labels boolean
+        if self.label_style is None:
+            self.label_style = "full" if self.labels else "none"
+        elif self.label_style != "none":
+            self.labels = True
+        else:
+            self.labels = False
+        _valid_label_styles = ("full", "auto", "left", "center", "right", "none")
+        if self.label_style not in _valid_label_styles:
+            raise ValueError(
+                "label_style must be one of %s, got '%s'"
+                % (_valid_label_styles, self.label_style)
+            )
         # Backward compat: no_lip=True maps to lip_style="none"
         if self.no_lip and self.lip_style == "normal":
             self.lip_style = "none"
@@ -133,11 +157,12 @@ class GridfinityBox(GridfinityObject):
             if self.unsupported_holes:
                 s.append("  Holes are 3D printer friendly and can be unsupported")
         if self.scoops:
-            s.append("  Lengthwise scoops with %.2f mm radius" % (self.scoop_rad))
+            s.append("  Lengthwise scoops with %.2f mm radius" % (self.scoop_rad * self.scoops))
         if self.labels:
+            style_info = "" if self.label_style == "full" else " (%s)" % self.label_style
             s.append(
-                "  Lengthwise label shelf %.2f mm wide with %.2f mm overhang"
-                % (self.label_width, self.label_height)
+                "  Lengthwise label shelf %.2f mm wide with %.2f mm overhang%s"
+                % (self.label_width, self.label_height, style_info)
             )
         if self.length_div:
             xl = (self.inner_l - GR_DIV_WALL * (self.length_div)) / (
@@ -178,9 +203,21 @@ class GridfinityBox(GridfinityObject):
         # 4. Interior features
         if not self.solid:
             if self.scoops:
-                fn += "_scoops"
+                if self.scoops < 1.0:
+                    fn += "_scoop%.1f" % self.scoops
+                else:
+                    fn += "_scoops"
             if self.labels:
-                fn += "_labels"
+                if self.label_style != "full":
+                    fn += "_label-%s" % self.label_style
+                else:
+                    fn += "_labels"
+            if self.compartment_depth > 0:
+                fn += "_d%.1f" % self.compartment_depth
+            elif self.height_internal > 0:
+                fn += "_hi%.1f" % self.height_internal
+            if self.cylindrical:
+                fn += "_cyl%.0f" % self.cylinder_diam
             if self.length_div:
                 fn += "_div%d" % (self.length_div)
             if self.width_div:
@@ -219,22 +256,31 @@ class GridfinityBox(GridfinityObject):
             raise ValueError("Wall thickness cannot exceed 2.5 mm")
         if self.wall_th < 0.5:
             raise ValueError("Wall thickness must be at least 0.5 mm")
-        r = self.render_shell()
-        rd = self.render_dividers()
-        rs = self.render_scoops()
-        rl = self.render_labels()
-        for e in (rd, rl, rs):
-            if e is not None:
-                r = r.union(e)
-        if not self.solid and self.fillet_interior:
-            heights = [GR_FLOOR]
+        self._ext_shell = None
+        if self.cylindrical:
+            r = self.solid_shell()
+            r = self._render_cylindrical_cuts(r)
+        else:
+            r = self.render_shell()
+            rf = self._render_raised_floor()
+            if rf is not None:
+                r = r.union(rf)
+            rd = self.render_dividers()
+            rs = self.render_scoops()
+            rl = self.render_labels()
+            for e in (rd, rl, rs):
+                if e is not None:
+                    r = r.union(e)
+        if not self.solid and not self.cylindrical and self.fillet_interior:
+            effective_floor = GR_FLOOR + self._floor_raise
+            heights = [effective_floor]
             if self.labels:
                 heights.append(self.safe_label_height(backwall=True, from_bottom=True))
                 heights.append(self.safe_label_height(backwall=False, from_bottom=True))
             bs = (
                 HasZCoordinateSelector(heights, min_points=1, tolerance=0.5)
                 + VerticalEdgeSelector(">5")
-                - HasZCoordinateSelector("<%.2f" % (self.floor_h))
+                - HasZCoordinateSelector("<%.2f" % (self.floor_h + self._floor_raise))
             )
             if self.lite_style and self.scoops:
                 bs = bs - HasZCoordinateSelector("<=%.2f" % (self.floor_h))
@@ -435,11 +481,17 @@ class GridfinityBox(GridfinityObject):
         if not self.scoops or self.solid:
             return None
         # front wall scoop
-        # prevent the scoop radius exceeding the internal height
-        srad = min(self.scoop_rad, self.int_height - 0.1)
+        # Scale scoop radius by scoop factor (0.0-1.0)
+        raise_h = self._floor_raise
+        effective_h = self.int_height - raise_h
+        if effective_h <= 0.1:
+            return None
+        srad = min(self.scoop_rad * self.scoops, effective_h - 0.1)
+        if srad <= 0:
+            return None
         rs = cq.Sketch().rect(srad, srad).vertices(">X and >Y").circle(srad, mode="s")
         rsc = cq.Workplane("YZ").placeSketch(rs).extrude(self.inner_l)
-        rsc = rsc.translate((0, 0, srad / 2 + GR_FLOOR))
+        rsc = rsc.translate((0, 0, srad / 2 + GR_FLOOR + raise_h))
         yo = -self.half_in + srad / 2
         # offset front wall scoop by top lip overhang if applicable
         if self.lip_style != "none" and not self.lite_style:
@@ -461,11 +513,11 @@ class GridfinityBox(GridfinityObject):
         return r
 
     def render_labels(self):
-        if not self.labels or self.solid:
+        if not self.labels or self.solid or self.label_style == "none":
             return None
         # back wall label flange with compensated width and height
         lw = self.label_width + self.lip_width
-        rs = (
+        back_sketch = (
             cq.Sketch()
             .segment((0, 0), (lw, 0))
             .segment((lw, -self.safe_label_height(backwall=True)))
@@ -476,14 +528,30 @@ class GridfinityBox(GridfinityObject):
             .vertices("<Y")
             .fillet(self.label_lip_height / 2)
         )
-        rsc = cq.Workplane("YZ").placeSketch(rs).extrude(self.inner_l)
         yo = -lw + self.outer_w / 2 + self.half_w + self.wall_th / 4
-        rs = rsc.translate((-self.half_in, yo, self.floor_h + self.max_height))
-        # intersect to prevent solids sticking out of rounded corners
-        r = rs.intersect(self.interior_solid)
+        z_top = self.floor_h + self.max_height
+
+        if self.label_style == "full":
+            # Original full-width behavior (exact backward compat)
+            rsc = cq.Workplane("YZ").placeSketch(back_sketch).extrude(self.inner_l)
+            rs = rsc.translate((-self.half_in, yo, z_top))
+            r = rs.intersect(self.interior_solid)
+        else:
+            # Positioned tabs per compartment
+            nx = self.length_div + 1
+            comp_l = self.inner_l / nx
+            r = None
+            for tab_x, tab_w in self._compute_tab_positions(nx, comp_l):
+                rsc = cq.Workplane("YZ").placeSketch(back_sketch).extrude(tab_w)
+                rsc = rsc.translate((tab_x, yo, z_top))
+                r = rsc if r is None else r.union(rsc)
+            if r is None:
+                return None
+            r = r.intersect(self.interior_solid)
+
         if self.width_div > 0:
             # add label flanges along each dividing wall
-            rs = (
+            div_sketch = (
                 cq.Sketch()
                 .segment((0, 0), (self.label_width, 0))
                 .segment((self.label_width, -self.safe_label_height(backwall=False)))
@@ -494,15 +562,44 @@ class GridfinityBox(GridfinityObject):
                 .vertices("<Y")
                 .fillet(self.label_lip_height / 2)
             )
-            rsc = cq.Workplane("YZ").placeSketch(rs).extrude(self.inner_l)
-            rsc = rsc.translate((0, -self.label_width, self.floor_h + self.max_height))
             yl = self.inner_w / (self.width_div + 1)
-            pts = [
-                (-self.half_in, (y + 1) * yl - self.half_in + GR_DIV_WALL / 2)
-                for y in range(self.width_div)
-            ]
-            r = r.union(composite_from_pts(rsc, pts))
+            if self.label_style == "full":
+                # Original behavior: one extrusion per divider
+                rsc = cq.Workplane("YZ").placeSketch(div_sketch).extrude(self.inner_l)
+                rsc = rsc.translate((0, -self.label_width, z_top))
+                pts = [
+                    (-self.half_in, (y + 1) * yl - self.half_in + GR_DIV_WALL / 2)
+                    for y in range(self.width_div)
+                ]
+                r = r.union(composite_from_pts(rsc, pts))
+            else:
+                # Positioned tabs per compartment per divider
+                nx = self.length_div + 1
+                comp_l = self.inner_l / nx
+                for j in range(self.width_div):
+                    div_yo = (j + 1) * yl - self.half_in + GR_DIV_WALL / 2
+                    for tab_x, tab_w in self._compute_tab_positions(nx, comp_l):
+                        rsc = cq.Workplane("YZ").placeSketch(div_sketch).extrude(tab_w)
+                        rsc = rsc.translate((tab_x, div_yo - self.label_width, z_top))
+                        r = r.union(rsc)
         return r
+
+    def _compute_tab_positions(self, n_compartments, comp_length):
+        """Compute (x_start, width) pairs for each compartment's label tab."""
+        positions = []
+        for i in range(n_compartments):
+            comp_start = i * comp_length - self.half_in
+            tab_w = min(GRU, comp_length)  # tab max width = 1 grid unit (42mm)
+            if self.label_style in ("auto", "center"):
+                tab_x = comp_start + (comp_length - tab_w) / 2
+            elif self.label_style == "left":
+                tab_x = comp_start
+            elif self.label_style == "right":
+                tab_x = comp_start + comp_length - tab_w
+            else:
+                tab_x = comp_start
+            positions.append((tab_x, tab_w))
+        return positions
 
     def render_holes(self, obj):
         if not self.holes:
@@ -527,6 +624,61 @@ class GridfinityBox(GridfinityObject):
         rs = composite_from_pts(rc, [(-xo, 0, GR_HOLE_H), (xo, 0, GR_HOLE_H)])
         rs = composite_from_pts(rs, self.hole_centres)
         return obj.union(rs.translate((-self.half_l, self.half_w, 0)))
+
+    @property
+    def _floor_raise(self):
+        """Amount the compartment floor is raised above the standard floor."""
+        if self.height_internal > 0:
+            return max(self.int_height - self.height_internal, 0)
+        return max(self.compartment_depth, 0)
+
+    def _render_raised_floor(self):
+        """Create a raised floor block for custom compartment depth."""
+        raise_h = self._floor_raise
+        if raise_h <= 0:
+            return None
+        rs = rounded_rect_sketch(*self.inner_dim, self.inner_rad)
+        rf = cq.Workplane("XY").placeSketch(rs).extrude(raise_h)
+        return rf.translate((*self.half_dim, self.floor_h))
+
+    def _render_cylindrical_cuts(self, obj):
+        """Cut cylindrical compartments into a solid bin shell."""
+        nx = self.length_div + 1
+        ny = self.width_div + 1
+        comp_l = self.inner_l / nx
+        comp_w = self.inner_w / ny
+
+        # Cylinder fits within the smallest compartment dimension
+        max_diam = min(comp_l, comp_w) - 0.5
+        diam = min(self.cylinder_diam, max_diam)
+        if diam <= 0:
+            return obj
+        radius = diam / 2
+
+        raise_h = self._floor_raise
+        cyl_h = self.int_height - raise_h
+        if cyl_h <= 0:
+            return obj
+
+        # Create single chamfered cylinder
+        cyl = cq.Workplane("XY").circle(radius).extrude(cyl_h)
+        if self.cylinder_chamfer > 0:
+            cf = min(self.cylinder_chamfer, cyl_h / 2 - 0.01, radius - 0.01)
+            if cf > 0:
+                cyl = cyl.edges(">Z").chamfer(cf)
+
+        # Calculate compartment centers
+        pts = []
+        for i in range(nx):
+            for j in range(ny):
+                cx = self.half_l - self.inner_l / 2 + (i + 0.5) * comp_l
+                cy = self.half_w - self.inner_w / 2 + (j + 0.5) * comp_w
+                pts.append((cx, cy, 0))
+
+        z0 = self.floor_h + raise_h
+        cuts = composite_from_pts(cyl.translate((0, 0, z0)), pts)
+        return obj.cut(cuts)
+
 
 class GridfinitySolidBox(GridfinityBox):
     """Convenience class to represent a solid Gridfinity box."""

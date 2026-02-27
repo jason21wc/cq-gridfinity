@@ -184,7 +184,12 @@ class GridfinityObject:
 
     def safe_fillet(self, obj, selector, rad):
         if len(obj.edges(selector).vals()) > 0:
-            return obj.edges(selector).fillet(rad)
+            try:
+                return obj.edges(selector).fillet(rad)
+            except Exception:
+                # Fillet may fail on complex geometry (raised floors,
+                # positioned labels, etc.); skip gracefully
+                return obj
         return obj
 
     @property

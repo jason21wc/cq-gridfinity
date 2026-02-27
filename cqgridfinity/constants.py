@@ -117,6 +117,10 @@ GR_CRUSH_RIB_INNER_D = 5.9  # inner diameter at crush rib tips
 GR_CHAMFER_EXTRA_R = 0.8  # chamfer additional radius beyond hole edge
 GR_CHAMFER_ANGLE = 45  # chamfer angle (degrees)
 
+# Cylindrical compartment defaults (from kennetek gridfinity-rebuilt-bins.scad)
+GR_CYL_DIAM = 10.0  # default cylinder diameter (mm)
+GR_CYL_CHAMFER = 0.5  # default cylinder top chamfer (mm)
+
 # Weighted baseplate constants (from kennetek standard.scad)
 GR_BP_BOT_H = 6.4  # bottom height for weighted baseplate
 GR_BP_CUT_SIZE = 21.4  # weight pocket square size
