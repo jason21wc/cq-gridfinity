@@ -34,7 +34,7 @@ Features from 6 Perplexing Labs projects + cq-gridfinity upstream, as independen
 1. ~~Re-run baseline tests~~ DONE (71 tests passing)
 2. ~~**Enhanced holes** (1B.1-1B.4)~~ DONE — crush ribs, chamfered, refined, printable top in `gf_holes.py`
 3. ~~**Bin features** (1B.5-1B.8)~~ DONE — scoop scaling, tab positioning, custom depth, cylindrical compartments in `gf_box.py`
-4. **Baseplate features** (1B.9-1B.11) — skeletonized, screw-together, fit-to-drawer in `gf_baseplate.py`
+4. **Baseplate features** (1B.9-1B.11) — ~~skeletonized~~ DONE, screw-together, fit-to-drawer in `gf_baseplate.py`
 5. **Grid flexibility** (1B.12-1B.15) — non-integer grid, half-grid, height modes, Z-snap in `gf_obj.py`/`constants.py`
 6. **Spiral vase** (1B.16-1B.17) — new `gf_vase_box.py` module (requires STEP/vase-mode adaptation)
 

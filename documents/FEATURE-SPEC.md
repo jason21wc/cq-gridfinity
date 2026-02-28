@@ -104,7 +104,7 @@ All features in this phase trace to **kennetek/gridfinity-rebuilt-openscad** (MI
 
 | # | Feature | Source File | Function/Module | Phase | Status | Acceptance |
 |---|---------|-------------|-----------------|-------|--------|------------|
-| 1B.9 | Skeletonized baseplate | `gridfinity-rebuilt-baseplate.scad` + `src/core/standard.scad` | `style_plate=2`, constants `r_skel=2`, `h_skel=1` | 1B | Not Started | Material removed between receptacles, 2mm skeleton corner radius, 1mm minimum thickness. Additional height depends on magnet/screw options via `calculate_offset_skeletonized()` |
+| 1B.9 | Skeletonized baseplate | `gridfinity-rebuilt-baseplate.scad` + `src/core/standard.scad` | `style_plate=2`, constants `r_skel=2`, `h_skel=1` | 1B | Complete | `skeleton=True` param. 4 corner pocket cutouts per cell (12.4mm sq, 2mm fillet) leaving 11.5mm cross ribs. ext_depth auto: 4.35mm (plain), 6.75mm (magnets), 6.25mm (refined). Skeleton before holes in pipeline, overrides weighted. Impl: `gf_baseplate.py` `_render_skeleton_cutouts()`. Tests: `test_skeleton_baseplate.py` (15 tests). |
 | 1B.10 | Screw-together baseplate | `gridfinity-rebuilt-baseplate.scad` | `style_plate=3` (skel interior) or `style_plate=4` (thin interior), `cutter_screw_together()` | 1B | Not Started | Horizontal M3 screw holes along edges for joining baseplates side-by-side. Params: `d_screw=3.35`, `d_screw_head=5`, `screw_spacing=0.5`, `n_screws=1-3`. Additional height: 6.75mm |
 | 1B.11 | Fit-to-drawer baseplate | `gridfinity-rebuilt-baseplate.scad` | `[Fit to Drawer]` section: `distancex/y`, `fitx/fity` | 1B | Not Started | `distancex/y` = target drawer dimension (mm). `gridx/y=0` → auto-fill (floor division). `fitx/fity` (-1 to 1) controls padding alignment: -1=left, 0=center, 1=right. Padding filled with solid material |
 
@@ -130,76 +130,83 @@ All features in this phase trace to **kennetek/gridfinity-rebuilt-openscad** (MI
 
 ### Phase 1C: Extended Feature Set
 
-Features in this phase use **ostat/gridfinity_extended_openscad** (GPL) as **dimensional/behavioral spec reference ONLY**. All implementations are independent CadQuery code.
+Features in this phase use **ostat/gridfinity_extended_openscad** (GPL) as **dimensional/behavioral spec reference ONLY**. All implementations are independent CadQuery code. All source references verified 2026-02-27. See `documents/UPSTREAM-REFERENCE.md` for detailed parameters and constants.
 
-| # | Feature | Spec Reference | Spec Detail | Phase | Status | Acceptance |
-|---|---------|---------------|-------------|-------|--------|------------|
-| 1C.1 | Wall pattern: grid | ostat `modules/gridfinity_cup_modules.scad` [needs verify] | Rectangular grid cutouts | 1C | Not Started | Configurable grid size, wall selection |
-| 1C.2 | Wall pattern: hex | ostat `modules/gridfinity_cup_modules.scad` [needs verify] | Hexagonal cutouts | 1C | Not Started | Configurable hex size, wall selection |
-| 1C.3 | Wall pattern: brick | ostat [needs verify] | Offset brick pattern | 1C | Not Started | Alternating rows |
-| 1C.4 | Wall pattern: slat | ostat [needs verify] | Horizontal slot cutouts | 1C | Not Started | Configurable slat width/spacing |
-| 1C.5 | Per-wall pattern control | ostat [needs verify] | Different pattern per wall | 1C | Not Started | front/back/left/right independent |
-| 1C.6 | Pattern fill modes | ostat [needs verify] | Crop/fill/none per wall | 1C | Not Started | Pattern alignment options |
-| 1C.7 | Minimum lip (4th style) | ostat [needs verify] | Thinnest possible stacking lip | 1C | Not Started | Functional stacking, minimal material |
-| 1C.8 | Finger slide (rounded) | ostat [needs verify] | Rounded cutout in front wall | 1C | Not Started | Semi-circular, configurable size |
-| 1C.9 | Finger slide (chamfered) | ostat [needs verify] | Chamfered cutout in front wall | 1C | Not Started | Angled cut, configurable |
-| 1C.10 | Tapered bin corners | ostat [needs verify] | Interior corner chamfers | 1C | Not Started | Configurable taper angle |
-| 1C.11 | Wall cutouts | ostat [needs verify] | Rectangular openings in walls | 1C | Not Started | Configurable position/size |
-| 1C.12 | Irregular subdivisions | ostat [needs verify] | Non-uniform compartment sizes | 1C | Not Started | Specify individual compartment widths |
-| 1C.13 | Removable divider slots | ostat [needs verify] | Grooves for insert dividers | 1C | Not Started | Slot width/depth configurable |
-| 1C.14 | Split bins | ostat [needs verify] | Bin split into two pieces | 1C | Not Started | Cut plane configurable |
-| 1C.15 | Bottom text embossing | ostat [needs verify] | Raised text on bin bottom | 1C | Not Started | 2 lines, font selection, depth |
-| 1C.16 | Bottom text debossing | ostat [needs verify] | Recessed text on bin bottom | 1C | Not Started | 2 lines, font selection, depth |
-| 1C.17 | Floor pattern: grid | ostat [needs verify] | Grid cutouts in floor | 1C | Not Started | Same system as wall patterns |
-| 1C.18 | Floor pattern: hex | ostat [needs verify] | Hex cutouts in floor | 1C | Not Started | Same system as wall patterns |
+| # | Feature | Source File | Function/Module | Phase | Status | Acceptance |
+|---|---------|-------------|-----------------|-------|--------|------------|
+| 1C.1 | Wall pattern: grid | `modules/module_patterns.scad` + `modules/module_item_holder.scad` | `cutout_pattern()` → `GridItemHolder(hexGrid=false)` | 1C | Not Started | Configurable `cellSize` (default [10,10]mm), `strength` (2mm), `circleFn` (4/6/8/64), `holeRadius` (0.5mm), `patternBorder`, `patternDepth` |
+| 1C.2 | Wall pattern: hex | `modules/module_patterns.scad` + `modules/module_item_holder.scad` | `cutout_pattern()` → `GridItemHolder(hexGrid=true)` | 1C | Not Started | Same params as 1C.1. Hex is ostat's default wall pattern style |
+| 1C.3 | Wall pattern: brick | `modules/module_pattern_brick.scad` | `brick_pattern()` via `cutout_pattern()` | 1C | Not Started | Two sub-styles: `"brick"` (aligned) and `"brickoffset"` (staggered). `cell_size` [15,5]mm, `spacing` 1mm, `corner_radius` 3mm, `center_weight` |
+| 1C.4 | Wall pattern: slat | `modules/module_pattern_slat.scad` | `slat_pattern()` via `cutout_pattern()` | 1C | Not Started | Vertical strips (not horizontal). `slat_width`, `spacing`, `slat_chamfer` supports [top,bottom] |
+| 1C.5 | Per-wall pattern enable/disable | `modules/module_patterns.scad` | `get_wallpattern_positions()` with `wallpattern_walls` | 1C | Not Started | Same pattern on/off per wall: `wallpattern_walls=[f,b,l,r]` (each 0/1). Also `wallpattern_dividers_enabled` ("disabled"/"horizontal"/"vertical"/"both") |
+| 1C.6 | Pattern fill modes (9) | `modules/module_patterns.scad` | `PatternSettings()` | 1C | Not Started | 9 modes: none, space, crop, crophorizontal, cropvertical, spacehorizontal, spacevertical, crophorizontal_spacevertical, cropvertical_spacehorizontal |
+| 1C.7 | Minimum lip | `modules/module_lip.scad` | `cupLip()` with `lipStyle="minimum"` | 1C | Not Started | `lipSupportThickness=0`, removes entire lip cavity. Thinnest possible rim |
+| 1C.7b | Reduced double lip | `modules/module_lip.scad` | `cupLip()` with `lipStyle="reduced_double"` | 1C | Not Started | Second lip below first, offset by `lipHeight + labelCornerRadius`. Double-stack reduced lip |
+| 1C.8 | Finger slide (rounded) | `modules/module_fingerslide.scad` + `modules/utility/module_utility.scad` | `FingerSlide()` → `roundedCorner()` | 1C | Not Started | Quarter-cylinder cutout (90°, not semi-circular). `fingerslide_radius` default -3 (proportional: `min(cup_h, cup_size)/abs(val)`). `fingerslide_walls` [f,b,l,r], `fingerslide_lip_aligned` |
+| 1C.9 | Finger slide (chamfered) | `modules/module_fingerslide.scad` + `modules/utility/module_utility.scad` | `FingerSlide()` → `chamferedCorner()` | 1C | Not Started | Angled flat cut. Same params as 1C.8. `chamferLength`, `cornerRadius`, `angled_extension` |
+| 1C.10 | Tapered bin corners | `modules/module_gridfinity_cup.scad` (line ~995) | `bin_cutouts()` with `tapered_corner` | 1C | Not Started | Back-wall-top corner cutout (not interior corners). `tapered_corner`: "none"/"rounded"/"chamfered". `tapered_corner_size` default 10mm (-1=full, -2=half). `tapered_setback` default -1 (=corner_radius) |
+| 1C.11 | Wall cutouts | `modules/utility/wallcutout.scad` + `modules/module_gridfinity_cup.scad` | `WallCutout()`, `WallCutoutSettings()`, `calculateWallCutouts()` | 1C | Not Started | Trapezoidal profile, rounded corners. `type`: enabled/wallsonly/frontonly/etc. `angle` 70°, `corner_radius` 5mm. Separate vertical/horizontal settings. Multiple positions per wall |
+| 1C.12 | Irregular subdivisions | `modules/module_bin_chambers.scad` | `ChamberSettings()` + `calculateSeparators()` | 1C | Not Started | `vertical/horizontal_irregular_subdivisions` (bool). Separator config: pipe-separated positions with per-separator overrides (position,bend_separation,bend_angle,cut_depth,cut_width,wall_thickness) |
+| 1C.13 | Divider wall notches | `modules/module_bin_chambers.scad` + `modules/utility/module_utility.scad` | `bentWall()` with `wall_cutout_depth` | 1C | Not Started | U-shaped notches from top of divider walls (not grooves in bin walls). `separator_cut_depth` (0=disabled), `wall_cutout_width` (0=auto=length/2). Per-separator override via irregular config |
+| 1C.14 | Extendable (split) bins | `modules/module_gridfinity_Extendable.scad` | `ExtendableSettings()`, `cut_bins_for_extension()`, `extension_tabs()` | 1C | Not Started | Called "Extendable" in ostat. Cut bin in two with snap tabs. `extension_x/y_enabled` ("disabled"/"front"/"back"), `extension_x/y_position` (0.0-1.0), `extension_tab_size` [h,w,t,style] |
+| 1C.15 | ~~Bottom text embossing~~ | — | — | — | REMOVED | Does not exist in ostat. Only debossing available (see 1C.16) |
+| 1C.16 | Bottom text debossing | `modules/module_gridfinity_cup_base_text.scad` | `cup_base_text()` | 1C | Not Started | Recessed text on bin underside. `text_1` (auto bin size), `text_2` (custom), `text_depth` 0.3mm, `text_size` (0=auto-fit 30mm), fonts: Aldo/B612/Open Sans/Ubuntu |
+| 1C.17 | Floor pattern: grid | `modules/module_gridfinity_cup.scad` + `modules/module_patterns.scad` | `bin_floor_pattern()` → `cutout_pattern()` | 1C | Not Started | All 8 pattern styles available for floors. `floorpattern_border` min 5mm. Respects divider/magnet positions. Default style = hexgrid, default enabled = false |
+| 1C.18 | Floor pattern: hex | Same as 1C.17 | `bin_floor_pattern()` with `hexgrid` | 1C | Not Started | Default floor pattern style. Same system as wall patterns |
 
 ---
 
 ### Phase 1D: Accessories
 
-| # | Feature | Source Project | Source File | Phase | Status | Acceptance |
-|---|---------|--------------|-------------|-------|--------|------------|
-| 1D.1 | Anylid click-lock lid | rngcntr/anylid | [needs verify — license TBD] | 1D | Not Started | Click-lock mechanism, 1U height, stackable |
-| 1D.2 | Anylid baseplate-on-top | rngcntr/anylid | [needs verify] | 1D | Not Started | Baseplate receptacles on lid top |
-| 1D.3 | Cullenect click-in label | CullenJWebb/CullenectLabels (MIT) | [needs verify] | 1D | Not Started | Snap-in label, swappable |
-| 1D.4 | Label negative volume | CullenJWebb/CullenectLabels (MIT) | [needs verify] | 1D | Not Started | Boolean subtraction volume for any bin |
-| 1D.5 | Item holder: battery | ostat (spec ref) | [needs verify] | 1D | Not Started | Parametric slots for standard battery sizes |
-| 1D.6 | Item holder: hex bit | ostat (spec ref) | [needs verify] | 1D | Not Started | Hex socket array |
-| 1D.7 | Item holder: card | ostat (spec ref) | [needs verify] | 1D | Not Started | Card-width slots |
-| 1D.8 | Sliding lid | ostat (spec ref) | [needs verify] | 1D | Not Started | Rail channels on bin walls |
-| 1D.9 | Drawer chest frame | ostat (spec ref) | [needs verify] | 1D | Not Started | Frame that holds drawer units |
-| 1D.10 | Drawer sliding unit | ostat (spec ref) | [needs verify] | 1D | Not Started | Bin-sized drawer with rails |
-| 1D.11 | Catch-all tray | ostat (spec ref) | [needs verify] | 1D | Not Started | Open tray, no compartments |
-| 1D.12 | Vertical divider tray | ostat (spec ref) | [needs verify] | 1D | Not Started | Tray with vertical dividers |
+All source references verified 2026-02-27. See `documents/UPSTREAM-REFERENCE.md` for detailed parameters and constants.
+
+| # | Feature | Source Project | Source File | Function/Module | Phase | Status | Acceptance |
+|---|---------|--------------|-------------|-----------------|-------|--------|------------|
+| 1D.1 | Anylid click-lock lid | rngcntr/anylid (**NO GitHub repo** — MakerWorld #1059434 only, **license TBD**) | No source code available | N/A | 1D | Not Started | Click-lock mechanism, 1U height, stackable. Rails in X or Y. Label accommodation. Optional magnets. **Blocked: license must be resolved before implementation** |
+| 1D.2 | Anylid baseplate-on-top | rngcntr/anylid (same as 1D.1) | No source code available | N/A | 1D | Not Started | Full baseplate receptacles on lid top. Each lid = +1U height. **Blocked: license** |
+| 1D.3 | Cullenect click-in label | CullenJWebb/**Cullenect-Labels** (MIT) | `OpenSCAD/Cullenect.scad` | `cullenect_base_v1/v2()`, `cullenect_socket()`, `cullenect_label_generate()` | 1D | Not Started | Snap-in label. Width=(42×units)-6mm, height=11mm, depth=1.2mm, latch inset=0.2mm, latch depth=0.6mm. Embossed/debossed text, 18+ hardware icons |
+| 1D.4 | Label negative volume | CullenJWebb/**Cullenect-Labels** (MIT) | `OpenSCAD/Cullenect.scad` + `Cullenect Negative Volume.stl` | `cullenect_socket_negative()`, `cullenect_vertical_socket_negative()` | 1D | Not Started | Boolean subtraction volume. Socket XY offset=0.3mm, rib=0.2mm XY/0.4mm depth. Generate natively in CadQuery |
+| 1D.5 | Item holder: battery | ostat (spec ref, GPL) | `gridfinity_item_holder.scad` + `modules/module_item_holder.scad` + `modules/module_item_holder_data.scad` | `LookupKnownBattery()`, `GridItemHolder()` | 1D | Not Started | AAA(10.5mm), AA(14.5mm), 9V(17.5×26.5mm), 18650(18mm), C, D, coin cells. `hole_clearance` 0.25mm, grid_style square/hex/auto |
+| 1D.6 | Item holder: hex bit | ostat (spec ref, GPL) | Same as 1D.5 | `LookupKnownTool()`, `GridItemHolder(circleFn=6)` | 1D | Not Started | 1/4" hex (6.35mm), 3/8" hex (9.52mm), router bits. circleFn=6 for hex holes |
+| 1D.7 | Item holder: card | ostat (spec ref, GPL) | Same as 1D.5 | `LookupKnownCard()`, `multiCard()` | 1D | Not Started | SD(24×2.1mm), MicroSD(11×0.7mm), CF(43×3.3mm), game cartridges. Multi-card: comma-separated, compact nesting 0-1 |
+| 1D.8 | Sliding lid | ostat (spec ref, GPL) | `gridfinity_sliding_lid.scad` + `modules/module_gridfinity_sliding_lid.scad` | `SlidingLid()`, `SlidingLidCavity()`, `SlidingLidSettings()` | 1D | Not Started | `lidThickness` 1.6mm, `clearance` 0.1mm, `lip_height` 3.75mm. Pull styles: disabled/lip/finger. Nub 0.5mm. Optional text engraving |
+| 1D.9 | Drawer chest frame | ostat (spec ref, GPL) | `gridfinity_drawers.scad` | `chest()`, `chestCutouts()`, `gridfinity_drawer()` | 1D | Not Started | `wall_thickness` 2mm, `clearance` 0.25mm. Optional top/bottom grids. Supportless feet. Magnet 6.5mm×2.4mm |
+| 1D.10 | Drawer sliding unit | ostat (spec ref, GPL) | `gridfinity_drawers.scad` | `drawer()`, `drawers()`, `drawerPull()` | 1D | Not Started | `wall_thickness` 2mm, configurable clearance [x,y,z]. Base: default/grid. Custom per-drawer sizing. Handle configurable |
+| 1D.11 | Catch-all tray | ostat (spec ref, GPL) | `gridfinity_tray.scad` | `tray()`, `gridfinity_tray()` | 1D | Not Started | `corner_radius` 2mm, `spacing` 2mm. 1×1 compartments = open tray. Custom layout string: "xpos,ypos,xsize,ysize,radius,depth\|...". Full cup integration |
+| 1D.12 | Vertical divider | ostat (spec ref, GPL) | `gridfinity_vertical_divider.scad` | `Gridfinity_Divider()`, `PatternedDivider()`, `Divider()` | 1D | Not Started | Upstream name: "Gridfinity Divider" (bin with tall partitions, not shallow tray). `dividerCount` 4, `dividerHeight` 50mm, `dividerWidth` 3mm, angled tops (65°), base 10mm. Wall patterns on dividers |
 
 ---
 
 ### Phase 1E: Rugged Box Expansion
 
-| # | Feature | Source Project | Source File | Phase | Status | Acceptance |
-|---|---------|--------------|-------------|-------|--------|------------|
-| 1E.1 | smkent clip latch | smkent/monoscad (CC BY-SA 4.0) | [needs verify] | 1E | Not Started | Clip-style closure mechanism |
-| 1E.2 | smkent draw latch | smkent/monoscad | [needs verify] | 1E | Not Started | Draw-latch closure |
-| 1E.3 | smkent lip seal (4 types) | smkent/monoscad | [needs verify] | 1E | Not Started | Weatherproofing lip options |
-| 1E.4 | smkent base styles (4) | smkent/monoscad | [needs verify] | 1E | Not Started | Different bottom configurations |
-| 1E.5 | smkent stacking latches | smkent/monoscad | [needs verify] | 1E | Not Started | External stacking mechanism |
-| 1E.6 | smkent third hinge | smkent/monoscad | [needs verify] | 1E | Not Started | Centre hinge for wide boxes |
-| 1E.7 | smkent hinge end stops | smkent/monoscad | [needs verify] | 1E | Not Started | Lid opening angle limit |
-| 1E.8 | smkent parametric walls | smkent/monoscad | [needs verify] | 1E | Not Started | Configurable wall thickness |
+All features from **smkent/monoscad** (CC BY-SA 4.0). Primary library: `rugged-box/rugged-box-library.scad` (~2,182 lines). Gridfinity wrapper: `gridfinity/rugged-box/rugged-box-gridfinity.scad` (~368 lines). All source references verified 2026-02-27. See `documents/UPSTREAM-REFERENCE.md` for detailed parameters and constants.
+
+| # | Feature | Source File | Function/Module | Phase | Status | Acceptance |
+|---|---------|-------------|-----------------|-------|--------|------------|
+| 1E.1 | Clip latch | `rugged-box/rugged-box-library.scad` | `_clip_latch_shape()` (line ~1629), `_clip_latch_part()`, `_latch()` dispatcher, `rbox_latch()` | 1E | Not Started | `latch_type="clip"`. Single-piece: hinge eyelet + body + catch w/ flex slot. M3 screws, `latch_edge_radius` 0.8mm, `latch_base_size` 4.5mm. Width: 22mm (generic) / 28mm (GF) |
+| 1E.2 | Draw latch | `rugged-box/rugged-box-library.scad` | `_draw_latch_handle()` (~1853), `_draw_latch_catch()` (~1990), `_draw_latch_part()` (~2015) | 1E | Not Started | `latch_type="draw"`. Two-piece (handle+catch via pin joint). Body angle 25°, grip angle 45°, thickness 2.25mm, handle length 14.625mm. Segmented interlocking, sep=0.4mm |
+| 1E.3 | Lip seal (4 types) | `rugged-box/rugged-box-library.scad` | `_box_seal_shape()` (~991), `_box_seal()`, `_box_add_seal()` | 1E | Not Started | `lip_seal_type`: none/wedge/square/filament-1.75mm. Wedge+square: `seal_thickness = total_lip_thickness/3`, protrude top + groove bottom. Filament: 1.75mm circle, groove both halves |
+| 1E.4 | Base styles (4, GF-specific) | `gridfinity/rugged-box/rugged-box-gridfinity.scad` | `gridfinity_base_plate_style()` (~145), `gridfinity_base_plate_magnets_enabled()` | 1E | Not Started | minimal (no magnets, thin), thick (no magnets, full), enabled (magnets, skeletonized), enabled_full (magnets, full). Uses kennetek `gridfinityBaseplate()`. Stackable offsets: 3.4 / -0.8 / -0.6mm |
+| 1E.5 | Stacking latches | `rugged-box/rugged-box-library.scad` | `_stacking_latch_shape()` (~2079), `_stacking_latch_part()`, `_box_stacking_latch_ribs()` | 1E | Not Started | Side-mounted. `catch_offset` -10mm, `grip_length` 8mm, `screw_separation` 20mm. Requires box height >40mm. Stacking gap 1.6mm (GF stackable) |
+| 1E.6 | Third hinge | `rugged-box/rugged-box-library.scad` | `rbox_size_adjustments()` (~186), `_box_attachment_placement(hinge=true)` (~1162) | 1E | Not Started | Center hinge when `inner_width >= third_hinge_width`. GF: activates at 5U wide (210mm). Adds 1 screw to BOM |
+| 1E.7 | Hinge end stops | `rugged-box/rugged-box-library.scad` | `_box_hinge_rib_bottom_end_stop()` (~1400), in `_box_hinge_ribs()` | 1E | Not Started | Bottom box part only. Physical rotation limiter. Width = latch_width. Positioned 2mm below box top |
+| 1E.8 | Parametric walls | `rugged-box/rugged-box-library.scad` | `rbox_size_adjustments()` (~186) | 1E | Not Started | 7 params: wall_thickness (2.4/3.0mm), lip_thickness (2.0/3.0mm), rib_width (4/6mm), latch_width (22/28mm), latch_screw_sep (20/16mm), latch_amount_on_top, size_tolerance (0.05/0.20mm). Generic/GF defaults differ |
 
 ---
 
 ### Phase 1F: GridFlock Segmented Baseplates
 
-| # | Feature | Source Project | Source File | Phase | Status | Acceptance |
-|---|---------|--------------|-------------|-------|--------|------------|
-| 1F.1 | Baseplate segment | yawkat/gridflock (MIT) | [needs verify] | 1F | Not Started | Individual printable segment |
-| 1F.2 | Puzzle connector (intersection) | yawkat/gridflock | [needs verify] | 1F | Not Started | T/cross connectors at grid intersections |
-| 1F.3 | Puzzle connector (edge) | yawkat/gridflock | [needs verify] | 1F | Not Started | Edge connectors between segments |
-| 1F.4 | Filler: none | yawkat/gridflock | [needs verify] | 1F | Not Started | No gap filling |
-| 1F.5 | Filler: integer-fraction | yawkat/gridflock | [needs verify] | 1F | Not Started | Fill with integer-fraction pieces |
-| 1F.6 | Filler: dynamic | yawkat/gridflock | [needs verify] | 1F | Not Started | Computed optimal fill |
-| 1F.7 | ClickGroove anti-creep latch | yawkat/gridflock | [needs verify] | 1F | Not Started | Interlocking mechanism between segments |
+All features from **yawkat/gridflock** (MIT + CC-BY 4.0 dual license). Single-file architecture: `gridflock.scad` (~1,260 lines). Supporting: `clickgroove-base.scad`, `puzzle.svg`. All source references verified 2026-02-27. See `documents/UPSTREAM-REFERENCE.md` for detailed parameters and constants.
+
+| # | Feature | Source File | Function/Module | Phase | Status | Acceptance |
+|---|---------|-------------|-----------------|-------|--------|------------|
+| 1F.1 | Baseplate segment | `gridflock.scad` | `segment()` (~848), `main()` (~1133), `compute_segment_size()`, `cell()` | 1F | Not Started | Individual printable piece. Auto-splits `plate_size` to fit `bed_size`. `plate_size` [371,254]mm, `bed_size` [250,220]mm, `plate_corner_radius` 4mm, `alignment` [0.5,0.5]. Ideal + incremental + staggered algorithms. `_profile_height` 4.65mm |
+| 1F.2 | Puzzle connector (intersection) | `gridflock.scad` + `puzzle.svg` | `puzzle_male()` / `puzzle_female()` (~400-430), `segment_intersection_connectors()` (~616) | 1F | Not Started | SVG-defined shape (4 paths: male/female × tight/loose). Weighted blend by `intersection_puzzle_fit` (0-1, default 1). Male on N/E edges, female on S/W. Scale 1/128×4 |
+| 1F.3 | Puzzle connector (edge) | `gridflock.scad` | `edge_puzzle()` (~739), `segment_edge_connectors()` (~696), `round_bar_x()` | 1F | Not Started | `edge_puzzle_dim` [10,2.5]mm, bridge [3,1.2]mm, `gap` 0.15mm. `count` per edge, `height_female` 2.25mm, `male_delta` 0.25mm. Optional magnet border (2.5mm). Male N/E, female S/W |
+| 1F.4 | Filler: none | `gridflock.scad` | `compute_global_trace()` (~1128), `_FILLER_NONE=0` | 1F | Not Started | Only full-size cells. Remaining space = padding via `alignment` param |
+| 1F.5 | Filler: integer-fraction | `gridflock.scad` | `compute_global_trace_fraction()` (~1116), `_FILLER_INTEGER=1` | 1F | Not Started | Default mode. `filler_fraction` [2,2] (denominator: 2=half, 3=third). Splits into whole + fractional cells |
+| 1F.6 | Filler: dynamic | `gridflock.scad` | `compute_global_trace_dynamic()` (~1122), `_FILLER_DYNAMIC=2` | 1F | Not Started | `filler_minimum_size` [15,15]mm. If remainder < minimum → expand last cell. Otherwise → dynamic-sized filler. Prevents tiny cells |
+| 1F.7 | ClickGroove anti-creep latch | `gridflock.scad` (lines ~315-332) + `clickgroove-base.scad` | `cell()` with `click_style==_CLICK2` | 1F | Not Started | **Bin-to-baseplate** mechanism (NOT segment-to-segment). Two styles: Arc (_CLICK1, logistic curve) and ClickGroove (_CLICK2, tab-in-groove). `gap_length` 25mm, `tab_length` 10mm, `strength` 1.4mm, `depth` 0.9mm. Bin groove: 1.5mm height, 0.75mm depth, all 4 sides |
 
 ---
 
@@ -231,3 +238,4 @@ Before starting any phase, verify ALL of the following:
 |------|--------|--------|
 | 2026-02-26 | Initial feature spec with traceability matrix | Jason + Claude |
 | 2026-02-26 | Phase 1B: All 17 features verified against kennetek source. Resolved all `[needs verify]` markers. Updated acceptance criteria with exact constants, params, and dimensions from 7 source files. Added spiral vase adaptation note. | Jason + Claude |
+| 2026-02-27 | Phases 1C–1F: All 45 features verified against upstream repos (ostat, smkent, yawkat, CullenJWebb, rngcntr). 1C.15 (embossing) removed — does not exist in ostat. 1C.7b (reduced_double lip) added. 1F.7 description corrected (bin-to-baseplate, not segment-to-segment). anylid license flagged as TBD/blocked. Created `documents/UPSTREAM-REFERENCE.md` with detailed parameters, constants, and dimensions. | Jason + Claude |

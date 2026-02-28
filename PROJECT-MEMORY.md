@@ -66,6 +66,7 @@
 | Artifact | Location | Status |
 |----------|----------|--------|
 | Feature Specification | `documents/FEATURE-SPEC.md` | Active |
+| Upstream Reference | `documents/UPSTREAM-REFERENCE.md` | Active |
 | Dimensional Reference | `GRIDFINITY-SPEC.md` | Stable |
 | Component Licenses | `LICENSE-COMPONENTS.md` | Active |
 | Product Guide | `PRODUCTS.md` | Active |
@@ -104,14 +105,17 @@
 | Tests passing | Passed | 2026-02-26 | 28/28 pass |
 | Governance setup | Passed | 2026-02-26 | Feature spec, calibration, phase gates |
 
-### Phase 1B: Kennetek Feature Parity — NEXT
+### Phase 1B: Kennetek Feature Parity — IN PROGRESS
 
 | Gate | Status | Date | Notes |
 |------|--------|------|-------|
-| Feature spec verified | Pending | — | All `[needs verify]` resolved for 1B features |
-| Specify -> Plan | Pending | — | — |
-| Plan -> Tasks | Pending | — | — |
-| Tasks -> Implement | Pending | — | — |
+| Feature spec verified | Passed | 2026-02-26 | All `[needs verify]` resolved for 1B features |
+| 1B.1-1B.4 Enhanced holes | Passed | 2026-02-27 | crush ribs, chamfered, refined, printable top |
+| 1B.5-1B.8 Bin features | Passed | 2026-02-27 | scoop scaling, tab positioning, custom depth, cylindrical |
+| 1B.9 Skeletonized baseplate | Passed | 2026-02-27 | 15 tests, 4 corner pocket cutouts per cell, cross ribs |
+| 1B.10-1B.11 Baseplate features | Pending | — | screw-together, fit-to-drawer |
+| 1B.12-1B.15 Grid flexibility | Pending | — | non-integer, half-grid, height modes, Z-snap |
+| 1B.16-1B.17 Spiral vase | Pending | — | shell + base insert |
 | Implement -> Complete | Pending | — | All 1B features pass acceptance |
 
 ### Phase 1C-1F: See documents/FEATURE-SPEC.md

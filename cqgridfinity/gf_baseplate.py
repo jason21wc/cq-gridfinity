@@ -58,6 +58,7 @@ class GridfinityBaseplate(GridfinityObject):
       magnet_holes - add magnet recesses in receptacle floors (6.5mm dia, 2.4mm deep)
       screw_holes - add screw through-holes in receptacle floors (3.0mm dia)
       weighted - add weight pockets in baseplate bottom
+      skeleton - remove material from slab leaving cross-shaped rib pattern (style_plate=2)
       refined_holes - use refined magnet holes (5.86mm dia, 1.9mm deep, tighter press-fit)
       crush_ribs - add crush ribs to magnet holes for press-fit retention (8 ribs)
       chamfer_holes - add entry chamfer to magnet holes (0.8mm at 45deg)
@@ -78,6 +79,7 @@ class GridfinityBaseplate(GridfinityObject):
         self.magnet_holes = False
         self.screw_holes = False
         self.weighted = False
+        self.skeleton = False
         self.refined_holes = False
         self.crush_ribs = False
         self.chamfer_holes = False
@@ -86,6 +88,12 @@ class GridfinityBaseplate(GridfinityObject):
             if k in self.__dict__ and v is not None:
                 self.__dict__[k] = v
         # Auto-adjust ext_depth to ensure enough material for features
+        if self.skeleton:
+            # kennetek calculate_offset_skeletonized():
+            # ext_depth = h_skel + magnet_depth + screw_clearance
+            mag_depth = self._magnet_hole_depth if self.magnet_holes else 0
+            skel_depth = GR_SKEL_H + mag_depth + GR_SKEL_SCREW_NONE
+            self.ext_depth = max(self.ext_depth, skel_depth)
         if self.weighted:
             self.ext_depth = max(self.ext_depth, GR_BP_BOT_H)
         elif self.magnet_holes and self.screw_holes:
@@ -100,7 +108,7 @@ class GridfinityBaseplate(GridfinityObject):
     @property
     def _has_bottom_features(self):
         """True if this baseplate needs a solid slab below the receptacle."""
-        return self.magnet_holes or self.screw_holes or self.weighted
+        return self.magnet_holes or self.screw_holes or self.weighted or self.skeleton
 
     @property
     def _bp_cell_centres(self):
@@ -144,7 +152,9 @@ class GridfinityBaseplate(GridfinityObject):
     def _filename_suffix(self) -> str:
         fn = ""
         # 1. Base style
-        if self.weighted:
+        if self.skeleton:
+            fn += "_skel"
+        elif self.weighted:
             fn += "_weighted"
         # 2. Hole features
         if self.magnet_holes and self.screw_holes:
@@ -218,9 +228,11 @@ class GridfinityBaseplate(GridfinityObject):
             r = r.union(recentre(composite_from_pts(rs, self._corner_pts()), "XY"))
             bs = VerticalEdgeSelector(self.ext_depth) & HasZCoordinateSelector(0)
             r = r.edges(bs).fillet(GR_RAD)
+        if self.skeleton:
+            r = self._render_skeleton_cutouts(r)
         if self.magnet_holes or self.screw_holes:
             r = self._render_baseplate_holes(r)
-        if self.weighted:
+        if self.weighted and not self.skeleton:
             r = self._render_weight_pockets(r)
         return r
 
@@ -235,6 +247,41 @@ class GridfinityBaseplate(GridfinityObject):
         if self.refined_holes:
             return GR_REFINED_HOLE_H
         return GR_HOLE_H
+
+    def _render_skeleton_cutouts(self, obj):
+        """Cut skeleton material-removal pockets from the baseplate slab.
+
+        Creates 4 corner pocket cutouts per grid cell, leaving a cross-shaped
+        rib pattern that preserves material around hole positions.
+
+        Reproduces kennetek profile_skeleton(): the rib half-width equals
+        hole_dist minus keepout_r (5.75mm), so ribs are 11.5mm wide.
+        Each corner pocket is cut_size × cut_size (12.4mm) with r_skel
+        rounded corners, extruded through the full ext_depth.
+        """
+        rib_half_w = GR_HOLE_DIST - GR_SKEL_KEEPOUT_R  # 5.75mm
+        cut_size = GR_SKEL_INNER / 2 - rib_half_w  # 12.4mm
+        offset = rib_half_w + cut_size / 2  # 11.95mm
+        r = GR_SKEL_RAD  # 2.0mm
+
+        # Single corner pocket with rounded corners
+        cutout = (
+            cq.Workplane("XY")
+            .rect(cut_size, cut_size)
+            .extrude(self.ext_depth + EPS)
+            .edges("|Z").fillet(r)
+            .translate((0, 0, -EPS))
+        )
+
+        # 4 corner positions per cell, tiled across all cells
+        pts = []
+        for cx, cy in self._bp_cell_centres:
+            for dx in (-1, 1):
+                for dy in (-1, 1):
+                    pts.append((cx + dx * offset, cy + dy * offset, 0))
+
+        cutouts = composite_from_pts(cutout, pts)
+        return obj.cut(cutouts)
 
     def _render_baseplate_holes(self, obj):
         """Cut magnet and/or screw holes into the solid slab below receptacles.

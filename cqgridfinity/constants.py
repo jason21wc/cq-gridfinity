@@ -129,6 +129,17 @@ GR_BP_RCUT_W = 8.5  # weight pocket cross-channel width
 GR_BP_RCUT_L = 4.25  # weight pocket cross-channel length
 GR_BP_RCUT_D = 2.0  # weight pocket cross-channel depth
 
+# Skeletonized baseplate (kennetek standard.scad, style_plate=2)
+GR_SKEL_RAD = 2.0            # cutout corner radius (r_skel)
+GR_SKEL_H = 1.0              # structural spacing between features (h_skel)
+GR_BP_PROFILE_X = 2.85       # base profile horizontal extent (outer_radius - inner_radius)
+GR_SKEL_INNER = GRU - 2 * GR_BP_PROFILE_X  # 36.3mm inner cell dimension
+GR_SKEL_KEEPOUT_R = GR_HOLE_D / 2 + GR_SKEL_RAD + 2.0  # 7.25mm keepout offset
+# Screw-style structural clearances (per style_hole)
+GR_SKEL_SCREW_NONE = 3.35    # d_screw default (style_hole=0)
+GR_SKEL_SCREW_CSK = 2.5      # countersink additional radius (style_hole=1)
+GR_SKEL_SCREW_CB = 3.0       # counterbore height (style_hole=2)
+
 # Rugged Box constant parameters
 GR_RBOX_WALL = 2.5
 GR_RBOX_FLOOR = 1.2
