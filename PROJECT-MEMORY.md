@@ -81,7 +81,7 @@
 - **smkent:** github.com/smkent/monoscad (CC BY-SA 4.0) — rugged box variant
 - **yawkat:** github.com/yawkat/gridflock (MIT) — segmented baseplates
 - **rngcntr:** anylid (license TBD) — universal click-lock lids
-- **CullenJWebb:** CullenectLabels (MIT) — click-in swappable labels
+- **CullenJWebb:** Cullenect-Labels (MIT) — click-in swappable labels
 
 ## Known Gotchas
 
@@ -110,9 +110,9 @@
 | Gate | Status | Date | Notes |
 |------|--------|------|-------|
 | Feature spec verified | Passed | 2026-02-26 | All `[needs verify]` resolved for 1B features |
-| 1B.1-1B.4 Enhanced holes | Passed | 2026-02-27 | crush ribs, chamfered, refined, printable top |
-| 1B.5-1B.8 Bin features | Passed | 2026-02-27 | scoop scaling, tab positioning, custom depth, cylindrical |
-| 1B.9 Skeletonized baseplate | Passed | 2026-02-27 | 15 tests, 4 corner pocket cutouts per cell, cross ribs |
+| 1B.1-1B.4 Enhanced holes | Verified | 2026-02-28 | crush ribs, chamfered, refined, printable top — now on baseplates AND bins |
+| 1B.5-1B.8 Bin features | Verified | 2026-02-28 | scoop scaling, tab positioning, custom depth, cylindrical |
+| 1B.9 Skeletonized baseplate | Verified | 2026-02-28 | 16 tests, 4 corner pocket cutouts per cell, cross ribs |
 | 1B.10-1B.11 Baseplate features | Pending | — | screw-together, fit-to-drawer |
 | 1B.12-1B.15 Grid flexibility | Pending | — | non-integer, half-grid, height modes, Z-snap |
 | 1B.16-1B.17 Spiral vase | Pending | — | shell + base insert |

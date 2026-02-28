@@ -23,6 +23,7 @@ from common_test import (
 def test_basic_box():
     b1 = GridfinityBox(2, 3, 5, no_lip=True)
     r = b1.render()
+    assert r.val().isValid()
     assert _almost_same(size_3d(r), (83.5, 125.5, 38.8))
     assert _faces_match(r, ">Z", 1)
     assert _faces_match(r, "<Z", 6)
@@ -65,6 +66,7 @@ def test_invalid_box():
 def test_lite_box():
     b1 = GridfinityBox(2, 3, 5, lite_style=True)
     r = b1.render()
+    assert r.val().isValid()
     if _export_files("box"):
         b1.save_step_file(path=EXPORT_STEP_FILE_PATH)
     assert _almost_same(size_3d(r), (83.5, 125.5, 38.8))
@@ -81,12 +83,14 @@ def test_lite_box():
 
     b1 = GridfinityBox(1, 1, 1, lite_style=True)
     r = b1.render()
+    assert r.val().isValid()
     if _export_files("box"):
         b1.save_step_file(path=EXPORT_STEP_FILE_PATH)
     assert _almost_same(size_3d(r), (41.5, 41.5, 10.8))
 
     b1 = GridfinityBox(1, 1, 2, lite_style=True)
     r = b1.render()
+    assert r.val().isValid()
     if _export_files("box"):
         b1.save_step_file(path=EXPORT_STEP_FILE_PATH)
     assert _almost_same(size_3d(r), (41.5, 41.5, 17.8))
@@ -98,6 +102,7 @@ def test_lite_box():
 def test_empty_box():
     b1 = GridfinityBox(2, 3, 5, holes=True)
     r = b1.render()
+    assert r.val().isValid()
     if _export_files("box"):
         b1.save_step_file(path=EXPORT_STEP_FILE_PATH)
     assert _almost_same(size_3d(r), (83.5, 125.5, 38.8))
@@ -115,12 +120,14 @@ def test_empty_box():
 
     b1 = GridfinityBox(1, 1, 1)
     r = b1.render()
+    assert r.val().isValid()
     if _export_files("box"):
         b1.save_step_file(path=EXPORT_STEP_FILE_PATH)
     assert _almost_same(size_3d(r), (41.5, 41.5, 10.8))
 
     b1 = GridfinityBox(1, 1, 2)
     r = b1.render()
+    assert r.val().isValid()
     if _export_files("box"):
         b1.save_step_file(path=EXPORT_STEP_FILE_PATH)
     assert _almost_same(size_3d(r), (41.5, 41.5, 17.8))
@@ -132,6 +139,7 @@ def test_empty_box():
 def test_solid_box():
     b1 = GridfinitySolidBox(4, 2, 3)
     r = b1.render()
+    assert r.val().isValid()
     if _export_files("box"):
         b1.save_step_file(path=EXPORT_STEP_FILE_PATH)
     assert _almost_same(size_3d(r), (167.5, 83.5, 24.8))
@@ -153,6 +161,7 @@ def test_solid_box():
 def test_divided_box():
     b1 = GridfinityBox(3, 3, 3, holes=True, length_div=2, width_div=1)
     r = b1.render()
+    assert r.val().isValid()
     if _export_files("box"):
         b1.save_step_file(path=EXPORT_STEP_FILE_PATH)
     assert _almost_same(size_3d(r), (125.5, 125.5, 24.8))
@@ -176,6 +185,7 @@ def test_all_features_box():
     b1.label_height = 9
     b1.scoop_rad = 20
     r = b1.render()
+    assert r.val().isValid()
     assert _almost_same(size_3d(r), (167.5, 83.5, 38.8))
     s1 = str(b1)
     assert len(s1.splitlines()) == 9
@@ -201,6 +211,7 @@ def test_all_features_box():
         2, 2, 3, holes=True, length_div=1, width_div=1, scoops=True, labels=True
     )
     r = b1.render()
+    assert r.val().isValid()
     assert _almost_same(size_3d(r), (83.5, 83.5, 24.8))
     if _export_files("box"):
         b1.save_step_file(path=EXPORT_STEP_FILE_PATH)
@@ -226,9 +237,11 @@ def test_reduced_lip_box():
     """Box with reduced lip style (underside chamfer only, no overhang)."""
     b1 = GridfinityBox(2, 2, 3, lip_style="reduced")
     r = b1.render()
+    assert r.val().isValid()
     # Same bounding box as normal lip — profile total height is identical
     b_normal = GridfinityBox(2, 2, 3, lip_style="normal")
     r_normal = b_normal.render()
+    assert r_normal.val().isValid()
     assert _almost_same(size_3d(r), size_3d(r_normal))
     assert b1.filename() == "gf_bin_2x2x3_reduced"
     assert "reduced top lip" in str(b1)
@@ -245,6 +258,7 @@ def test_no_lip_backward_compat():
     assert b1.lip_style == "none"
     assert b1.filename() == "gf_bin_2x2x3_nolip"
     r = b1.render()
+    assert r.val().isValid()
     assert _almost_same(size_3d(r), (83.5, 83.5, 24.8))
 
 
@@ -258,6 +272,8 @@ def test_lip_style_none():
     assert b_new.lip_style == "none"
     r_old = b_old.render()
     r_new = b_new.render()
+    assert r_old.val().isValid()
+    assert r_new.val().isValid()
     assert _almost_same(size_3d(r_old), size_3d(r_new))
     assert b_new.filename() == "gf_bin_2x2x3_nolip"
 
@@ -269,6 +285,7 @@ def test_reduced_lip_with_scoops():
     """Reduced lip should work with scoops (underside chamfer still present)."""
     b1 = GridfinityBox(2, 2, 3, lip_style="reduced", scoops=True)
     r = b1.render()
+    assert r.val().isValid()
     assert _almost_same(size_3d(r), (83.5, 83.5, 24.8))
     if _export_files("box"):
         b1.save_step_file(path=EXPORT_STEP_FILE_PATH)
@@ -294,6 +311,7 @@ def test_fillet_rad_default():
     assert b1.safe_fillet_rad <= b1.inner_rad - 0.05
     assert b1.safe_fillet_rad > 0
     r = b1.render()
+    assert r.val().isValid()
     assert _almost_same(size_3d(r), (41.5, 41.5, 24.8))
 
 
@@ -307,9 +325,11 @@ def test_fillet_rad_custom():
     assert b1.fillet_rad == 2.5
     assert _almost_same(b1.safe_fillet_rad, 2.5)
     r = b1.render()
+    assert r.val().isValid()
     assert _almost_same(size_3d(r), (41.5, 41.5, 24.8))
     # Larger fillet should be clamped if it exceeds inner_rad
     b2 = GridfinityBox(1, 1, 3, wall_th=1.0, fillet_rad=5.0)
     assert b2.safe_fillet_rad <= b2.inner_rad - 0.05
     r2 = b2.render()
+    assert r2.val().isValid()
     assert _almost_same(size_3d(r2), (41.5, 41.5, 24.8))

@@ -87,11 +87,11 @@ A **feature-rich extension** of Gridfinity that adds dozens of options not in th
 | Plain baseplates | Yes | Yes | Yes |
 | Magnet/screw baseplates | Yes | Yes | Yes |
 | Weighted baseplates | Yes | Yes | Yes |
-| Skeleton baseplates | Yes | Yes | Planned (1B) |
+| Skeleton baseplates | Yes | Yes | Yes |
 | Standard bins | Yes | Yes | Yes |
 | Lite-style bins | Yes | Yes | Yes |
 | Lip style variants | Partial | Yes | Yes |
-| Enhanced holes | Yes | No | Planned (1B) |
+| Enhanced holes (baseplates) | Yes | No | Yes |
 | Wall/floor patterns | No | Yes | Planned (1C) |
 | Rugged boxes (Pred) | No | No | Yes (upstream) |
 | Rugged boxes (smkent) | No | No | Planned (1E) |

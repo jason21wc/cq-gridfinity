@@ -28,7 +28,44 @@ import math
 import cadquery as cq
 from cqkit import HasZCoordinateSelector, VerticalEdgeSelector, FlatEdgeSelector
 from cqkit.cq_helpers import rounded_rect_sketch, composite_from_pts
-from cqgridfinity import *
+from cqgridfinity.constants import (
+    EPS,
+    GR_BASE_CLR,
+    GR_BASE_HEIGHT,
+    GR_BOT_H,
+    GR_BOLT_D,
+    GR_BOLT_H,
+    GR_BOX_PROFILE,
+    GR_CYL_CHAMFER,
+    GR_CYL_DIAM,
+    GR_DIV_WALL,
+    GR_FILLET,
+    GR_FLOOR,
+    GR_HOLE_D,
+    GR_HOLE_H,
+    GR_HOLE_SLICE,
+    GR_LIP_H,
+    GR_LIP_PROFILE,
+    GR_NO_PROFILE,
+    GR_RAD,
+    GR_REDUCED_LIP_PROFILE,
+    GR_SCREW_DEPTH,
+    GR_TOL,
+    GR_TOPSIDE_H,
+    GR_UNDER_H,
+    GR_WALL,
+    GRU,
+    GRU2,
+    GRHU,
+    SQRT2,
+)
+from cqgridfinity.gf_obj import GridfinityObject
+from cqgridfinity.gf_holes import (
+    cut_enhanced_holes,
+    hole_filler,
+    magnet_hole,
+    screw_hole,
+)
 class GridfinityBox(GridfinityObject):
     """Gridfinity Box
 
@@ -93,6 +130,11 @@ class GridfinityBox(GridfinityObject):
         self.cylindrical = False  # cut cylindrical compartments
         self.cylinder_diam = GR_CYL_DIAM  # cylinder diameter (mm)
         self.cylinder_chamfer = GR_CYL_CHAMFER  # cylinder top chamfer (mm)
+        # Enhanced hole options (kennetek gridfinity-rebuilt-holes.scad)
+        self.refined_holes = False  # tighter press-fit (5.86mm dia, 1.9mm deep)
+        self.crush_ribs = False  # 8 ribs for friction-fit retention
+        self.chamfer_holes = False  # 0.8mm 45° entry chamfer
+        self.printable_hole_top = False  # thin bridge layer for FDM
         for k, v in kwargs.items():
             if k in self.__dict__:
                 self.__dict__[k] = v
@@ -182,6 +224,62 @@ class GridfinityBox(GridfinityObject):
         return "\n".join(s)
 
     @property
+    def int_height(self):
+        h = self.height - GR_LIP_H - GR_BOT_H
+        if self.lite_style:
+            return h + self.wall_th
+        return h
+
+    @property
+    def max_height(self):
+        return self.int_height + GR_UNDER_H + GR_TOPSIDE_H
+
+    @property
+    def floor_h(self):
+        if self.lite_style:
+            return GR_FLOOR - self.wall_th
+        return GR_FLOOR
+
+    @property
+    def lip_width(self):
+        if self.lip_style == "none":
+            return self.wall_th
+        return GR_UNDER_H + self.wall_th
+
+    @property
+    def inner_l(self):
+        return self.outer_l - 2 * self.wall_th
+
+    @property
+    def inner_w(self):
+        return self.outer_w - 2 * self.wall_th
+
+    @property
+    def inner_dim(self):
+        return self.inner_l, self.inner_w
+
+    @property
+    def half_in(self):
+        return GRU2 - self.wall_th - GR_TOL / 2
+
+    @property
+    def inner_rad(self):
+        return self.outer_rad - self.wall_th
+
+    @property
+    def under_h(self):
+        return GR_UNDER_H - (self.wall_th - GR_WALL)
+
+    @property
+    def safe_fillet_rad(self):
+        rad = self.fillet_rad or GR_FILLET
+        # Always clamp to inner corner radius to prevent CAD kernel crash
+        rad = min(rad, self.inner_rad - 0.05)
+        if any([self.scoops, self.labels, self.length_div, self.width_div]):
+            rad = min(rad, (GR_UNDER_H + GR_WALL) - self.wall_th - 0.05)
+        return max(rad, 0)
+
+    @property
     def _filename_prefix(self) -> str:
         return "gf_bin_"
 
@@ -200,6 +298,14 @@ class GridfinityBox(GridfinityObject):
         # 3. Bottom features
         if self.holes:
             fn += "_mag"
+            if self.refined_holes:
+                fn += "-refined"
+            if self.crush_ribs:
+                fn += "-ribs"
+            if self.chamfer_holes:
+                fn += "-chamfer"
+            if self.printable_hole_top:
+                fn += "-bridge"
         # 4. Interior features
         if not self.solid:
             if self.scoops:
@@ -232,10 +338,12 @@ class GridfinityBox(GridfinityObject):
 
     def render(self):
         """Returns a CadQuery Workplane object representing this Gridfinity box."""
+        # Save original divider counts so render() is idempotent
+        orig_length_div = self.length_div
+        orig_width_div = self.width_div
         self._int_shell = None
         if self.lite_style:
-            # just force the dividers to the desired quantity in both dimensions
-            # rather than raise a exception
+            # Clamp dividers for lite_style: max one per grid unit boundary
             if self.length_div:
                 self.length_div = self.length_u - 1
             if self.width_div:
@@ -305,6 +413,9 @@ class GridfinityBox(GridfinityObject):
         r = r.translate((-self.half_l, -self.half_w, GR_BASE_HEIGHT))
         if self.unsupported_holes:
             r = self.render_hole_fillers(r)
+        # Restore original divider counts (lite_style may have clamped them)
+        self.length_div = orig_length_div
+        self.width_div = orig_width_div
         return r
 
     @property
@@ -602,28 +713,62 @@ class GridfinityBox(GridfinityObject):
         return positions
 
     def render_holes(self, obj):
+        """Cut magnet/screw holes from the bottom face of the bin.
+
+        Standard holes use CadQuery's .cboreHole() for exact geometry match
+        with upstream cq-gridfinity. Enhanced hole features (crush_ribs,
+        chamfer, etc.) use gf_holes boolean cutting for the additional geometry.
+        """
         if not self.holes:
             return obj
-        h = GR_HOLE_H
-        if self.unsupported_holes:
-            h += GR_HOLE_SLICE
-        return (
-            obj.faces("<Z")
-            .workplane()
-            .pushPoints(self.hole_centres)
-            .cboreHole(GR_BOLT_D, self.hole_diam, h, depth=GR_BOLT_H)
-        )
+
+        has_enhanced = any([
+            self.refined_holes,
+            self.crush_ribs,
+            self.chamfer_holes,
+            self.printable_hole_top,
+        ])
+
+        if has_enhanced:
+            # Enhanced holes use the gf_holes pipeline via boolean cutting
+            from cqgridfinity.gf_holes import enhanced_magnet_hole
+            mag_depth = GR_HOLE_H
+            if self.unsupported_holes:
+                mag_depth += GR_HOLE_SLICE
+            hole = enhanced_magnet_hole(
+                diameter=self.hole_diam,
+                depth=mag_depth,
+                refined=self.refined_holes,
+                crush_ribs=self.crush_ribs,
+                chamfer=self.chamfer_holes,
+                printable_top=self.printable_hole_top,
+            )
+            bolt = screw_hole(GR_BOLT_D, GR_BOLT_H)
+            cutting_tool = hole.union(bolt)
+            z_bottom = -GR_BASE_HEIGHT
+            pts = [(x, y, z_bottom) for x, y in self.hole_centres]
+            holes = composite_from_pts(cutting_tool, pts)
+            return obj.cut(holes)
+        else:
+            # Standard holes: use .cboreHole() for exact upstream geometry match
+            h = GR_HOLE_H
+            if self.unsupported_holes:
+                h += GR_HOLE_SLICE
+            return (
+                obj.faces("<Z")
+                .workplane()
+                .pushPoints(self.hole_centres)
+                .cboreHole(GR_BOLT_D, self.hole_diam, h, depth=GR_BOLT_H)
+            )
 
     def render_hole_fillers(self, obj):
-        rc = (
-            cq.Workplane("XY")
-            .rect(self.hole_diam / 2, self.hole_diam)
-            .extrude(GR_HOLE_SLICE)
-        )
-        xo = self.hole_diam / 2
-        rs = composite_from_pts(rc, [(-xo, 0, GR_HOLE_H), (xo, 0, GR_HOLE_H)])
-        rs = composite_from_pts(rs, self.hole_centres)
-        return obj.union(rs.translate((-self.half_l, self.half_w, 0)))
+        """Add printable bridge fillers at hole positions for unsupported printing.
+
+        Uses gf_holes.hole_filler() for consistency with the shared hole module.
+        """
+        filler = hole_filler(self.hole_diam, GR_HOLE_SLICE)
+        fillers = composite_from_pts(filler, self.hole_centres)
+        return obj.union(fillers.translate((-self.half_l, self.half_w, 0)))
 
     @property
     def _floor_raise(self):

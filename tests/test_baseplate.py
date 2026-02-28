@@ -21,6 +21,7 @@ from common_test import (
 def test_make_baseplate():
     bp = GridfinityBaseplate(4, 3)
     r = bp.render()
+    assert r.val().isValid()
     if _export_files("baseplate"):
         bp.save_step_file(path=EXPORT_STEP_FILE_PATH)
     assert bp.filename() == "gf_baseplate_4x3"
@@ -38,6 +39,7 @@ def test_make_baseplate():
 def test_make_ext_baseplate():
     bp = GridfinityBaseplate(5, 4, ext_depth=5, corner_screws=True)
     r = bp.render()
+    assert r.val().isValid()
     assert _almost_same(size_3d(r), (210, 168, 9.75))
     edge_diff = abs(len(r.edges(FlatEdgeSelector(0)).vals()) - 188)
     assert edge_diff < 3
@@ -51,6 +53,7 @@ def test_magnet_baseplate():
     """Baseplate with magnet holes only."""
     bp = GridfinityBaseplate(2, 2, magnet_holes=True)
     r = bp.render()
+    assert r.val().isValid()
     # ext_depth should auto-adjust to GR_HOLE_H (2.4mm)
     assert bp.ext_depth == GR_HOLE_H
     expected_h = GR_BASE_HEIGHT + GR_HOLE_H  # 4.75 + 2.4 = 7.15
@@ -68,6 +71,7 @@ def test_screw_baseplate():
     """Baseplate with screw through-holes only."""
     bp = GridfinityBaseplate(2, 2, screw_holes=True)
     r = bp.render()
+    assert r.val().isValid()
     # ext_depth should auto-adjust to 4.0mm
     assert bp.ext_depth == 4.0
     expected_h = GR_BASE_HEIGHT + 4.0  # 4.75 + 4.0 = 8.75
@@ -84,6 +88,7 @@ def test_magnet_screw_baseplate():
     """Baseplate with combined magnet recesses and screw through-holes."""
     bp = GridfinityBaseplate(2, 2, magnet_holes=True, screw_holes=True)
     r = bp.render()
+    assert r.val().isValid()
     # ext_depth should auto-adjust to GR_HOLE_H + 4.0 = 6.4mm
     assert bp.ext_depth == GR_HOLE_H + 4.0
     expected_h = GR_BASE_HEIGHT + GR_HOLE_H + 4.0  # 4.75 + 6.4 = 11.15
@@ -102,6 +107,7 @@ def test_weighted_baseplate():
     """Weighted baseplate with weight pockets in bottom."""
     bp = GridfinityBaseplate(2, 2, weighted=True, magnet_holes=True)
     r = bp.render()
+    assert r.val().isValid()
     # ext_depth should auto-adjust to GR_BP_BOT_H (6.4mm)
     assert bp.ext_depth == GR_BP_BOT_H
     expected_h = GR_BASE_HEIGHT + GR_BP_BOT_H  # 4.75 + 6.4 = 11.15

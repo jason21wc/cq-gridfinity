@@ -86,25 +86,25 @@ All features in this phase trace to **kennetek/gridfinity-rebuilt-openscad** (MI
 
 | # | Feature | Source File | Function/Module | Phase | Status | Acceptance |
 |---|---------|-------------|-----------------|-------|--------|------------|
-| 1B.1 | Crush rib magnet holes | `src/core/gridfinity-rebuilt-holes.scad` | `ribbed_cylinder()`, `block_base_hole()` with `crush_ribs=true` | 1B | Complete | 8 ribs (`GR_CRUSH_RIB_COUNT`), 5.9mm inner dia (`GR_CRUSH_RIB_INNER_D`). Impl: `gf_holes.crush_rib_magnet_hole()`. Tests: `test_holes.py` (4 tests). |
-| 1B.2 | Chamfered magnet holes | `src/core/gridfinity-rebuilt-holes.scad` | `block_base_hole()` with `chamfer_holes=true` | 1B | Complete | 0.8mm chamfer (`GR_CHAMFER_EXTRA_R`), 45° angle (`GR_CHAMFER_ANGLE`). Impl: `gf_holes._chamfer_cone()` + `enhanced_magnet_hole(chamfer=True)`. Tests: `test_holes.py`. |
-| 1B.3 | Refined magnet holes | `src/core/gridfinity-rebuilt-holes.scad` | `refined_hole()`, `block_base_hole()` with `refined_holes=true` | 1B | Complete | 5.86mm dia (`GR_REFINED_HOLE_D`), 1.9mm deep (`GR_REFINED_HOLE_H`). Impl: `gf_holes.refined_magnet_hole()`. Tests: `test_holes.py`. |
-| 1B.4 | Printable hole top | `src/core/gridfinity-rebuilt-holes.scad` | `make_hole_printable()`, `block_base_hole()` with `printable_hole_top=true` | 1B | Complete | 0.4mm bridge disc at hole top. Impl: `gf_holes._printable_bridge()` + `enhanced_magnet_hole(printable_top=True)`. Tests: `test_holes.py`. |
+| 1B.1 | Crush rib magnet holes | `src/core/gridfinity-rebuilt-holes.scad` | `ribbed_cylinder()`, `block_base_hole()` with `crush_ribs=true` | 1B | Verified | 8 ribs (`GR_CRUSH_RIB_COUNT`), 5.9mm inner dia (`GR_CRUSH_RIB_INNER_D`). Baseplates: `gf_baseplate.py` via `gf_holes.cut_enhanced_holes()`. Bins: `gf_box.py` render_holes() enhanced path. Tests: `test_holes.py` (baseplates + bins). |
+| 1B.2 | Chamfered magnet holes | `src/core/gridfinity-rebuilt-holes.scad` | `block_base_hole()` with `chamfer_holes=true` | 1B | Verified | 0.8mm chamfer (`GR_CHAMFER_EXTRA_R`), 45° angle (`GR_CHAMFER_ANGLE`). Baseplates + Bins via `gf_holes.enhanced_magnet_hole(chamfer=True)`. Tests: `test_holes.py`. |
+| 1B.3 | Refined magnet holes | `src/core/gridfinity-rebuilt-holes.scad` | `refined_hole()`, `block_base_hole()` with `refined_holes=true` | 1B | Verified | 5.86mm dia (`GR_REFINED_HOLE_D`), 1.9mm deep (`GR_REFINED_HOLE_H`). Baseplates + Bins via `gf_holes.enhanced_magnet_hole(refined=True)`. Tests: `test_holes.py`. |
+| 1B.4 | Printable hole top | `src/core/gridfinity-rebuilt-holes.scad` | `make_hole_printable()`, `block_base_hole()` with `printable_hole_top=true` | 1B | Verified | 0.4mm bridge disc at hole top. Baseplates + Bins via `gf_holes.enhanced_magnet_hole(printable_top=True)`. Tests: `test_holes.py`. |
 
 #### 1B Bin Features (scoop, tabs, depth, cylindrical)
 
 | # | Feature | Source File | Function/Module | Phase | Status | Acceptance |
 |---|---------|-------------|-----------------|-------|--------|------------|
-| 1B.5 | Scoop scaling (0-1) | `src/core/cutouts.scad` | `cut_compartment_auto()` with `scoop` param | 1B | Complete | `scoops` param accepts float 0.0-1.0 (bool backward compat: True→1.0, False→0.0). Scales `scoop_rad` by factor. 0=none, 1=full. Impl: `gf_box.py` render_scoops(). Tests: `test_bin_features.py` (5 tests). |
-| 1B.6 | Tab positioning (6 styles) | `src/core/cutouts.scad` | `cut_compartment_auto()` with `style_tab` param | 1B | Complete | `label_style` param: "full"/"auto"/"left"/"center"/"right"/"none". Auto-sizes to min(42mm, compartment). Per-compartment positioning with dividers. Impl: `gf_box.py` render_labels() + _compute_tab_positions(). Tests: `test_bin_features.py` (8 tests). |
-| 1B.7 | Custom compartment depth | `gridfinity-rebuilt-bins.scad` + `src/core/bin.scad` | `depth` param → `cgs(height=depth)`, `height_internal` → `fill_height` in `new_bin()` | 1B | Complete | `compartment_depth` (mm) raises floor; `height_internal` (mm) overrides internal height. Raised floor block unioned with shell. Fillet selectors adjusted for effective floor. Impl: `gf_box.py` _render_raised_floor() + _floor_raise property. Tests: `test_bin_features.py` (5 tests). |
-| 1B.8 | Cylindrical compartments | `gridfinity-rebuilt-bins.scad` + `src/core/cutouts.scad` | `cut_chamfered_cylinder(cd/2, depth_real, c_chamfer)` | 1B | Complete | `cylindrical=True`, `cylinder_diam` (default 10mm, GR_CYL_DIAM), `cylinder_chamfer` (default 0.5mm, GR_CYL_CHAMFER). Solid shell with cylindrical cuts at compartment centers. Auto-clamps diameter to fit compartment. Impl: `gf_box.py` _render_cylindrical_cuts(). Tests: `test_bin_features.py` (6 tests). |
+| 1B.5 | Scoop scaling (0-1) | `src/core/cutouts.scad` | `cut_compartment_auto()` with `scoop` param | 1B | Verified | `scoops` param accepts float 0.0-1.0 (bool backward compat: True→1.0, False→0.0). Scales `scoop_rad` by factor. 0=none, 1=full. Impl: `gf_box.py` render_scoops(). Tests: `test_bin_features.py` (5 tests). |
+| 1B.6 | Tab positioning (6 styles) | `src/core/cutouts.scad` | `cut_compartment_auto()` with `style_tab` param | 1B | Verified | `label_style` param: "full"/"auto"/"left"/"center"/"right"/"none". Auto-sizes to min(42mm, compartment). Per-compartment positioning with dividers. Impl: `gf_box.py` render_labels() + _compute_tab_positions(). Tests: `test_bin_features.py` (8 tests). |
+| 1B.7 | Custom compartment depth | `gridfinity-rebuilt-bins.scad` + `src/core/bin.scad` | `depth` param → `cgs(height=depth)`, `height_internal` → `fill_height` in `new_bin()` | 1B | Verified | `compartment_depth` (mm) raises floor; `height_internal` (mm) overrides internal height. Raised floor block unioned with shell. Fillet selectors adjusted for effective floor. Impl: `gf_box.py` _render_raised_floor() + _floor_raise property. Tests: `test_bin_features.py` (5 tests). |
+| 1B.8 | Cylindrical compartments | `gridfinity-rebuilt-bins.scad` + `src/core/cutouts.scad` | `cut_chamfered_cylinder(cd/2, depth_real, c_chamfer)` | 1B | Verified | `cylindrical=True`, `cylinder_diam` (default 10mm, GR_CYL_DIAM), `cylinder_chamfer` (default 0.5mm, GR_CYL_CHAMFER). Solid shell with cylindrical cuts at compartment centers. Auto-clamps diameter to fit compartment. Impl: `gf_box.py` _render_cylindrical_cuts(). Tests: `test_bin_features.py` (6 tests). |
 
 #### 1B Baseplate Features (skeleton, screw-together, fit-to-drawer)
 
 | # | Feature | Source File | Function/Module | Phase | Status | Acceptance |
 |---|---------|-------------|-----------------|-------|--------|------------|
-| 1B.9 | Skeletonized baseplate | `gridfinity-rebuilt-baseplate.scad` + `src/core/standard.scad` | `style_plate=2`, constants `r_skel=2`, `h_skel=1` | 1B | Complete | `skeleton=True` param. 4 corner pocket cutouts per cell (12.4mm sq, 2mm fillet) leaving 11.5mm cross ribs. ext_depth auto: 4.35mm (plain), 6.75mm (magnets), 6.25mm (refined). Skeleton before holes in pipeline, overrides weighted. Impl: `gf_baseplate.py` `_render_skeleton_cutouts()`. Tests: `test_skeleton_baseplate.py` (15 tests). |
+| 1B.9 | Skeletonized baseplate | `gridfinity-rebuilt-baseplate.scad` + `src/core/standard.scad` | `style_plate=2`, constants `r_skel=2`, `h_skel=1` | 1B | Verified | `skeleton=True` param. 4 corner pocket cutouts per cell (12.4mm sq, 2mm fillet) leaving 11.5mm cross ribs. ext_depth auto: 4.35mm (plain), 6.75mm (magnets), 6.25mm (refined). Skeleton before holes in pipeline, overrides weighted. Impl: `gf_baseplate.py` `_render_skeleton_cutouts()`. Tests: `test_skeleton_baseplate.py` (15 tests). |
 | 1B.10 | Screw-together baseplate | `gridfinity-rebuilt-baseplate.scad` | `style_plate=3` (skel interior) or `style_plate=4` (thin interior), `cutter_screw_together()` | 1B | Not Started | Horizontal M3 screw holes along edges for joining baseplates side-by-side. Params: `d_screw=3.35`, `d_screw_head=5`, `screw_spacing=0.5`, `n_screws=1-3`. Additional height: 6.75mm |
 | 1B.11 | Fit-to-drawer baseplate | `gridfinity-rebuilt-baseplate.scad` | `[Fit to Drawer]` section: `distancex/y`, `fitx/fity` | 1B | Not Started | `distancex/y` = target drawer dimension (mm). `gridx/y=0` → auto-fill (floor division). `fitx/fity` (-1 to 1) controls padding alignment: -1=left, 0=center, 1=right. Padding filled with solid material |
 
@@ -230,6 +230,24 @@ Before starting any phase, verify ALL of the following:
 - [x] Existing tests still pass (28 baseline) — **28/28 passed** (347.94s, 2026-02-26)
 - [x] Previous phase (1A) fully Verified — all 20 features in "Already Implemented" are Verified
 
+### Phase 1B Exit Gate Checklist
+
+Before declaring Phase 1B complete, verify ALL of the following:
+
+- [x] 1B.1-1B.4 (Enhanced holes): Verified — work on both baseplates AND bins via shared `gf_holes.py`
+- [x] 1B.5-1B.8 (Bin features): Verified — scoop scaling, tab positioning, custom depth, cylindrical
+- [x] 1B.9 (Skeletonized baseplate): Verified — 16 tests, watertight validated
+- [ ] 1B.10-1B.11 (Baseplate features): Not Started — screw-together, fit-to-drawer
+- [ ] 1B.12-1B.15 (Grid flexibility): Not Started — non-integer, half-grid, height modes, Z-snap
+- [ ] 1B.16-1B.17 (Spiral vase): Not Started — shell + base insert
+- [ ] All 17 features status = Verified (with passing tests and isValid checks)
+- [ ] All tests pass (target: 95+ tests, 0 failures, xfail quarantined only)
+- [ ] All render tests include `isValid()` watertight check
+- [ ] No invented geometry — every feature traces to FEATURE-SPEC.md row
+- [ ] PRODUCTS.md and PROJECT-MEMORY.md reflect current status
+
+**Current status (2026-02-28):** 9/17 features Verified (1B.1-1B.9). 8 features Not Started (1B.10-1B.17). Phase 1B is **IN PROGRESS**.
+
 ---
 
 ## Revision History
@@ -239,3 +257,4 @@ Before starting any phase, verify ALL of the following:
 | 2026-02-26 | Initial feature spec with traceability matrix | Jason + Claude |
 | 2026-02-26 | Phase 1B: All 17 features verified against kennetek source. Resolved all `[needs verify]` markers. Updated acceptance criteria with exact constants, params, and dimensions from 7 source files. Added spiral vase adaptation note. | Jason + Claude |
 | 2026-02-27 | Phases 1C–1F: All 45 features verified against upstream repos (ostat, smkent, yawkat, CullenJWebb, rngcntr). 1C.15 (embossing) removed — does not exist in ostat. 1C.7b (reduced_double lip) added. 1F.7 description corrected (bin-to-baseplate, not segment-to-segment). anylid license flagged as TBD/blocked. Created `documents/UPSTREAM-REFERENCE.md` with detailed parameters, constants, and dimensions. | Jason + Claude |
+| 2026-02-28 | Remediation: 1B.1-1B.9 status updated to Verified. Enhanced holes now work on bins (via gf_holes boolean cut path). Added Phase 1B Exit Gate checklist. All render tests include isValid() watertight checks. Rugged box lid quarantined as xfail (pre-existing non-watertight geometry). | Jason + Claude |

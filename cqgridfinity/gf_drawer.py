@@ -24,10 +24,18 @@
 # Gridfinity Drawer Spacers
 
 import math
+import warnings
 
 import cadquery as cq
 
-from cqgridfinity import *
+from cqgridfinity.constants import (
+    GR_BASE_HEIGHT,
+    GR_RAD,
+    GR_TOL,
+    GRU,
+    GRU2,
+)
+from cqgridfinity.gf_obj import GridfinityObject
 from cqkit.cq_helpers import rotate_x, rotate_y, rotate_z
 
 
@@ -185,14 +193,11 @@ class GridfinityDrawerSpacer(GridfinityObject):
     def check_dimensions(self):
         """Check required size does not fall below specified minimum margin."""
         if not self.wide_enough and not self.deep_enough:
-            print("Drawer spacers NOT required since resulting margins are:")
-            print(
-                "  %.2f mm +/-%.2f mm (tolerance) widthwise which is not above the %.2f margin threshold"
-                % (self.length_th, self.tolerance, self.min_margin)
-            )
-            print(
-                "  %.2f mm +/-%.2f mm (tolerance) depthwise which is not above the %.2f margin threshold"
-                % (self.width_th, self.tolerance, self.min_margin)
+            warnings.warn(
+                "Drawer spacers NOT required: "
+                "%.2f mm widthwise and %.2f mm depthwise margins "
+                "are below the %.2f mm threshold"
+                % (self.length_th, self.width_th, self.min_margin)
             )
             return False
         return True
@@ -398,6 +403,7 @@ class GridfinityDrawerSpacer(GridfinityObject):
             r = r.union(wf.translate((self.width_th / 2, yo, 0)))
             r = r.union(wf.translate((self.size[0] - self.width_th / 2, yo, 0)))
         if include_baseplate:
+            from cqgridfinity.gf_baseplate import GridfinityBaseplate
             bp = GridfinityBaseplate(*self.size_u)
             rb = bp.render().translate((self.size[0] / 2, self.size[1] / 2, 0))
             if not self.front_and_back:

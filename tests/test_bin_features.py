@@ -27,6 +27,8 @@ def test_scoop_scaling_full():
     assert b_float.scoops == 1.0
     r_bool = b_bool.render()
     r_float = b_float.render()
+    assert r_bool.val().isValid()
+    assert r_float.val().isValid()
     assert _almost_same(size_3d(r_bool), size_3d(r_float))
 
 
@@ -41,6 +43,8 @@ def test_scoop_scaling_zero():
     assert b_zero.scoops == 0.0
     r_false = b_false.render()
     r_zero = b_zero.render()
+    assert r_false.val().isValid()
+    assert r_zero.val().isValid()
     assert _almost_same(size_3d(r_false), size_3d(r_zero))
 
 
@@ -52,12 +56,15 @@ def test_scoop_scaling_half():
     b = GridfinityBox(2, 2, 5, scoops=0.5)
     assert b.scoops == 0.5
     r = b.render()
+    assert r.val().isValid()
     assert _almost_same(size_3d(r), (83.5, 83.5, 38.8))
     # Half scoop should be between no-scoop and full-scoop volumes
     b_none = GridfinityBox(2, 2, 5, scoops=False)
     b_full = GridfinityBox(2, 2, 5, scoops=True)
     r_none = b_none.render()
     r_full = b_full.render()
+    assert r_none.val().isValid()
+    assert r_full.val().isValid()
     vol_none = r_none.val().Volume()
     vol_half = r.val().Volume()
     vol_full = r_full.val().Volume()
@@ -106,7 +113,12 @@ def test_label_style_full_backward_compat():
     assert b_old.labels is True
     assert "_labels" in b_old.filename()
     r = b_old.render()
+    assert r.val().isValid()
     assert _almost_same(size_3d(r), (83.5, 83.5, 24.8))
+    # Label adds material (overhang shelf) — labeled bin should have more volume
+    b_plain = GridfinityBox(2, 2, 3)
+    r_plain = b_plain.render()
+    assert r.val().Volume() > r_plain.val().Volume()
 
 
 @pytest.mark.skipif(
@@ -118,8 +130,10 @@ def test_label_style_none():
     assert b.labels is False
     assert b.label_style == "none"
     r = b.render()
+    assert r.val().isValid()
     b_plain = GridfinityBox(2, 2, 3)
     r_plain = b_plain.render()
+    assert r_plain.val().isValid()
     assert _almost_same(size_3d(r), size_3d(r_plain))
 
 
@@ -134,6 +148,7 @@ def test_label_style_auto():
     assert "_label-auto" in b.filename()
     r = b.render()
     assert r is not None
+    assert r.val().isValid()
     bb = r.val().BoundingBox()
     assert bb.xlen > 0
 
@@ -148,6 +163,7 @@ def test_label_style_left():
     assert "_label-left" in b.filename()
     r = b.render()
     assert r is not None
+    assert r.val().isValid()
 
 
 @pytest.mark.skipif(
@@ -159,6 +175,7 @@ def test_label_style_center():
     assert b.label_style == "center"
     r = b.render()
     assert r is not None
+    assert r.val().isValid()
 
 
 @pytest.mark.skipif(
@@ -170,6 +187,7 @@ def test_label_style_right():
     assert b.label_style == "right"
     r = b.render()
     assert r is not None
+    assert r.val().isValid()
 
 
 @pytest.mark.skipif(
@@ -180,6 +198,7 @@ def test_label_style_with_dividers():
     b = GridfinityBox(3, 3, 5, label_style="center", width_div=1, length_div=1)
     r = b.render()
     assert r is not None
+    assert r.val().isValid()
     bb = r.val().BoundingBox()
     assert bb.xlen > 0
 
@@ -216,6 +235,8 @@ def test_compartment_depth_zero():
     b_zero = GridfinityBox(2, 2, 5, compartment_depth=0)
     r_default = b_default.render()
     r_zero = b_zero.render()
+    assert r_default.val().isValid()
+    assert r_zero.val().isValid()
     assert _almost_same(size_3d(r_default), size_3d(r_zero))
 
 
@@ -228,6 +249,8 @@ def test_compartment_depth_raises_floor():
     b_shallow = GridfinityBox(2, 2, 5, compartment_depth=5)
     r_full = b_full.render()
     r_shallow = b_shallow.render()
+    assert r_full.val().isValid()
+    assert r_shallow.val().isValid()
     # Same exterior dimensions
     assert _almost_same(size_3d(r_full), size_3d(r_shallow))
     # Shallow bin has more material (raised floor fills interior)
@@ -255,6 +278,11 @@ def test_height_internal_override():
     assert "_hi10.0" in b.filename()
     r = b.render()
     assert r is not None
+    assert r.val().isValid()
+    # height_internal bin should have more material (raised floor) than default
+    b_default = GridfinityBox(2, 2, 5)
+    r_default = b_default.render()
+    assert r.val().Volume() > r_default.val().Volume()
 
 
 @pytest.mark.skipif(
@@ -265,6 +293,7 @@ def test_compartment_depth_with_scoops():
     b = GridfinityBox(2, 2, 5, scoops=True, compartment_depth=5)
     r = b.render()
     assert r is not None
+    assert r.val().isValid()
     assert _almost_same(size_3d(r), (83.5, 83.5, 38.8))
 
 
@@ -281,6 +310,7 @@ def test_cylindrical_basic():
     b = GridfinityBox(2, 2, 5, cylindrical=True, cylinder_diam=20)
     r = b.render()
     assert r is not None
+    assert r.val().isValid()
     assert _almost_same(size_3d(r), (83.5, 83.5, 38.8))
     assert "_cyl20" in b.filename()
 
@@ -295,6 +325,8 @@ def test_cylindrical_with_dividers():
                        length_div=1, width_div=1)
     r1 = b1.render()
     r4 = b4.render()
+    assert r1.val().isValid()
+    assert r4.val().isValid()
     # 4 cylinders should remove more material than 1 cylinder
     vol1 = r1.val().Volume()
     vol4 = r4.val().Volume()
@@ -310,6 +342,7 @@ def test_cylindrical_auto_clamps_diameter():
     b = GridfinityBox(1, 1, 3, cylindrical=True, cylinder_diam=100)
     r = b.render()
     assert r is not None
+    assert r.val().isValid()
     bb = r.val().BoundingBox()
     assert bb.xlen > 0
 
@@ -324,6 +357,7 @@ def test_cylindrical_default_diameter():
     assert b.cylinder_chamfer == GR_CYL_CHAMFER
     r = b.render()
     assert r is not None
+    assert r.val().isValid()
 
 
 @pytest.mark.skipif(
@@ -334,6 +368,7 @@ def test_cylindrical_with_holes():
     b = GridfinityBox(2, 2, 3, cylindrical=True, cylinder_diam=20, holes=True)
     r = b.render()
     assert r is not None
+    assert r.val().isValid()
 
 
 @pytest.mark.skipif(
@@ -346,6 +381,8 @@ def test_cylindrical_with_depth():
                               compartment_depth=5)
     r_full = b_full.render()
     r_shallow = b_shallow.render()
+    assert r_full.val().isValid()
+    assert r_shallow.val().isValid()
     # Shallower cylinders = more material remaining
     vol_full = r_full.val().Volume()
     vol_shallow = r_shallow.val().Volume()

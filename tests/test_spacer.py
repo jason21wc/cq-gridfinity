@@ -80,27 +80,32 @@ def test_spacer_render():
     assert _almost_same(s1.length_th, 17.12, tol=0.01)
     assert _almost_same(s1.width_th, 18.06, tol=0.01)
     r = s1.render_full_set()
+    assert r.val().isValid()
     assert _almost_same(size_3d(r), (582.6125, 412.75, 4.75))
     assert s1.filename() == "gf_drawer_4x3_full_set"
     if _export_files("spacer"):
         s1.save_step_file(path=EXPORT_STEP_FILE_PATH)
     rh = s1.render_half_set()
+    assert rh.val().isValid()
     assert _almost_same(size_3d(rh), (253.084, 177.0625, 4.75))
     assert s1.filename() == "gf_drawer_4x3_half_set"
     if _export_files("spacer"):
         s1.save_step_file(path=EXPORT_STEP_FILE_PATH)
 
     r = s1.render_length_filler()
+    assert r.val().isValid()
     assert s1.filename() == "gf_drawer_4x3_length_spacer"
     if _export_files("spacer"):
         s1.save_step_file(path=EXPORT_STEP_FILE_PATH)
 
     r = s1.render_width_filler()
+    assert r.val().isValid()
     assert s1.filename() == "gf_drawer_4x3_width_spacer"
     if _export_files("spacer"):
         s1.save_step_file(path=EXPORT_STEP_FILE_PATH)
 
     r = s1.render()
+    assert r.val().isValid()
     assert s1.filename() == "gf_drawer_4x3_corner_spacer"
     if _export_files("spacer"):
         s1.save_step_file(path=EXPORT_STEP_FILE_PATH)
@@ -122,6 +127,7 @@ def test_back_only_spacer():
     assert _almost_same(s0.fb_length_th, 29.5, tol=0.01)
     assert _almost_same(s0.width_th, 17.75, tol=0.01)
     r = s0.render_full_set()
+    assert r.val().isValid()
     assert _almost_same(size_3d(r), (414, 366, 4.75))
 
     s0 = GridfinityDrawerSpacer(tolerance=0.25, front_and_back=True)
@@ -136,4 +142,5 @@ def test_back_only_spacer():
     assert _almost_same(s0.fb_length_th, 14.75, tol=0.01)
     assert _almost_same(s0.width_th, 17.75, tol=0.01)
     r = s0.render_full_set()
+    assert r.val().isValid()
     assert _almost_same(size_3d(r), (414, 366, 4.75))

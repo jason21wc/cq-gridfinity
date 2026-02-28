@@ -168,6 +168,31 @@ def test_skeleton_default_unchanged():
 
 
 @SKIP
+def test_skeleton_cutout_dimensions():
+    """Skeleton cutout pocket width matches kennetek spec.
+
+    kennetek standard.scad: GR_SKEL_INNER = GRU - 2*GR_BP_PROFILE_X = 42 - 2*2.85 = 36.3mm
+    Each cell has 4 corner pocket cutouts. The cutout inner dimension is derived from
+    GR_SKEL_INNER minus keepout zones around hole positions.
+    """
+    # kennetek: GR_SKEL_INNER = 36.3mm (full inner cell dimension)
+    assert _almost_same(GR_SKEL_INNER, 36.3, tol=0.01)
+    # kennetek: GR_SKEL_RAD = 2.0mm (cutout corner radius, r_skel)
+    assert _almost_same(GR_SKEL_RAD, 2.0, tol=0.01)
+    # kennetek: GR_SKEL_H = 1.0mm (structural spacing)
+    assert _almost_same(GR_SKEL_H, 1.0, tol=0.01)
+    # Verify rendered skeleton has correct overall dimensions
+    bp = GridfinityBaseplate(2, 2, skeleton=True, magnet_holes=True)
+    r = bp.render()
+    assert r.val().isValid()
+    # Skeleton should be shorter than an equivalently-featured non-skeleton
+    # because skeleton cutouts remove material from the slab
+    bp_solid = GridfinityBaseplate(2, 2, magnet_holes=True, ext_depth=bp.ext_depth)
+    r_solid = bp_solid.render()
+    assert r.val().Volume() < r_solid.val().Volume()
+
+
+@SKIP
 def test_skeleton_volume_less_than_solid():
     """Skeleton baseplate has less volume than equivalent solid-slab baseplate."""
     # Compare skeleton+magnets vs magnets-only at same ext_depth.
@@ -177,11 +202,13 @@ def test_skeleton_volume_less_than_solid():
         2, 2, skeleton=True, magnet_holes=True
     )
     r_skel = bp_skel.render()
+    assert r_skel.val().isValid()
 
     bp_solid = GridfinityBaseplate(
         2, 2, magnet_holes=True, ext_depth=bp_skel.ext_depth
     )
     r_solid = bp_solid.render()
+    assert r_solid.val().isValid()
 
     vol_skel = r_skel.val().Volume()
     vol_solid = r_solid.val().Volume()
@@ -200,7 +227,8 @@ def test_skeleton_watertight():
 def test_skeleton_step_export():
     """Skeleton baseplate can be exported to STEP without error."""
     bp = GridfinityBaseplate(2, 2, skeleton=True, magnet_holes=True)
-    bp.render()
+    r = bp.render()
+    assert r.val().isValid()
     if _export_files("baseplate"):
         bp.save_step_file(path=EXPORT_STEP_FILE_PATH)
     # Just verify render completes without exception — STEP export

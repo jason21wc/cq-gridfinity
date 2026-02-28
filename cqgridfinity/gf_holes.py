@@ -52,6 +52,7 @@ from cqgridfinity.constants import (
     GR_HOLE_SLICE,
     GR_REFINED_HOLE_D,
     GR_REFINED_HOLE_H,
+    GR_SCREW_DEPTH,
 )
 
 
@@ -73,7 +74,7 @@ def magnet_hole(diameter: float = GR_HOLE_D, depth: float = GR_HOLE_H) -> cq.Wor
     return cq.Workplane("XY").circle(diameter / 2).extrude(depth + EPS)
 
 
-def screw_hole(diameter: float = GR_BOLT_D, depth: float = 4.0) -> cq.Workplane:
+def screw_hole(diameter: float = GR_BOLT_D, depth: float = GR_SCREW_DEPTH) -> cq.Workplane:
     """Create a cylindrical screw through-hole solid for boolean cutting.
 
     Args:
@@ -277,7 +278,6 @@ def enhanced_magnet_hole(
 
     # Entry chamfer at the top of the hole
     if chamfer:
-        chamfer_h = GR_CHAMFER_EXTRA_R / math.tan(math.radians(GR_CHAMFER_ANGLE))
         cone = _chamfer_cone(r).translate((0, 0, h))
         hole = hole.union(cone)
 
@@ -323,7 +323,7 @@ def cut_magnet_holes(
 def cut_screw_holes(
     obj: cq.Workplane,
     points: list,
-    depth: float = 4.0,
+    depth: float = GR_SCREW_DEPTH,
     diameter: float = GR_BOLT_D,
 ) -> cq.Workplane:
     """Cut screw through-holes into an object at the given XY positions.

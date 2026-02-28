@@ -62,7 +62,7 @@ See **GRIDFINITY-SPEC.md** for full dimensional reference (base profile, stackin
 - **smkent/monoscad** (CC BY-SA 4.0) — rugged box variant
 - **yawkat/gridflock** (MIT) — segmented baseplates
 - **rngcntr/anylid** (license TBD) — universal click-lock lids
-- **CullenJWebb/CullenectLabels** (MIT) — click-in swappable labels
+- **CullenJWebb/Cullenect-Labels** (MIT) — click-in swappable labels
 - **cq-gridfinity** (MIT) — upstream base
 
 ## Deferred to Future Phase

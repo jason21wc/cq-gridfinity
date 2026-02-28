@@ -29,7 +29,7 @@ These components are MIT licensed. You may use, modify, and redistribute freely 
 - **cq-gridfinity** by Michael Gale — [github.com/michaelgale/cq-gridfinity](https://github.com/michaelgale/cq-gridfinity) (MIT)
 - **gridfinity-rebuilt-openscad** by kennetek — [github.com/kennetek/gridfinity-rebuilt-openscad](https://github.com/kennetek/gridfinity-rebuilt-openscad) (MIT)
 - **GridFlock** by yawkat — [github.com/yawkat/gridflock](https://github.com/yawkat/gridflock) (MIT, models CC-BY 4.0)
-- **Cullenect Labels** by CullenJWebb — [github.com/CullenJWebb/CullenectLabels](https://github.com/CullenJWebb/CullenectLabels) (MIT)
+- **Cullenect Labels** by CullenJWebb — [github.com/CullenJWebb/Cullenect-Labels](https://github.com/CullenJWebb/Cullenect-Labels) (MIT)
 
 ---
 
@@ -76,4 +76,4 @@ The following project is used as a **specification reference only**. No code has
 
 | Module | Source | Status |
 |--------|--------|--------|
-| `cqgridfinity/lids/anylid.py` | Independent implementation (rngcntr spec ref) | License TBD — implementing from spec as MIT; will contact author if needed |
+| `cqgridfinity/lids/anylid.py` | Independent implementation (rngcntr spec ref) | **BLOCKED** — No GitHub repo (MakerWorld only), license unclear. Implementation cannot begin until license is resolved. |

@@ -62,7 +62,8 @@ GR_STR_BASE_PROFILE = (
 )
 
 GR_BOT_H = 7  # bin nominal floor height
-GR_FILLET = 1.1  # inside filleting radius
+GR_FILLET = 1.1  # inside filleting radius (kennetek uses 2.8mm; 1.1mm is safer
+                  # for CadQuery's fillet kernel on complex interior geometry)
 GR_FLOOR = GR_BOT_H - GR_BASE_HEIGHT  # floor offset
 
 # box/bin extrusion profile
@@ -107,6 +108,7 @@ GR_BOLT_D = 3.0
 GR_BOLT_H = 3.6 + GR_HOLE_H
 GR_HOLE_DIST = 26 / 2
 GR_HOLE_SLICE = 0.25
+GR_SCREW_DEPTH = 4.0  # screw hole depth (mm), used in baseplates and bins
 
 # Enhanced hole types (from kennetek gridfinity-rebuilt-holes.scad)
 GR_MAGNET_H = 2.0  # actual magnet thickness (mm)

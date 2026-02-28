@@ -25,7 +25,33 @@
 
 import cadquery as cq
 
-from cqgridfinity import *
+from cqgridfinity.constants import (
+    EPS,
+    GR_BASE_HEIGHT,
+    GR_BASE_PROFILE,
+    GR_BP_BOT_H,
+    GR_BP_CUT_DEPTH,
+    GR_BP_CUT_SIZE,
+    GR_BP_RCUT_D,
+    GR_BP_RCUT_L,
+    GR_BP_RCUT_W,
+    GR_HOLE_D,
+    GR_HOLE_DIST,
+    GR_HOLE_H,
+    GR_RAD,
+    GR_REFINED_HOLE_H,
+    GR_SKEL_H,
+    GR_SKEL_INNER,
+    GR_SKEL_KEEPOUT_R,
+    GR_SKEL_RAD,
+    GR_SCREW_DEPTH,
+    GR_SKEL_SCREW_NONE,
+    GR_STR_BASE_PROFILE,
+    GRU,
+    GRU2,
+    GRU_CUT,
+)
+from cqgridfinity.gf_obj import GridfinityObject
 from cqgridfinity.gf_holes import (
     cut_magnet_holes,
     cut_screw_holes,
@@ -97,11 +123,11 @@ class GridfinityBaseplate(GridfinityObject):
         if self.weighted:
             self.ext_depth = max(self.ext_depth, GR_BP_BOT_H)
         elif self.magnet_holes and self.screw_holes:
-            self.ext_depth = max(self.ext_depth, GR_HOLE_H + 4.0)
+            self.ext_depth = max(self.ext_depth, GR_HOLE_H + GR_SCREW_DEPTH)
         elif self.magnet_holes:
             self.ext_depth = max(self.ext_depth, GR_HOLE_H)
         elif self.screw_holes:
-            self.ext_depth = max(self.ext_depth, 4.0)
+            self.ext_depth = max(self.ext_depth, GR_SCREW_DEPTH)
         if self.corner_screws:
             self.ext_depth = max(self.ext_depth, 5.0)
 

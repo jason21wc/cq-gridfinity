@@ -42,7 +42,9 @@ from cqkit import (
 )
 
 # from cqkit import Ribbon
-from cqgridfinity import *
+from cqgridfinity.constants import *
+from cqgridfinity.gf_obj import GridfinityObject
+from cqgridfinity.gf_baseplate import GridfinityBaseplate
 from .gf_helpers import *
 
 
@@ -111,9 +113,18 @@ class GridfinityRuggedBox(GridfinityObject):
 
     def check_dimensions(self):
         """Verifies that the specified box dimensions are within specification."""
-        assert self.length_u >= 3
-        assert self.width_u >= 3
-        assert self.height_u >= 4
+        if self.length_u < 3:
+            raise ValueError(
+                "Rugged box length_u must be >= 3, got %d" % self.length_u
+            )
+        if self.width_u < 3:
+            raise ValueError(
+                "Rugged box width_u must be >= 3, got %d" % self.width_u
+            )
+        if self.height_u < 4:
+            raise ValueError(
+                "Rugged box height_u must be >= 4, got %d" % self.height_u
+            )
 
     @property
     def box_length(self):

@@ -31,7 +31,16 @@ from OCP.StlAPI import StlAPI_Writer
 import cadquery as cq
 from cadquery import exporters
 
-from cqgridfinity import *
+from cqgridfinity.constants import (
+    EPS,
+    GR_HOLE_DIST,
+    GR_RAD,
+    GR_TOL,
+    GRU,
+    GRU2,
+    GRHU,
+    SQRT2,
+)
 from cqkit import export_step_file
 
 # Special test to see which version of CadQuery is installed and
@@ -78,30 +87,10 @@ class GridfinityObject:
 
     @property
     def height(self):
+        # 3.8 = GR_BASE_HEIGHT (4.75) - GR_WALL (1.0) + GR_BASE_CLR (0.05)
+        # This is the offset from the base profile top to where stacking units begin.
+        # Inherited from upstream cq-gridfinity; produces correct total heights.
         return 3.8 + GRHU * self.height_u
-
-    @property
-    def int_height(self):
-        h = self.height - GR_LIP_H - GR_BOT_H
-        if self.lite_style:
-            return h + self.wall_th
-        return h
-
-    @property
-    def max_height(self):
-        return self.int_height + GR_UNDER_H + GR_TOPSIDE_H
-
-    @property
-    def floor_h(self):
-        if self.lite_style:
-            return GR_FLOOR - self.wall_th
-        return GR_FLOOR
-
-    @property
-    def lip_width(self):
-        if self.lip_style == "none":
-            return self.wall_th
-        return GR_UNDER_H + self.wall_th
 
     @property
     def outer_l(self):
@@ -116,18 +105,6 @@ class GridfinityObject:
         return self.outer_l, self.outer_w
 
     @property
-    def inner_l(self):
-        return self.outer_l - 2 * self.wall_th
-
-    @property
-    def inner_w(self):
-        return self.outer_w - 2 * self.wall_th
-
-    @property
-    def inner_dim(self):
-        return self.inner_l, self.inner_w
-
-    @property
     def half_l(self):
         return (self.length_u - 1) * GRU2
 
@@ -140,29 +117,8 @@ class GridfinityObject:
         return self.half_l, self.half_w
 
     @property
-    def half_in(self):
-        return GRU2 - self.wall_th - GR_TOL / 2
-
-    @property
     def outer_rad(self):
         return GR_RAD - GR_TOL / 2
-
-    @property
-    def inner_rad(self):
-        return self.outer_rad - self.wall_th
-
-    @property
-    def under_h(self):
-        return GR_UNDER_H - (self.wall_th - GR_WALL)
-
-    @property
-    def safe_fillet_rad(self):
-        rad = getattr(self, 'fillet_rad', None) or GR_FILLET
-        # Always clamp to inner corner radius to prevent CAD kernel crash
-        rad = min(rad, self.inner_rad - 0.05)
-        if any([self.scoops, self.labels, self.length_div, self.width_div]):
-            rad = min(rad, (GR_UNDER_H + GR_WALL) - self.wall_th - 0.05)
-        return max(rad, 0)
 
     @property
     def grid_centres(self):
@@ -331,19 +287,32 @@ class GridfinityObject:
         path=None,
         **kwargs
     ):
-        """Convenience method to create, render and save a STEP file representation
+        """Convenience method to create, render and save an STL file representation
         of a Gridfinity object."""
         obj = GridfinityObject.as_obj(cls, length_u, width_u, height_u, **kwargs)
         obj.save_stl_file(filename=filename, path=path, prefix=prefix)
 
     @staticmethod
     def as_obj(cls, length_u=None, width_u=None, height_u=None, **kwargs):
-        if "GridfinityBox" in cls.__name__:
+        # Lazy imports to avoid circular dependency at import time
+        from cqgridfinity.gf_box import GridfinityBox, GridfinitySolidBox
+        from cqgridfinity.gf_baseplate import GridfinityBaseplate
+        from cqgridfinity.gf_drawer import GridfinityDrawerSpacer
+        from cqgridfinity.gf_ruggedbox import GridfinityRuggedBox
+
+        if issubclass(cls, GridfinitySolidBox):
             obj = GridfinityBox(length_u, width_u, height_u, **kwargs)
-            if "GridfinitySolidBox" in cls.__name__:
-                obj.solid = True
-        elif "GridfinityBaseplate" in cls.__name__:
+            obj.solid = True
+        elif issubclass(cls, GridfinityBox):
+            obj = GridfinityBox(length_u, width_u, height_u, **kwargs)
+        elif issubclass(cls, GridfinityBaseplate):
             obj = GridfinityBaseplate(length_u, width_u, **kwargs)
-        elif "GridfinityDrawerSpacer" in cls.__name__:
+        elif issubclass(cls, GridfinityDrawerSpacer):
             obj = GridfinityDrawerSpacer(**kwargs)
+        elif issubclass(cls, GridfinityRuggedBox):
+            obj = GridfinityRuggedBox(length_u, width_u, height_u, **kwargs)
+        else:
+            raise TypeError(
+                "as_obj() does not support %s" % cls.__name__
+            )
         return obj
