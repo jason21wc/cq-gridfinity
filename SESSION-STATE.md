@@ -16,7 +16,7 @@
 - **Blocker:** None
 
 ## Immediate Context
-Phase 1B features 1B.1-1B.11 complete with 109 passing tests. 1B.11 (fit-to-drawer baseplate) implemented with auto-grid calc, padding alignment, and grid offset applied to all hole/cell/screw positions.
+Phase 1B features 1B.1-1B.11 complete. Architecture review fixes applied (d8ee6c9): unified hole rendering via `cut_enhanced_holes()`, extracted `_build_label_wall()` helper, unknown kwargs warnings on all 5 classes, exception-safe `render()` with try/finally, 15 combinatorial feature tests, and PRODUCTS.md documentation gaps filled. Lessons documented in LEARNING-LOG.md, gotchas 6-8 added to PROJECT-MEMORY.md.
 
 ## Next Actions
 1. **Grid flexibility** (1B.12-1B.15) — non-integer grid, half-grid, height modes, Z-snap
@@ -26,8 +26,8 @@ Phase 1B features 1B.1-1B.11 complete with 109 passing tests. 1B.11 (fit-to-draw
 
 | Metric | Value |
 |--------|-------|
-| Tests | **111 total: 109 passed, 1 skipped, 1 xfailed** |
-| Test time | **104s parallel** (-n auto) |
+| Tests | **128 total: 126 passed, 1 skipped, 1 xfailed** |
+| Test time | **~108s parallel** (-n auto) |
 | xfail | Rugged box lid non-watertight (pre-existing upstream) |
 | Phase 1B | 11/17 features Verified (1B.1-1B.11), 6 Not Started |
 
