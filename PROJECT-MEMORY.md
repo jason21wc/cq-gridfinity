@@ -121,4 +121,7 @@
 ### Phase 1C-1F: See documents/FEATURE-SPEC.md
 
 ### Phase 2: Local Web UI — DEFERRED
+Deferred until Phase 1 library is feature-complete. No UI work until geometry is solid.
+
 ### Phase 3: Deploy — DEFERRED
+Deferred until Phase 2 web UI exists. Docker image size (~500MB+ for OpenCASCADE) requires planning.

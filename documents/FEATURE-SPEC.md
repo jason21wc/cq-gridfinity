@@ -241,7 +241,7 @@ Before declaring Phase 1B complete, verify ALL of the following:
 - [ ] 1B.12-1B.15 (Grid flexibility): Not Started — non-integer, half-grid, height modes, Z-snap
 - [ ] 1B.16-1B.17 (Spiral vase): Not Started — shell + base insert
 - [ ] All 17 features status = Verified (with passing tests and isValid checks)
-- [ ] All tests pass (target: 95+ tests, 0 failures, xfail quarantined only)
+- [ ] All tests pass (0 failures; xfail quarantined only; skip justified only)
 - [ ] All render tests include `isValid()` watertight check
 - [ ] No invented geometry — every feature traces to FEATURE-SPEC.md row
 - [ ] PRODUCTS.md and PROJECT-MEMORY.md reflect current status

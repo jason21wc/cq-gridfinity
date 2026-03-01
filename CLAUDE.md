@@ -95,3 +95,13 @@ See **GRIDFINITY-SPEC.md** for full dimensional reference (base profile, stackin
 - `hull()` → use `.loft()`, `.fillet()`, or manual convex construction
 - `minkowski()` → use `.fillet()`, `.chamfer()`, or `.shell()`
 - OpenSCAD `$fn` → not needed; CadQuery uses exact analytic geometry
+
+## Memory (Cognitive Types)
+
+| Type | File | Purpose |
+|------|------|---------|
+| Working | SESSION-STATE.md | Current position, next actions |
+| Semantic | PROJECT-MEMORY.md | Decisions, constraints, phase gates |
+| Episodic | LEARNING-LOG.md | Lessons learned, CadQuery patterns |
+| Structural | GRIDFINITY-SPEC.md | Dimensional reference |
+| Spec | documents/FEATURE-SPEC.md | Feature traceability matrix |
