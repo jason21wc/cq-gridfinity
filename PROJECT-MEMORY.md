@@ -42,13 +42,14 @@
 | 2026-02-26 | Shared gf_holes.py module | Hole geometry shared by baseplates and bins; foundation for enhanced hole types | Final |
 | 2026-02-26 | Feature Traceability Spec | Every feature must trace to upstream source; prevents AI-invented scope creep | Final |
 | 2026-02-26 | Standard governance mode | Based on calibration: PARTIALLY novel, HIGH certainty, MEDIUM stakes, LONG-TERM | Final |
+| 2026-02-28 | Test suite optimization: xdist + fillet-skip | 734s→82s (9x). Topology tests keep full fillets (@slow). OBB acceleration abandoned (8% slower). | Final |
 
 ## Technical Stack
 
 - **Language:** Python 3.11+
 - **CAD Kernel:** CadQuery 2.0+ (wraps OpenCASCADE via OCP)
 - **Helpers:** cq-kit 0.5.8
-- **Testing:** pytest
+- **Testing:** pytest + pytest-xdist (parallel, `-n auto --dist worksteal`)
 - **Output:** STEP (primary), STL, SVG
 - **Environment:** Conda (`gridfinity` env)
 
@@ -58,7 +59,7 @@
 - **GPL isolation:** ostat code is GPL — dimensional spec reference only, no code porting
 - **Dependencies:** CadQuery 2.0+, cq-kit, Python 3.11+
 - **OpenCASCADE:** Heavy dependency (~500MB+), affects Docker image size in Phase 3
-- **Performance:** Complex models may take 30-60s to generate; tests < 120s each
+- **Performance:** Complex models may take 30-60s to generate; full test suite ~82s parallel, ~373s serial
 - **Traceability:** Every feature must have a row in `documents/FEATURE-SPEC.md` with upstream source
 
 ## Key Artifacts

@@ -45,6 +45,12 @@ Naive approach (subtract oversized squares from inner square) fails because subt
 `cq.Sketch().rect(A, A).push(pts).rect(B, B, mode="s")` — if subtracted rects cover the original rect, result is empty. CadQuery doesn't error; fails later at `.placeSketch().extrude()`.
 **Rule:** Always verify that sketch subtraction leaves residual geometry before extruding.
 
+### Test Performance
+
+#### Interior Fillet = 89% of Box Render Time (2026-02-28)
+Profiling: 2x2x3 box takes 5.6s with fillet, 0.67s without (88% reduction). Coarser `fillet_rad=0.5` gives negligible speedup — the OCC fillet kernel dominates regardless of radius. OBB boolean acceleration (`SetUseOBB(True)`) made things 8% *slower*.
+**Rule:** Use `fillet_interior=False` for tests that don't check topology (face/edge counts). Keep full fillets on topology tests and mark them `@pytest.mark.slow`. Never skip fillets on `isValid()` + topology combination tests.
+
 ### Debugging
 
 #### Safe Fillet Pattern (2026-02-27)

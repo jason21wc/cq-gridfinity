@@ -16,7 +16,7 @@
 - **Blocker:** None
 
 ## Immediate Context
-Phase 1B features 1B.1-1B.9 are verified with 94 passing tests. Codebase remediation (47 findings) and governance/documentation audit (7 work items) are both complete. Ready to resume feature work on 1B.10-1B.17.
+Phase 1B features 1B.1-1B.9 are verified with 94 passing tests. Test suite optimized from 734s → 82s (9x) via pytest-xdist + selective fillet-skip. Ready to resume feature work on 1B.10-1B.17.
 
 ## Next Actions
 1. **Baseplate features** (1B.10-1B.11) — screw-together, fit-to-drawer in `gf_baseplate.py`
@@ -28,10 +28,12 @@ Phase 1B features 1B.1-1B.9 are verified with 94 passing tests. Codebase remedia
 | Metric | Value |
 |--------|-------|
 | Tests | **96 total: 94 passed, 1 skipped, 1 xfailed** |
+| Test time | **82s parallel** (-n auto), 373s serial |
 | xfail | Rugged box lid non-watertight (pre-existing upstream) |
 | Phase 1B | 9/17 features Verified (1B.1-1B.9), 8 Not Started |
 
 ## Environment
 - Conda env: `gridfinity` (activate with `conda activate gridfinity`)
 - Python: 3.11.11 | CadQuery: 2.7.0 | cq-kit: 0.5.8
+- pytest-xdist: default parallel (`-n auto --dist worksteal`); serial: `-o "addopts="` or `-n 0`
 - Editable install: `pip install -e /Users/jasoncollier/Developer/gridfinity-generator`
