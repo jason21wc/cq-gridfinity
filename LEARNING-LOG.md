@@ -55,6 +55,28 @@ Naive approach (subtract oversized squares from inner square) fails because subt
 Profiling: 2x2x3 box takes 5.6s with fillet, 0.67s without (88% reduction). Coarser `fillet_rad=0.5` gives negligible speedup — the OCC fillet kernel dominates regardless of radius. OBB boolean acceleration (`SetUseOBB(True)`) made things 8% *slower*.
 **Rule:** Use `fillet_interior=False` for tests that don't check topology (face/edge counts). Keep full fillets on topology tests and mark them `@pytest.mark.slow`. Never skip fillets on `isValid()` + topology combination tests.
 
+### Architecture Hygiene
+
+#### Shared Utility Must Be the Only Path (2026-02-28)
+`cut_enhanced_holes()` existed in `gf_holes.py` but the box's `render_holes()` manually imported `enhanced_magnet_hole` + `screw_hole` and did its own union + cut. Baseplate used the shared function; box didn't. The two paths diverged silently.
+**Rule:** When creating a shared utility for an operation, refactor ALL callers to use it in the same PR. Search for direct imports of the underlying primitives to catch stragglers.
+
+#### Silent kwargs Swallowing Hides Typos (2026-02-28)
+All 5 classes used `for k, v in kwargs: if k in self.__dict__: ...` with no `else`. A typo like `hole=True` (missing 's') produced no output and no error — a debugging nightmare.
+**Rule:** Every `for k, v in kwargs` loop that sets `self.__dict__` must `warnings.warn()` in the `else` branch for unknown keys. Apply this to any new class with kwargs.
+
+#### Temporary State Mutation Needs try/finally (2026-02-28)
+`render()` mutated `self.length_div`/`self.width_div` for lite_style, with restore at method end. If `render()` raised (e.g., `solid=True` + `lite_style=True`), the object was left in corrupted state.
+**Rule:** Any method that temporarily mutates `self` attributes must wrap the body in `try/finally` with restoration in `finally`. Save originals *before* the `try`.
+
+#### Duplicated Branching = Extract Helper (2026-02-28)
+`render_labels()` had identical full-vs-tab branching for back walls and divider walls — 4 code paths doing the same 2 things.
+**Rule:** When a method repeats the same if/else branching for different inputs, extract a helper immediately. Don't wait for it to become painful.
+
+#### Combinatorial Feature Tests Catch Interaction Bugs (2026-02-28)
+Individual feature tests all passed, but multi-feature combinations (scoop + label + divider, raised floor + scoop, etc.) were untested. These interactions are where fillets fail and geometry becomes invalid.
+**Rule:** After implementing a batch of features, add parametrized `@pytest.mark.parametrize` combination tests. Use `fillet_interior=False` + `isValid()` for fast coverage.
+
 ### Debugging
 
 #### Safe Fillet Pattern (2026-02-27)

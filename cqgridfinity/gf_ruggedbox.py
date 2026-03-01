@@ -16,6 +16,7 @@
 # license — derivative works of this component must comply with both licenses.
 
 import math
+import warnings
 
 import cadquery as cq
 from cadquery.selectors import StringSyntaxSelector
@@ -82,6 +83,11 @@ class GridfinityRuggedBox(GridfinityObject):
         for k, v in kwargs.items():
             if k in self.__dict__:
                 self.__dict__[k] = v
+            else:
+                warnings.warn(
+                    f"{self.__class__.__name__}: unknown keyword argument '{k}' ignored",
+                    stacklevel=2,
+                )
 
     @property
     def _filename_prefix(self) -> str:

@@ -92,6 +92,9 @@ A **feature-rich extension** of Gridfinity that adds dozens of options not in th
 | Lite-style bins | Yes | Yes | Yes |
 | Lip style variants | Partial | Yes | Yes |
 | Enhanced holes (baseplates) | Yes | No | Yes |
+| Screw-together baseplates | Yes | No | Yes |
+| Fit-to-drawer baseplates | Yes | No | Yes |
+| Cylindrical bins | No | Yes | Yes |
 | Wall/floor patterns | No | Yes | Planned (1C) |
 | Rugged boxes (Pred) | No | No | Yes (upstream) |
 | Rugged boxes (smkent) | No | No | Planned (1E) |
@@ -181,6 +184,55 @@ GridfinityBaseplate(4, 3, weighted=True, magnet_holes=True)
 
 **Trade-offs:** Heaviest baseplate. Requires weights.
 
+### Skeleton Baseplate
+
+```python
+GridfinityBaseplate(4, 3, skeleton=True)
+```
+
+**What it is:** A lightweight baseplate that removes material from the slab, leaving a cross-shaped rib pattern under each grid cell. Reduces print time and material usage while maintaining structural integrity at grid boundaries.
+
+**When to use:**
+- Large baseplates where material/print time matters
+- Non-load-bearing applications
+- Permanent installations where the bottom isn't visible
+
+**Trade-offs:** Less rigid. Bottom surface is not flat (cannot be flipped).
+
+### Screw-Together Baseplate
+
+```python
+GridfinityBaseplate(4, 3, screw_together=True)
+# With multiple screws per edge:
+GridfinityBaseplate(4, 3, screw_together=True, n_screws=2)
+```
+
+**What it is:** Baseplate with horizontal M3 screw holes along all four edges, allowing adjacent baseplates to be mechanically joined into a larger surface. Holes are positioned at grid unit boundaries.
+
+**When to use:**
+- Tiling multiple baseplates into a continuous surface
+- Situations where baseplates might shift or separate
+- Large work surfaces built from standard-size plates
+
+**Trade-offs:** Adds 6.75mm to baseplate depth. Requires M3 hardware.
+
+### Fit-to-Drawer Baseplate
+
+```python
+GridfinityBaseplate(0, 0, distancex=200, distancey=150)
+# Control grid alignment within the drawer:
+GridfinityBaseplate(0, 0, distancex=200, distancey=150, fitx=-1)  # grid flush left
+```
+
+**What it is:** Specify your drawer's physical dimensions in mm and get a baseplate that fits exactly. Grid count is auto-computed via floor division (`floor(200/42) = 4`), remaining space is filled with solid material, and `fitx`/`fity` control where the grid sits within the padding.
+
+**When to use:**
+- Custom drawer inserts where you want edge-to-edge coverage
+- When drawer dimensions don't divide evenly by 42mm
+- Combining with other baseplate features (magnets, skeleton, etc.)
+
+**Trade-offs:** None — degenerates to a standard baseplate when dimensions are exact multiples of 42mm.
+
 ### Corner Screw Baseplate
 
 ```python
@@ -269,6 +321,23 @@ GridfinityBox(4, 2, 3, solid=True, solid_ratio=0.75)
 - Spacers to fill unused baseplate positions
 - Weighted blocks for stability
 - `solid_ratio` controls fill level (0.0 = empty, 1.0 = fully solid)
+
+### Cylindrical Bin
+
+```python
+GridfinityBox(2, 2, 5, cylindrical=True)
+# With multiple compartments:
+GridfinityBox(3, 2, 5, cylindrical=True, length_div=2, width_div=1)
+```
+
+**What it is:** A bin with round cylindrical compartments cut from a solid shell, instead of the standard rectangular interior. Each compartment fits within its grid subdivision, with an optional chamfer at the top edge.
+
+**When to use:**
+- Round items (batteries, drill bits, markers, bottles)
+- When items naturally organize better in circular compartments
+- Aesthetic preference for round openings
+
+**Trade-offs:** Less volume-efficient than rectangular compartments. Cannot use scoops, labels, or interior fillets.
 
 ### Rugged Box
 
@@ -381,6 +450,7 @@ GridfinityBox(2, 1, 3, lip_style="none", length_div=3)
 | `lite_style=True` + `solid=True` | Contradictory concepts |
 | `lite_style=True` + `holes=True` | Lite style has no elevated floor for holes |
 | `lite_style=True` + `wall_th > 1.5` | Lite style enforces thin walls |
+| `cylindrical=True` + `scoops`/`labels` | Cylindrical mode bypasses interior features |
 
 ---
 

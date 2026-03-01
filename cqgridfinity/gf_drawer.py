@@ -70,11 +70,17 @@ class GridfinityDrawerSpacer(GridfinityObject):
         self.min_margin = 4
         self.tolerance = GR_TOL
         self.front_and_back = True
+        self.verbose = False
         for k, v in kwargs.items():
             if k in self.__dict__:
                 self.__dict__[k] = v
+            else:
+                warnings.warn(
+                    f"{self.__class__.__name__}: unknown keyword argument '{k}' ignored",
+                    stacklevel=2,
+                )
         if dr_width is not None and dr_depth is not None:
-            verbose = kwargs["verbose"] if "verbose" in kwargs else False
+            verbose = self.verbose
             self.best_fit_to_dim(dr_width, dr_depth, verbose=verbose)
 
     @property

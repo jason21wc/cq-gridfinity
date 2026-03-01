@@ -352,11 +352,15 @@ def cut_enhanced_holes(
     crush_ribs: bool = False,
     chamfer: bool = False,
     printable_top: bool = False,
+    include_screw: bool = False,
+    screw_diameter: float = GR_BOLT_D,
+    screw_depth: float = GR_SCREW_DEPTH,
 ) -> cq.Workplane:
     """Cut enhanced magnet holes into an object at the given XY positions.
 
     Uses enhanced_magnet_hole() to create the cutting tool, then places
-    copies at each point position.
+    copies at each point position. Optionally unions a screw hole with
+    each magnet hole before cutting (used by bins).
 
     Args:
         obj: Target CadQuery object to cut into.
@@ -368,6 +372,9 @@ def cut_enhanced_holes(
         crush_ribs: Add crush ribs.
         chamfer: Add entry chamfer.
         printable_top: Add printable bridge layer.
+        include_screw: Union a screw hole with each magnet hole.
+        screw_diameter: Screw hole diameter (default 3.0mm for M3).
+        screw_depth: Screw hole depth in mm.
 
     Returns:
         CadQuery Workplane with enhanced holes cut.
@@ -379,6 +386,11 @@ def cut_enhanced_holes(
         crush_ribs=crush_ribs,
         chamfer=chamfer,
         printable_top=printable_top,
-    ).translate((0, 0, z_offset))
+    )
+    if include_screw:
+        bolt = screw_hole(screw_diameter, screw_depth)
+        hole = hole.union(bolt).translate((0, 0, z_offset))
+    else:
+        hole = hole.translate((0, 0, z_offset))
     holes = composite_from_pts(hole, [(x, y, 0) for x, y in points])
     return obj.cut(holes)

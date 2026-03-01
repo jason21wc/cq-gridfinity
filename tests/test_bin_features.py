@@ -438,3 +438,56 @@ def test_step_export_bin_features():
     for b in bins:
         b.render()
         b.save_step_file(path=EXPORT_STEP_FILE_PATH)
+
+
+# ---------------------------------------------------------------------------
+# Combinatorial feature interaction tests (architecture review Fix 6)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.skipif(
+    SKIP_TEST_BOX, reason="Skipped intentionally by test scope environment variable"
+)
+@pytest.mark.parametrize("kwargs,desc", [
+    (dict(scoops=True, labels=True), "scoop+label"),
+    (dict(scoops=True, labels=True, length_div=2), "scoop+label+div"),
+    (dict(labels=True, label_style="center", length_div=2), "center-label+div"),
+    (dict(labels=True, width_div=1), "label+width-div"),
+    (dict(scoops=True, width_div=2), "scoop+width-div"),
+    (dict(holes=True, scoops=True, labels=True), "holes+scoop+label"),
+    (dict(holes=True, refined_holes=True, crush_ribs=True), "enhanced-holes-combo"),
+    (dict(holes=True, chamfer_holes=True, printable_hole_top=True), "chamfer+bridge"),
+    (dict(lite_style=True, scoops=True), "lite+scoop"),
+    (dict(lite_style=True, length_div=1, width_div=1), "lite+dividers"),
+    (dict(lip_style="reduced", scoops=True, labels=True), "reduced-lip+scoop+label"),
+    (dict(lip_style="none", labels=True, length_div=2), "no-lip+label+div"),
+    (dict(compartment_depth=5, scoops=True), "raised-floor+scoop"),
+    (dict(height_internal=15, labels=True), "internal-height+label"),
+    (dict(cylindrical=True, length_div=1, width_div=1), "cylindrical+dividers"),
+])
+def test_feature_combination(kwargs, desc):
+    """Feature combinations produce valid, watertight solids."""
+    box = GridfinityBox(2, 2, 5, fillet_interior=False, **kwargs)
+    r = box.render()
+    assert r.val().isValid(), f"Invalid solid for {desc}"
+
+
+@pytest.mark.skipif(
+    SKIP_TEST_BOX, reason="Skipped intentionally by test scope environment variable"
+)
+def test_unknown_kwarg_warns():
+    """Unknown kwargs emit a warning."""
+    with pytest.warns(UserWarning, match="unknown keyword argument"):
+        GridfinityBox(2, 2, 3, hole=True)  # typo: 'hole' not 'holes'
+
+
+@pytest.mark.skipif(
+    SKIP_TEST_BOX, reason="Skipped intentionally by test scope environment variable"
+)
+def test_render_exception_safety():
+    """Divider counts restored even if render raises."""
+    box = GridfinityBox(2, 2, 3, lite_style=True, solid=True, length_div=2)
+    orig_div = box.length_div
+    with pytest.raises(ValueError):
+        box.render()
+    assert box.length_div == orig_div

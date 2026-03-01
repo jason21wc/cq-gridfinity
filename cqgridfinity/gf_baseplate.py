@@ -23,6 +23,8 @@
 #
 # Gridfinity Baseplates
 
+import warnings
+
 import cadquery as cq
 
 from cqgridfinity.constants import (
@@ -127,8 +129,14 @@ class GridfinityBaseplate(GridfinityObject):
         self.fitx = 0
         self.fity = 0
         for k, v in kwargs.items():
-            if k in self.__dict__ and v is not None:
-                self.__dict__[k] = v
+            if k in self.__dict__:
+                if v is not None:
+                    self.__dict__[k] = v
+            else:
+                warnings.warn(
+                    f"{self.__class__.__name__}: unknown keyword argument '{k}' ignored",
+                    stacklevel=2,
+                )
         # Fit-to-drawer: auto-calculate grid units from drawer dimensions
         if self.distancex > 0 and self.length_u == 0:
             self.length_u = max(1, int(self.distancex // GRU))

@@ -93,6 +93,9 @@
 | 3 | **extrude_profile extends shape, not slab** — Adding ext_depth to profile extends receptacle, doesn't add solid below | Keep standard profile; outer block provides solid slab |
 | 4 | **GPL contamination risk** — ostat's code is GPL; any code porting creates license obligation | Read dimensions and behavior only; write independent CadQuery code |
 | 5 | **CadQuery XZ workplane direction** — `Workplane("XZ").extrude(h)` goes -Y (counterintuitive) | Always verify with `.val().BoundingBox()` |
+| 6 | **Silent kwargs swallowing** — `for k,v in kwargs` with no else branch hides typos (e.g., `hole=True` vs `holes=True`) | All kwargs loops must `warnings.warn()` on unknown keys |
+| 7 | **Temporary self-mutation without try/finally** — Methods that mutate then restore `self` attributes corrupt state on exception | Wrap in try/finally; save originals before the try block |
+| 8 | **Shared utility bypass** — Creating a shared function but leaving some callers using inline implementations | When creating a shared utility, refactor ALL callers in the same PR |
 
 ## Phase Gates
 
@@ -114,7 +117,7 @@
 | 1B.1-1B.4 Enhanced holes | Verified | 2026-02-28 | crush ribs, chamfered, refined, printable top — now on baseplates AND bins |
 | 1B.5-1B.8 Bin features | Verified | 2026-02-28 | scoop scaling, tab positioning, custom depth, cylindrical |
 | 1B.9 Skeletonized baseplate | Verified | 2026-02-28 | 16 tests, 4 corner pocket cutouts per cell, cross ribs |
-| 1B.10-1B.11 Baseplate features | Pending | — | screw-together, fit-to-drawer |
+| 1B.10-1B.11 Baseplate features | Verified | 2026-02-28 | screw-together, fit-to-drawer |
 | 1B.12-1B.15 Grid flexibility | Pending | — | non-integer, half-grid, height modes, Z-snap |
 | 1B.16-1B.17 Spiral vase | Pending | — | shell + base insert |
 | Implement -> Complete | Pending | — | All 1B features pass acceptance |

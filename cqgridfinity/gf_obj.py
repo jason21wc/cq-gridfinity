@@ -25,6 +25,7 @@
 
 import math
 import os
+import warnings
 
 from OCP.BRepMesh import BRepMesh_IncrementalMesh
 from OCP.StlAPI import StlAPI_Writer
@@ -70,6 +71,11 @@ class GridfinityObject:
         for k, v in kwargs.items():
             if k in self.__dict__:
                 self.__dict__[k] = v
+            else:
+                warnings.warn(
+                    f"{self.__class__.__name__}: unknown keyword argument '{k}' ignored",
+                    stacklevel=2,
+                )
 
     @property
     def cq_obj(self):

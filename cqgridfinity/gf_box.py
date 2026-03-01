@@ -24,6 +24,7 @@
 # Gridfinity Boxes
 
 import math
+import warnings
 
 import cadquery as cq
 from cqkit import HasZCoordinateSelector, VerticalEdgeSelector, FlatEdgeSelector
@@ -63,8 +64,6 @@ from cqgridfinity.gf_obj import GridfinityObject
 from cqgridfinity.gf_holes import (
     cut_enhanced_holes,
     hole_filler,
-    magnet_hole,
-    screw_hole,
 )
 class GridfinityBox(GridfinityObject):
     """Gridfinity Box
@@ -138,6 +137,11 @@ class GridfinityBox(GridfinityObject):
         for k, v in kwargs.items():
             if k in self.__dict__:
                 self.__dict__[k] = v
+            else:
+                warnings.warn(
+                    f"{self.__class__.__name__}: unknown keyword argument '{k}' ignored",
+                    stacklevel=2,
+                )
         # Normalize scoops: bool→float, clamp to [0, 1]
         if isinstance(self.scoops, bool):
             self.scoops = 1.0 if self.scoops else 0.0
@@ -338,85 +342,87 @@ class GridfinityBox(GridfinityObject):
 
     def render(self):
         """Returns a CadQuery Workplane object representing this Gridfinity box."""
-        # Save original divider counts so render() is idempotent
+        # Save original divider counts so render() is idempotent.
+        # try/finally ensures restoration even if an exception occurs.
         orig_length_div = self.length_div
         orig_width_div = self.width_div
-        self._int_shell = None
-        if self.lite_style:
-            # Clamp dividers for lite_style: max one per grid unit boundary
-            if self.length_div:
-                self.length_div = self.length_u - 1
-            if self.width_div:
-                self.width_div = self.width_u - 1
-            if self.solid:
-                raise ValueError(
-                    "Cannot select both solid and lite box styles together"
+        try:
+            self._int_shell = None
+            if self.lite_style:
+                # Clamp dividers for lite_style: max one per grid unit boundary
+                if self.length_div:
+                    self.length_div = self.length_u - 1
+                if self.width_div:
+                    self.width_div = self.width_u - 1
+                if self.solid:
+                    raise ValueError(
+                        "Cannot select both solid and lite box styles together"
+                    )
+                if self.holes:
+                    raise ValueError(
+                        "Cannot select both holes and lite box styles together"
+                    )
+                if self.wall_th > 1.5:
+                    raise ValueError(
+                        "Wall thickness cannot exceed 1.5 mm for lite box style"
+                    )
+            if self.wall_th > 2.5:
+                raise ValueError("Wall thickness cannot exceed 2.5 mm")
+            if self.wall_th < 0.5:
+                raise ValueError("Wall thickness must be at least 0.5 mm")
+            self._ext_shell = None
+            if self.cylindrical:
+                r = self.solid_shell()
+                r = self._render_cylindrical_cuts(r)
+            else:
+                r = self.render_shell()
+                rf = self._render_raised_floor()
+                if rf is not None:
+                    r = r.union(rf)
+                rd = self.render_dividers()
+                rs = self.render_scoops()
+                rl = self.render_labels()
+                for e in (rd, rl, rs):
+                    if e is not None:
+                        r = r.union(e)
+            if not self.solid and not self.cylindrical and self.fillet_interior:
+                effective_floor = GR_FLOOR + self._floor_raise
+                heights = [effective_floor]
+                if self.labels:
+                    heights.append(self.safe_label_height(backwall=True, from_bottom=True))
+                    heights.append(self.safe_label_height(backwall=False, from_bottom=True))
+                bs = (
+                    HasZCoordinateSelector(heights, min_points=1, tolerance=0.5)
+                    + VerticalEdgeSelector(">5")
+                    - HasZCoordinateSelector("<%.2f" % (self.floor_h + self._floor_raise))
                 )
+                if self.lite_style and self.scoops:
+                    bs = bs - HasZCoordinateSelector("<=%.2f" % (self.floor_h))
+                    bs = bs - VerticalEdgeSelector()
+                r = self.safe_fillet(r, bs, self.safe_fillet_rad)
+
+                if self.lite_style and not self.has_dividers:
+                    bs = FlatEdgeSelector(self.floor_h)
+                    if self.wall_th < 1.2:
+                        r = self.safe_fillet(r, bs, 0.5)
+                    elif self.wall_th < 1.25:
+                        r = self.safe_fillet(r, bs, 0.25)
+
+                if not self.labels and self.has_dividers:
+                    bs = VerticalEdgeSelector(
+                        GR_TOPSIDE_H, tolerance=0.05
+                    ) & HasZCoordinateSelector(GRHU * self.height_u - GR_BASE_HEIGHT)
+                    r = self.safe_fillet(r, bs, GR_TOPSIDE_H - EPS)
+
             if self.holes:
-                raise ValueError(
-                    "Cannot select both holes and lite box styles together"
-                )
-            if self.wall_th > 1.5:
-                raise ValueError(
-                    "Wall thickness cannot exceed 1.5 mm for lite box style"
-                )
-        if self.wall_th > 2.5:
-            raise ValueError("Wall thickness cannot exceed 2.5 mm")
-        if self.wall_th < 0.5:
-            raise ValueError("Wall thickness must be at least 0.5 mm")
-        self._ext_shell = None
-        if self.cylindrical:
-            r = self.solid_shell()
-            r = self._render_cylindrical_cuts(r)
-        else:
-            r = self.render_shell()
-            rf = self._render_raised_floor()
-            if rf is not None:
-                r = r.union(rf)
-            rd = self.render_dividers()
-            rs = self.render_scoops()
-            rl = self.render_labels()
-            for e in (rd, rl, rs):
-                if e is not None:
-                    r = r.union(e)
-        if not self.solid and not self.cylindrical and self.fillet_interior:
-            effective_floor = GR_FLOOR + self._floor_raise
-            heights = [effective_floor]
-            if self.labels:
-                heights.append(self.safe_label_height(backwall=True, from_bottom=True))
-                heights.append(self.safe_label_height(backwall=False, from_bottom=True))
-            bs = (
-                HasZCoordinateSelector(heights, min_points=1, tolerance=0.5)
-                + VerticalEdgeSelector(">5")
-                - HasZCoordinateSelector("<%.2f" % (self.floor_h + self._floor_raise))
-            )
-            if self.lite_style and self.scoops:
-                bs = bs - HasZCoordinateSelector("<=%.2f" % (self.floor_h))
-                bs = bs - VerticalEdgeSelector()
-            r = self.safe_fillet(r, bs, self.safe_fillet_rad)
-
-            if self.lite_style and not self.has_dividers:
-                bs = FlatEdgeSelector(self.floor_h)
-                if self.wall_th < 1.2:
-                    r = self.safe_fillet(r, bs, 0.5)
-                elif self.wall_th < 1.25:
-                    r = self.safe_fillet(r, bs, 0.25)
-
-            if not self.labels and self.has_dividers:
-                bs = VerticalEdgeSelector(
-                    GR_TOPSIDE_H, tolerance=0.05
-                ) & HasZCoordinateSelector(GRHU * self.height_u - GR_BASE_HEIGHT)
-                r = self.safe_fillet(r, bs, GR_TOPSIDE_H - EPS)
-
-        if self.holes:
-            r = self.render_holes(r)
-        r = r.translate((-self.half_l, -self.half_w, GR_BASE_HEIGHT))
-        if self.unsupported_holes:
-            r = self.render_hole_fillers(r)
-        # Restore original divider counts (lite_style may have clamped them)
-        self.length_div = orig_length_div
-        self.width_div = orig_width_div
-        return r
+                r = self.render_holes(r)
+            r = r.translate((-self.half_l, -self.half_w, GR_BASE_HEIGHT))
+            if self.unsupported_holes:
+                r = self.render_hole_fillers(r)
+            return r
+        finally:
+            self.length_div = orig_length_div
+            self.width_div = orig_width_div
 
     @property
     def top_ref_height(self):
@@ -623,6 +629,22 @@ class GridfinityBox(GridfinityObject):
             r = r.intersect(self.render_shell(as_solid=True))
         return r
 
+    def _build_label_wall(self, sketch, nx, comp_l, yo, z_top):
+        """Build label geometry for one wall (back wall or divider wall).
+
+        Returns a CadQuery solid (full-width or positioned tabs), or None.
+        """
+        if self.label_style == "full":
+            rsc = cq.Workplane("YZ").placeSketch(sketch).extrude(self.inner_l)
+            return rsc.translate((-self.half_in, yo, z_top))
+        else:
+            r = None
+            for tab_x, tab_w in self._compute_tab_positions(nx, comp_l):
+                rsc = cq.Workplane("YZ").placeSketch(sketch).extrude(tab_w)
+                rsc = rsc.translate((tab_x, yo, z_top))
+                r = rsc if r is None else r.union(rsc)
+            return r
+
     def render_labels(self):
         if not self.labels or self.solid or self.label_style == "none":
             return None
@@ -641,24 +663,13 @@ class GridfinityBox(GridfinityObject):
         )
         yo = -lw + self.outer_w / 2 + self.half_w + self.wall_th / 4
         z_top = self.floor_h + self.max_height
+        nx = self.length_div + 1
+        comp_l = self.inner_l / nx
 
-        if self.label_style == "full":
-            # Original full-width behavior (exact backward compat)
-            rsc = cq.Workplane("YZ").placeSketch(back_sketch).extrude(self.inner_l)
-            rs = rsc.translate((-self.half_in, yo, z_top))
-            r = rs.intersect(self.interior_solid)
-        else:
-            # Positioned tabs per compartment
-            nx = self.length_div + 1
-            comp_l = self.inner_l / nx
-            r = None
-            for tab_x, tab_w in self._compute_tab_positions(nx, comp_l):
-                rsc = cq.Workplane("YZ").placeSketch(back_sketch).extrude(tab_w)
-                rsc = rsc.translate((tab_x, yo, z_top))
-                r = rsc if r is None else r.union(rsc)
-            if r is None:
-                return None
-            r = r.intersect(self.interior_solid)
+        r = self._build_label_wall(back_sketch, nx, comp_l, yo, z_top)
+        if r is None:
+            return None
+        r = r.intersect(self.interior_solid)
 
         if self.width_div > 0:
             # add label flanges along each dividing wall
@@ -674,25 +685,13 @@ class GridfinityBox(GridfinityObject):
                 .fillet(self.label_lip_height / 2)
             )
             yl = self.inner_w / (self.width_div + 1)
-            if self.label_style == "full":
-                # Original behavior: one extrusion per divider
-                rsc = cq.Workplane("YZ").placeSketch(div_sketch).extrude(self.inner_l)
-                rsc = rsc.translate((0, -self.label_width, z_top))
-                pts = [
-                    (-self.half_in, (y + 1) * yl - self.half_in + GR_DIV_WALL / 2)
-                    for y in range(self.width_div)
-                ]
-                r = r.union(composite_from_pts(rsc, pts))
-            else:
-                # Positioned tabs per compartment per divider
-                nx = self.length_div + 1
-                comp_l = self.inner_l / nx
-                for j in range(self.width_div):
-                    div_yo = (j + 1) * yl - self.half_in + GR_DIV_WALL / 2
-                    for tab_x, tab_w in self._compute_tab_positions(nx, comp_l):
-                        rsc = cq.Workplane("YZ").placeSketch(div_sketch).extrude(tab_w)
-                        rsc = rsc.translate((tab_x, div_yo - self.label_width, z_top))
-                        r = r.union(rsc)
+            for j in range(self.width_div):
+                div_yo = (j + 1) * yl - self.half_in + GR_DIV_WALL / 2
+                wall = self._build_label_wall(
+                    div_sketch, nx, comp_l, div_yo - self.label_width, z_top
+                )
+                if wall is not None:
+                    r = r.union(wall)
         return r
 
     def _compute_tab_positions(self, n_compartments, comp_length):
@@ -730,25 +729,18 @@ class GridfinityBox(GridfinityObject):
         ])
 
         if has_enhanced:
-            # Enhanced holes use the gf_holes pipeline via boolean cutting
-            from cqgridfinity.gf_holes import enhanced_magnet_hole
+            # Enhanced holes use the shared gf_holes pipeline
             mag_depth = GR_HOLE_H
             if self.unsupported_holes:
                 mag_depth += GR_HOLE_SLICE
-            hole = enhanced_magnet_hole(
-                diameter=self.hole_diam,
-                depth=mag_depth,
-                refined=self.refined_holes,
-                crush_ribs=self.crush_ribs,
-                chamfer=self.chamfer_holes,
-                printable_top=self.printable_hole_top,
-            )
-            bolt = screw_hole(GR_BOLT_D, GR_BOLT_H)
-            cutting_tool = hole.union(bolt)
             z_bottom = -GR_BASE_HEIGHT
-            pts = [(x, y, z_bottom) for x, y in self.hole_centres]
-            holes = composite_from_pts(cutting_tool, pts)
-            return obj.cut(holes)
+            return cut_enhanced_holes(
+                obj, self.hole_centres, z_offset=z_bottom,
+                diameter=self.hole_diam, depth=mag_depth,
+                refined=self.refined_holes, crush_ribs=self.crush_ribs,
+                chamfer=self.chamfer_holes, printable_top=self.printable_hole_top,
+                include_screw=True, screw_diameter=GR_BOLT_D, screw_depth=GR_BOLT_H,
+            )
         else:
             # Standard holes: use .cboreHole() for exact upstream geometry match
             h = GR_HOLE_H
