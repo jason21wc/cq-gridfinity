@@ -21,8 +21,9 @@ from common_test import (
 )
 def test_scoop_scaling_full():
     """scoops=1.0 should produce same result as scoops=True (backward compat)."""
-    b_bool = GridfinityBox(2, 2, 3, scoops=True)
-    b_float = GridfinityBox(2, 2, 3, scoops=1.0)
+    # Fillet tested in test_basic_box, test_all_features_box
+    b_bool = GridfinityBox(2, 2, 3, scoops=True, fillet_interior=False)
+    b_float = GridfinityBox(2, 2, 3, scoops=1.0, fillet_interior=False)
     assert b_bool.scoops == 1.0
     assert b_float.scoops == 1.0
     r_bool = b_bool.render()
@@ -37,8 +38,9 @@ def test_scoop_scaling_full():
 )
 def test_scoop_scaling_zero():
     """scoops=0.0 should produce same result as scoops=False."""
-    b_false = GridfinityBox(2, 2, 3, scoops=False)
-    b_zero = GridfinityBox(2, 2, 3, scoops=0.0)
+    # Fillet tested in test_basic_box
+    b_false = GridfinityBox(2, 2, 3, scoops=False, fillet_interior=False)
+    b_zero = GridfinityBox(2, 2, 3, scoops=0.0, fillet_interior=False)
     assert b_false.scoops == 0.0
     assert b_zero.scoops == 0.0
     r_false = b_false.render()
@@ -53,14 +55,15 @@ def test_scoop_scaling_zero():
 )
 def test_scoop_scaling_half():
     """scoops=0.5 should produce valid geometry with smaller scoop."""
-    b = GridfinityBox(2, 2, 5, scoops=0.5)
+    # Fillet tested in test_all_features_box
+    b = GridfinityBox(2, 2, 5, scoops=0.5, fillet_interior=False)
     assert b.scoops == 0.5
     r = b.render()
     assert r.val().isValid()
     assert _almost_same(size_3d(r), (83.5, 83.5, 38.8))
     # Half scoop should be between no-scoop and full-scoop volumes
-    b_none = GridfinityBox(2, 2, 5, scoops=False)
-    b_full = GridfinityBox(2, 2, 5, scoops=True)
+    b_none = GridfinityBox(2, 2, 5, scoops=False, fillet_interior=False)
+    b_full = GridfinityBox(2, 2, 5, scoops=True, fillet_interior=False)
     r_none = b_none.render()
     r_full = b_full.render()
     assert r_none.val().isValid()
@@ -108,7 +111,8 @@ def test_scoop_scaling_clamped():
 )
 def test_label_style_full_backward_compat():
     """labels=True with default style should match original behavior."""
-    b_old = GridfinityBox(2, 2, 3, labels=True)
+    # Fillet tested in test_all_features_box
+    b_old = GridfinityBox(2, 2, 3, labels=True, fillet_interior=False)
     assert b_old.label_style == "full"
     assert b_old.labels is True
     assert "_labels" in b_old.filename()
@@ -116,7 +120,7 @@ def test_label_style_full_backward_compat():
     assert r.val().isValid()
     assert _almost_same(size_3d(r), (83.5, 83.5, 24.8))
     # Label adds material (overhang shelf) — labeled bin should have more volume
-    b_plain = GridfinityBox(2, 2, 3)
+    b_plain = GridfinityBox(2, 2, 3, fillet_interior=False)
     r_plain = b_plain.render()
     assert r.val().Volume() > r_plain.val().Volume()
 
@@ -126,12 +130,13 @@ def test_label_style_full_backward_compat():
 )
 def test_label_style_none():
     """label_style='none' should produce no labels."""
-    b = GridfinityBox(2, 2, 3, label_style="none")
+    # Fillet tested in test_basic_box
+    b = GridfinityBox(2, 2, 3, label_style="none", fillet_interior=False)
     assert b.labels is False
     assert b.label_style == "none"
     r = b.render()
     assert r.val().isValid()
-    b_plain = GridfinityBox(2, 2, 3)
+    b_plain = GridfinityBox(2, 2, 3, fillet_interior=False)
     r_plain = b_plain.render()
     assert r_plain.val().isValid()
     assert _almost_same(size_3d(r), size_3d(r_plain))
@@ -142,7 +147,8 @@ def test_label_style_none():
 )
 def test_label_style_auto():
     """label_style='auto' should produce valid geometry."""
-    b = GridfinityBox(3, 2, 5, label_style="auto")
+    # Fillet tested in test_all_features_box
+    b = GridfinityBox(3, 2, 5, label_style="auto", fillet_interior=False)
     assert b.labels is True
     assert b.label_style == "auto"
     assert "_label-auto" in b.filename()
@@ -158,7 +164,8 @@ def test_label_style_auto():
 )
 def test_label_style_left():
     """label_style='left' should produce valid geometry."""
-    b = GridfinityBox(3, 2, 5, label_style="left", length_div=1)
+    # Fillet tested in test_all_features_box
+    b = GridfinityBox(3, 2, 5, label_style="left", length_div=1, fillet_interior=False)
     assert b.label_style == "left"
     assert "_label-left" in b.filename()
     r = b.render()
@@ -171,7 +178,8 @@ def test_label_style_left():
 )
 def test_label_style_center():
     """label_style='center' should produce valid geometry."""
-    b = GridfinityBox(3, 2, 5, label_style="center")
+    # Fillet tested in test_all_features_box
+    b = GridfinityBox(3, 2, 5, label_style="center", fillet_interior=False)
     assert b.label_style == "center"
     r = b.render()
     assert r is not None
@@ -183,7 +191,8 @@ def test_label_style_center():
 )
 def test_label_style_right():
     """label_style='right' should produce valid geometry."""
-    b = GridfinityBox(3, 2, 5, label_style="right")
+    # Fillet tested in test_all_features_box
+    b = GridfinityBox(3, 2, 5, label_style="right", fillet_interior=False)
     assert b.label_style == "right"
     r = b.render()
     assert r is not None
@@ -195,7 +204,9 @@ def test_label_style_right():
 )
 def test_label_style_with_dividers():
     """Positioned labels should work with width dividers."""
-    b = GridfinityBox(3, 3, 5, label_style="center", width_div=1, length_div=1)
+    # Fillet tested in test_all_features_box
+    b = GridfinityBox(3, 3, 5, label_style="center", width_div=1, length_div=1,
+                      fillet_interior=False)
     r = b.render()
     assert r is not None
     assert r.val().isValid()
@@ -231,8 +242,9 @@ def test_label_style_sets_labels():
 )
 def test_compartment_depth_zero():
     """compartment_depth=0 should be same as default."""
-    b_default = GridfinityBox(2, 2, 5)
-    b_zero = GridfinityBox(2, 2, 5, compartment_depth=0)
+    # Fillet tested in test_basic_box
+    b_default = GridfinityBox(2, 2, 5, fillet_interior=False)
+    b_zero = GridfinityBox(2, 2, 5, compartment_depth=0, fillet_interior=False)
     r_default = b_default.render()
     r_zero = b_zero.render()
     assert r_default.val().isValid()
@@ -245,8 +257,9 @@ def test_compartment_depth_zero():
 )
 def test_compartment_depth_raises_floor():
     """compartment_depth > 0 should raise the floor, reducing interior volume."""
-    b_full = GridfinityBox(2, 2, 5)
-    b_shallow = GridfinityBox(2, 2, 5, compartment_depth=5)
+    # Fillet tested in test_basic_box
+    b_full = GridfinityBox(2, 2, 5, fillet_interior=False)
+    b_shallow = GridfinityBox(2, 2, 5, compartment_depth=5, fillet_interior=False)
     r_full = b_full.render()
     r_shallow = b_shallow.render()
     assert r_full.val().isValid()
@@ -273,14 +286,15 @@ def test_compartment_depth_filename():
 )
 def test_height_internal_override():
     """height_internal sets a fixed internal height."""
-    b = GridfinityBox(2, 2, 5, height_internal=10)
+    # Fillet tested in test_basic_box
+    b = GridfinityBox(2, 2, 5, height_internal=10, fillet_interior=False)
     assert b._floor_raise > 0
     assert "_hi10.0" in b.filename()
     r = b.render()
     assert r is not None
     assert r.val().isValid()
     # height_internal bin should have more material (raised floor) than default
-    b_default = GridfinityBox(2, 2, 5)
+    b_default = GridfinityBox(2, 2, 5, fillet_interior=False)
     r_default = b_default.render()
     assert r.val().Volume() > r_default.val().Volume()
 
@@ -290,7 +304,8 @@ def test_height_internal_override():
 )
 def test_compartment_depth_with_scoops():
     """Scoops should adjust to raised floor."""
-    b = GridfinityBox(2, 2, 5, scoops=True, compartment_depth=5)
+    # Fillet tested in test_all_features_box
+    b = GridfinityBox(2, 2, 5, scoops=True, compartment_depth=5, fillet_interior=False)
     r = b.render()
     assert r is not None
     assert r.val().isValid()

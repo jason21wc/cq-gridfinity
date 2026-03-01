@@ -17,6 +17,7 @@ from common_test import (
 )
 
 
+@pytest.mark.slow
 @pytest.mark.skipif(
     SKIP_TEST_BOX, reason="Skipped intentionally by test scope environment variable"
 )
@@ -60,6 +61,7 @@ def test_invalid_box():
         b1.render()
 
 
+@pytest.mark.slow
 @pytest.mark.skipif(
     SKIP_TEST_BOX, reason="Skipped intentionally by test scope environment variable"
 )
@@ -96,6 +98,7 @@ def test_lite_box():
     assert _almost_same(size_3d(r), (41.5, 41.5, 17.8))
 
 
+@pytest.mark.slow
 @pytest.mark.skipif(
     SKIP_TEST_BOX, reason="Skipped intentionally by test scope environment variable"
 )
@@ -133,6 +136,7 @@ def test_empty_box():
     assert _almost_same(size_3d(r), (41.5, 41.5, 17.8))
 
 
+@pytest.mark.slow
 @pytest.mark.skipif(
     SKIP_TEST_BOX, reason="Skipped intentionally by test scope environment variable"
 )
@@ -155,6 +159,7 @@ def test_solid_box():
     assert _almost_same(b1.top_ref_height, 14)
 
 
+@pytest.mark.slow
 @pytest.mark.skipif(
     SKIP_TEST_BOX, reason="Skipped intentionally by test scope environment variable"
 )
@@ -175,6 +180,7 @@ def test_divided_box():
     assert b1.filename() == "gf_bin_3x3x3_mag_div2x1"
 
 
+@pytest.mark.slow
 @pytest.mark.skipif(
     SKIP_TEST_BOX, reason="Skipped intentionally by test scope environment variable"
 )
@@ -235,11 +241,12 @@ def test_all_features_box():
 )
 def test_reduced_lip_box():
     """Box with reduced lip style (underside chamfer only, no overhang)."""
-    b1 = GridfinityBox(2, 2, 3, lip_style="reduced")
+    # Fillet tested in test_basic_box
+    b1 = GridfinityBox(2, 2, 3, lip_style="reduced", fillet_interior=False)
     r = b1.render()
     assert r.val().isValid()
     # Same bounding box as normal lip — profile total height is identical
-    b_normal = GridfinityBox(2, 2, 3, lip_style="normal")
+    b_normal = GridfinityBox(2, 2, 3, lip_style="normal", fillet_interior=False)
     r_normal = b_normal.render()
     assert r_normal.val().isValid()
     assert _almost_same(size_3d(r), size_3d(r_normal))
@@ -254,7 +261,8 @@ def test_reduced_lip_box():
 )
 def test_no_lip_backward_compat():
     """no_lip=True should map to lip_style='none' for backward compatibility."""
-    b1 = GridfinityBox(2, 2, 3, no_lip=True)
+    # Fillet tested in test_basic_box
+    b1 = GridfinityBox(2, 2, 3, no_lip=True, fillet_interior=False)
     assert b1.lip_style == "none"
     assert b1.filename() == "gf_bin_2x2x3_nolip"
     r = b1.render()
@@ -267,8 +275,9 @@ def test_no_lip_backward_compat():
 )
 def test_lip_style_none():
     """lip_style='none' should produce the same result as no_lip=True."""
-    b_old = GridfinityBox(2, 2, 3, no_lip=True)
-    b_new = GridfinityBox(2, 2, 3, lip_style="none")
+    # Fillet tested in test_basic_box
+    b_old = GridfinityBox(2, 2, 3, no_lip=True, fillet_interior=False)
+    b_new = GridfinityBox(2, 2, 3, lip_style="none", fillet_interior=False)
     assert b_new.lip_style == "none"
     r_old = b_old.render()
     r_new = b_new.render()
@@ -283,7 +292,9 @@ def test_lip_style_none():
 )
 def test_reduced_lip_with_scoops():
     """Reduced lip should work with scoops (underside chamfer still present)."""
-    b1 = GridfinityBox(2, 2, 3, lip_style="reduced", scoops=True)
+    # Fillet tested in test_all_features_box
+    b1 = GridfinityBox(2, 2, 3, lip_style="reduced", scoops=True,
+                       fillet_interior=False)
     r = b1.render()
     assert r.val().isValid()
     assert _almost_same(size_3d(r), (83.5, 83.5, 24.8))
@@ -300,6 +311,7 @@ def test_invalid_lip_style():
         GridfinityBox(2, 2, 3, lip_style="invalid")
 
 
+@pytest.mark.slow
 @pytest.mark.skipif(
     SKIP_TEST_BOX, reason="Skipped intentionally by test scope environment variable"
 )
@@ -315,6 +327,7 @@ def test_fillet_rad_default():
     assert _almost_same(size_3d(r), (41.5, 41.5, 24.8))
 
 
+@pytest.mark.slow
 @pytest.mark.skipif(
     SKIP_TEST_BOX, reason="Skipped intentionally by test scope environment variable"
 )

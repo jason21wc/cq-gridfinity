@@ -294,9 +294,12 @@ def test_bin_crush_rib_holes():
     so comparisons must use the same code path. We use printable_hole_top as a
     minimal enhanced baseline to ensure both variants use the boolean path.
     """
+    # Fillet tested in test_basic_box, test_all_features_box
     # Both use boolean cut path (printable_hole_top triggers enhanced)
-    base = GridfinityBox(2, 2, 3, holes=True, printable_hole_top=True)
-    ribbed = GridfinityBox(2, 2, 3, holes=True, printable_hole_top=True, crush_ribs=True)
+    base = GridfinityBox(2, 2, 3, holes=True, printable_hole_top=True,
+                         fillet_interior=False)
+    ribbed = GridfinityBox(2, 2, 3, holes=True, printable_hole_top=True,
+                           crush_ribs=True, fillet_interior=False)
     rb = base.render()
     rr = ribbed.render()
     assert rb.val().isValid()
@@ -311,9 +314,12 @@ def test_bin_crush_rib_holes():
 )
 def test_bin_chamfered_holes():
     """1B.2 on bins: chamfered holes remove more material than plain enhanced."""
+    # Fillet tested in test_basic_box
     # Both use boolean cut path
-    base = GridfinityBox(2, 2, 3, holes=True, printable_hole_top=True)
-    chamfered = GridfinityBox(2, 2, 3, holes=True, printable_hole_top=True, chamfer_holes=True)
+    base = GridfinityBox(2, 2, 3, holes=True, printable_hole_top=True,
+                         fillet_interior=False)
+    chamfered = GridfinityBox(2, 2, 3, holes=True, printable_hole_top=True,
+                              chamfer_holes=True, fillet_interior=False)
     rb = base.render()
     rc = chamfered.render()
     assert rb.val().isValid()
@@ -328,9 +334,12 @@ def test_bin_chamfered_holes():
 )
 def test_bin_refined_holes():
     """1B.3 on bins: refined holes use smaller diameter (5.86mm vs 6.5mm)."""
+    # Fillet tested in test_basic_box
     # Both use boolean cut path
-    base = GridfinityBox(2, 2, 3, holes=True, printable_hole_top=True)
-    refined = GridfinityBox(2, 2, 3, holes=True, printable_hole_top=True, refined_holes=True)
+    base = GridfinityBox(2, 2, 3, holes=True, printable_hole_top=True,
+                         fillet_interior=False)
+    refined = GridfinityBox(2, 2, 3, holes=True, printable_hole_top=True,
+                            refined_holes=True, fillet_interior=False)
     rb = base.render()
     rr = refined.render()
     assert rb.val().isValid()
@@ -345,7 +354,9 @@ def test_bin_refined_holes():
 )
 def test_bin_printable_hole_top():
     """1B.4 on bins: printable bridge produces valid geometry."""
-    bridge = GridfinityBox(2, 2, 3, holes=True, printable_hole_top=True)
+    # Fillet tested in test_basic_box
+    bridge = GridfinityBox(2, 2, 3, holes=True, printable_hole_top=True,
+                           fillet_interior=False)
     rb = bridge.render()
     assert rb is not None
     assert rb.val().isValid()
@@ -358,12 +369,14 @@ def test_bin_printable_hole_top():
 )
 def test_bin_all_enhanced_holes():
     """All enhanced hole options combined on a bin."""
+    # Fillet tested in test_basic_box, test_all_features_box
     b = GridfinityBox(
         2, 2, 3,
         holes=True,
         crush_ribs=True,
         chamfer_holes=True,
         printable_hole_top=True,
+        fillet_interior=False,
     )
     r = b.render()
     assert r is not None
@@ -377,6 +390,7 @@ def test_bin_all_enhanced_holes():
 )
 def test_bin_enhanced_holes_filename():
     """Enhanced hole options reflected in bin filename."""
+    # No render needed — filename is generated from parameters only
     b = GridfinityBox(
         3, 2, 5, holes=True, crush_ribs=True, chamfer_holes=True, refined_holes=True
     )
@@ -387,6 +401,7 @@ def test_bin_enhanced_holes_filename():
     assert "-refined" in fn
 
 
+@pytest.mark.slow
 @pytest.mark.skipif(
     SKIP_TEST_BOX, reason="Skipped intentionally by test scope environment variable"
 )
