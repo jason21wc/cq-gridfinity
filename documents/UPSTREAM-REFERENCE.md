@@ -43,6 +43,36 @@
 
 **Geometry:** Each edge gets horizontal cylindrical holes at every grid unit. Each hole is dia 3.35mm, length 21mm, centered at the edge, Z-centered in the additional-height section. Multi-screw mode distributes holes at 5.5mm c-c perpendicular to the hole axis. Adjacent baseplates align so a screw passes from one into the other.
 
+### 1B.11: Fit-to-Drawer Baseplate
+
+**Source:** `kennetek/gridfinity-rebuilt-openscad` (MIT)
+**File:** `gridfinity-rebuilt-baseplate.scad` → `[Fit to Drawer]` section
+**Selection:** Set `gridx=0` / `gridy=0` to trigger auto-calculation from `distancex` / `distancey`
+
+**Parameters (verified 2026-02-28):**
+| Parameter | Default | Notes |
+|-----------|---------|-------|
+| `distancex` | 0 | Target drawer X dimension (mm); 0 = disabled |
+| `distancey` | 0 | Target drawer Y dimension (mm); 0 = disabled |
+| `fitx` | 0 | X padding alignment: -1 = flush left, 0 = centered, 1 = flush right |
+| `fity` | 0 | Y padding alignment: -1 = flush front, 0 = centered, 1 = flush back |
+
+**Algorithm:**
+1. Auto-grid: `grid = floor(distance / l_grid)` when `gridx=0` (upstream `l_grid = 42`)
+2. Outer size: `max(grid * l_grid, distance)` — ensures plate is never smaller than drawer
+3. Padding: `outer_size - grid * l_grid`
+4. Grid offset from outer center: `padding * fit / 2`
+   - `fit = -1` → grid flush to negative side (left/front), padding on opposite side
+   - `fit = 0` → grid centered, equal padding both sides
+   - `fit = +1` → grid flush to positive side (right/back), padding on opposite side
+
+**Upstream source lines (kennetek):**
+- `gridx = 0` triggers: `gridx = max(1, floor(distancex / l_grid))`
+- `distancex = max(gridx * l_grid, distancex)` — outer size calc
+- Grid offset: `(distancex - gridx * l_grid) * fitx / 2`
+
+**Compatibility:** All existing features (magnets, screws, weighted, skeleton, screw-together, corner screws) work with fit-to-drawer. The grid offset is applied to all hole/cell/screw positions.
+
 ---
 
 ## Phase 1C: Extended Feature Set (ostat)
@@ -817,3 +847,4 @@ Exist in yawkat/gridflock but not tracked in FEATURE-SPEC:
 |------|--------|
 | 2026-02-27 | Initial creation. All Phase 1C–1F features verified against upstream repos. |
 | 2026-02-28 | Added Phase 1B.10 (Screw-together baseplate) verified parameters from kennetek source. |
+| 2026-02-28 | Added Phase 1B.11 (Fit-to-drawer baseplate) verified parameters from kennetek source. |

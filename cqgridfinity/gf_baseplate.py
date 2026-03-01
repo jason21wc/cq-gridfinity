@@ -95,6 +95,10 @@ class GridfinityBaseplate(GridfinityObject):
       crush_ribs - add crush ribs to magnet holes for press-fit retention (8 ribs)
       chamfer_holes - add entry chamfer to magnet holes (0.8mm at 45deg)
       printable_hole_top - add thin bridge layer at hole top for supportless FDM printing
+      distancex - target drawer X dimension in mm (0=disabled); auto-calcs length_u when length_u=0
+      distancey - target drawer Y dimension in mm (0=disabled); auto-calcs width_u when width_u=0
+      fitx - X padding alignment: -1=grid flush left, 0=centered, 1=grid flush right
+      fity - Y padding alignment: -1=grid flush front, 0=centered, 1=grid flush back
     """
 
     def __init__(self, length_u, width_u, **kwargs):
@@ -118,9 +122,20 @@ class GridfinityBaseplate(GridfinityObject):
         self.crush_ribs = False
         self.chamfer_holes = False
         self.printable_hole_top = False
+        self.distancex = 0
+        self.distancey = 0
+        self.fitx = 0
+        self.fity = 0
         for k, v in kwargs.items():
             if k in self.__dict__ and v is not None:
                 self.__dict__[k] = v
+        # Fit-to-drawer: auto-calculate grid units from drawer dimensions
+        if self.distancex > 0 and self.length_u == 0:
+            self.length_u = max(1, int(self.distancex // GRU))
+        if self.distancey > 0 and self.width_u == 0:
+            self.width_u = max(1, int(self.distancey // GRU))
+        self.fitx = max(-1, min(1, self.fitx))
+        self.fity = max(-1, min(1, self.fity))
         # Auto-adjust ext_depth to ensure enough material for features
         if self.skeleton:
             # kennetek calculate_offset_skeletonized():
@@ -148,12 +163,36 @@ class GridfinityBaseplate(GridfinityObject):
                 or self.skeleton or self.screw_together)
 
     @property
+    def _is_fit_to_drawer(self):
+        """True when fit-to-drawer mode is active."""
+        return self.distancex > 0 or self.distancey > 0
+
+    @property
+    def _fit_length(self):
+        """Actual outer X dimension (may exceed grid length for fit-to-drawer)."""
+        return max(self.length, self.distancex)
+
+    @property
+    def _fit_width(self):
+        """Actual outer Y dimension (may exceed grid width for fit-to-drawer)."""
+        return max(self.width, self.distancey)
+
+    @property
+    def _grid_offset(self):
+        """Offset of grid center from outer block center for fit-to-drawer."""
+        padding_x = self._fit_length - self.length
+        padding_y = self._fit_width - self.width
+        return (padding_x * self.fitx / 2, padding_y * self.fity / 2)
+
+    @property
     def _bp_cell_centres(self):
-        """Grid cell centres in the baseplate coordinate system (centered)."""
+        """Grid cell centres in the baseplate coordinate system (centered).
+        Offset by _grid_offset when fit-to-drawer is active."""
+        ox, oy = self._grid_offset
         return [
             (
-                (i - (self.length_u - 1) / 2) * GRU,
-                (j - (self.width_u - 1) / 2) * GRU,
+                (i - (self.length_u - 1) / 2) * GRU + ox,
+                (j - (self.width_u - 1) / 2) * GRU + oy,
             )
             for i in range(self.length_u)
             for j in range(self.width_u)
@@ -162,11 +201,13 @@ class GridfinityBaseplate(GridfinityObject):
     @property
     def _bp_hole_centres(self):
         """Magnet/screw hole positions in the baseplate coordinate system (centered).
-        Four holes per grid cell at corners, offset GR_HOLE_DIST from cell centre."""
+        Four holes per grid cell at corners, offset GR_HOLE_DIST from cell centre.
+        Offset by _grid_offset when fit-to-drawer is active."""
+        ox, oy = self._grid_offset
         return [
             (
-                (i - (self.length_u - 1) / 2) * GRU + GR_HOLE_DIST * di,
-                (j - (self.width_u - 1) / 2) * GRU + GR_HOLE_DIST * dj,
+                (i - (self.length_u - 1) / 2) * GRU + GR_HOLE_DIST * di + ox,
+                (j - (self.width_u - 1) / 2) * GRU + GR_HOLE_DIST * dj + oy,
             )
             for i in range(self.length_u)
             for j in range(self.width_u)
@@ -177,7 +218,7 @@ class GridfinityBaseplate(GridfinityObject):
     def _corner_pts(self):
         oxy = self.corner_tab_size / 2
         return [
-            (i * (self.length / 2 - oxy), j * (self.width / 2 - oxy), 0)
+            (i * (self._fit_length / 2 - oxy), j * (self._fit_width / 2 - oxy), 0)
             for i in (-1, 1)
             for j in (-1, 1)
         ]
@@ -225,6 +266,9 @@ class GridfinityBaseplate(GridfinityObject):
                 and not self._has_bottom_features
                 and not self.corner_screws):
             fn += "_d%.1f" % (self.ext_depth)
+        # 5. Fit-to-drawer
+        if self._is_fit_to_drawer:
+            fn += "_fit%dx%d" % (int(self.distancex), int(self.distancey))
         return fn
 
     def render(self):
@@ -252,9 +296,12 @@ class GridfinityBaseplate(GridfinityObject):
                 (GRU2, GRU2, total_h)
             )
         rc = recentre(composite_from_pts(rc, self.grid_centres), "XY")
+        if self._is_fit_to_drawer:
+            ox, oy = self._grid_offset
+            rc = rc.translate((ox, oy, 0))
         r = (
             cq.Workplane("XY")
-            .rect(self.length, self.width)
+            .rect(self._fit_length, self._fit_width)
             .extrude(total_h)
             .edges("|Z")
             .fillet(GR_RAD)
@@ -337,12 +384,16 @@ class GridfinityBaseplate(GridfinityObject):
 
         Multi-screw mode spaces n_screws at 5.5mm center-to-center
         (GR_ST_SCREW_HEAD_D + GR_ST_SCREW_SPACING) perpendicular to hole axis.
+
+        For fit-to-drawer, holes are placed at grid edges (not outer block
+        edges) so they align with adjacent standard baseplates.
         """
         hole_r = GR_ST_SCREW_D / 2
         hole_len = GRU2  # 21mm, extends inward from edge
         hole_z = GR_ST_ADDITIONAL_H / 2  # Z-center in extra-height section
-        half_lx = self.length / 2
-        half_ly = self.width / 2
+        half_lx = self.length / 2  # grid edge, not outer block
+        half_ly = self.width / 2   # grid edge, not outer block
+        ox, oy = self._grid_offset
         screw_cc = GR_ST_SCREW_HEAD_D + GR_ST_SCREW_SPACING  # 5.5mm
 
         # Multi-screw offsets perpendicular to hole axis
@@ -375,15 +426,15 @@ class GridfinityBaseplate(GridfinityObject):
         for j in range(self.width_u):
             cy = (j - (self.width_u - 1) / 2) * GRU
             for off in offsets:
-                x_pts.append((half_lx - hole_len / 2, cy + off, hole_z))
-                x_pts.append((-half_lx + hole_len / 2, cy + off, hole_z))
+                x_pts.append((ox + half_lx - hole_len / 2, oy + cy + off, hole_z))
+                x_pts.append((ox - half_lx + hole_len / 2, oy + cy + off, hole_z))
 
         # ±Y edges: holes at each grid unit along X, extending inward along Y
         for i in range(self.length_u):
             cx = (i - (self.length_u - 1) / 2) * GRU
             for off in offsets:
-                y_pts.append((cx + off, half_ly - hole_len / 2, hole_z))
-                y_pts.append((cx + off, -half_ly + hole_len / 2, hole_z))
+                y_pts.append((ox + cx + off, oy + half_ly - hole_len / 2, hole_z))
+                y_pts.append((ox + cx + off, oy - half_ly + hole_len / 2, hole_z))
 
         if x_pts:
             obj = obj.cut(composite_from_pts(x_hole, x_pts))

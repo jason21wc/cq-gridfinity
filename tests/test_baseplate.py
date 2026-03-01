@@ -7,6 +7,7 @@ from cqgridfinity.constants import (
     GR_BASE_HEIGHT,
     GR_HOLE_H,
     GR_ST_ADDITIONAL_H,
+    GRU,
 )
 from cqkit import FlatEdgeSelector
 from cqkit.cq_helpers import size_3d
@@ -258,3 +259,110 @@ def test_screw_together_large_grid():
     assert _almost_same(size_3d(r), (168, 126, expected_h), tol=0.1)
     if _export_files("baseplate"):
         bp.save_step_file(filename="./tests/testfiles/gf_baseplate_4x3_screwtog.step")
+
+
+# --- Fit-to-drawer baseplate tests (1B.11) ---
+
+
+@pytest.mark.skipif(
+    SKIP_TEST_BASEPLATE,
+    reason="Skipped intentionally by test scope environment variable",
+)
+def test_fit_to_drawer_basic():
+    """200x150mm drawer → 4x3 grid, outer dims = 200x150, valid solid."""
+    bp = GridfinityBaseplate(0, 0, distancex=200, distancey=150)
+    r = bp.render()
+    assert r.val().isValid()
+    assert bp.length_u == 4  # floor(200/42) = 4
+    assert bp.width_u == 3   # floor(150/42) = 3
+    assert _almost_same(size_3d(r), (200, 150, GR_BASE_HEIGHT), tol=0.1)
+
+
+@pytest.mark.skipif(
+    SKIP_TEST_BASEPLATE,
+    reason="Skipped intentionally by test scope environment variable",
+)
+def test_fit_to_drawer_auto_grid():
+    """Floor division auto-calc: 200/42=4, 100/42=2, 30/42→clamped to 1."""
+    bp1 = GridfinityBaseplate(0, 0, distancex=200, distancey=100)
+    assert bp1.length_u == 4  # floor(200/42)
+    assert bp1.width_u == 2   # floor(100/42)
+
+    bp2 = GridfinityBaseplate(0, 0, distancex=30, distancey=30)
+    assert bp2.length_u == 1  # floor(30/42)=0, clamped to 1
+    assert bp2.width_u == 1
+
+
+@pytest.mark.skipif(
+    SKIP_TEST_BASEPLATE,
+    reason="Skipped intentionally by test scope environment variable",
+)
+def test_fit_to_drawer_alignment():
+    """fitx=-1/0/+1: same outer bounding box dims, all valid."""
+    dims = (200, 150)
+    for fitx_val in (-1, 0, 1):
+        bp = GridfinityBaseplate(
+            0, 0, distancex=dims[0], distancey=dims[1], fitx=fitx_val
+        )
+        r = bp.render()
+        assert r.val().isValid(), f"Invalid solid for fitx={fitx_val}"
+        assert _almost_same(
+            size_3d(r), (dims[0], dims[1], GR_BASE_HEIGHT), tol=0.1
+        ), f"Wrong dims for fitx={fitx_val}"
+
+
+@pytest.mark.skipif(
+    SKIP_TEST_BASEPLATE,
+    reason="Skipped intentionally by test scope environment variable",
+)
+def test_fit_to_drawer_explicit_grid():
+    """Explicit 3x2 + distancex=200: grid preserved, outer padded."""
+    bp = GridfinityBaseplate(3, 2, distancex=200)
+    r = bp.render()
+    assert r.val().isValid()
+    assert bp.length_u == 3  # explicit, not overridden
+    assert bp.width_u == 2
+    # Outer X = max(3*42=126, 200) = 200; Y = max(2*42=84, 0) = 84
+    assert _almost_same(size_3d(r), (200, 84, GR_BASE_HEIGHT), tol=0.1)
+
+
+@pytest.mark.skipif(
+    SKIP_TEST_BASEPLATE,
+    reason="Skipped intentionally by test scope environment variable",
+)
+def test_fit_to_drawer_with_magnets():
+    """Fit-to-drawer + magnet_holes: valid, correct height."""
+    bp = GridfinityBaseplate(0, 0, distancex=200, distancey=150, magnet_holes=True)
+    r = bp.render()
+    assert r.val().isValid()
+    expected_h = GR_BASE_HEIGHT + GR_HOLE_H
+    assert _almost_same(size_3d(r), (200, 150, expected_h), tol=0.1)
+
+
+@pytest.mark.skipif(
+    SKIP_TEST_BASEPLATE,
+    reason="Skipped intentionally by test scope environment variable",
+)
+def test_fit_to_drawer_filename():
+    """Filename includes _fit200x150 suffix."""
+    bp = GridfinityBaseplate(0, 0, distancex=200, distancey=150)
+    fn = bp.filename()
+    assert "_fit200x150" in fn
+    assert fn == "gf_baseplate_4x3_fit200x150"
+
+
+@pytest.mark.skipif(
+    SKIP_TEST_BASEPLATE,
+    reason="Skipped intentionally by test scope environment variable",
+)
+def test_fit_to_drawer_no_padding():
+    """distancex=168 (4*42): zero padding, same as standard 4x3."""
+    bp_fit = GridfinityBaseplate(0, 0, distancex=168, distancey=126)
+    bp_std = GridfinityBaseplate(4, 3)
+    r_fit = bp_fit.render()
+    r_std = bp_std.render()
+    assert r_fit.val().isValid()
+    # Same grid, same outer dims
+    assert bp_fit.length_u == 4
+    assert bp_fit.width_u == 3
+    assert _almost_same(size_3d(r_fit), size_3d(r_std), tol=0.1)

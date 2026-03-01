@@ -106,7 +106,7 @@ All features in this phase trace to **kennetek/gridfinity-rebuilt-openscad** (MI
 |---|---------|-------------|-----------------|-------|--------|------------|
 | 1B.9 | Skeletonized baseplate | `gridfinity-rebuilt-baseplate.scad` + `src/core/standard.scad` | `style_plate=2`, constants `r_skel=2`, `h_skel=1` | 1B | Verified | `skeleton=True` param. 4 corner pocket cutouts per cell (12.4mm sq, 2mm fillet) leaving 11.5mm cross ribs. ext_depth auto: 4.35mm (plain), 6.75mm (magnets), 6.25mm (refined). Skeleton before holes in pipeline, overrides weighted. Impl: `gf_baseplate.py` `_render_skeleton_cutouts()`. Tests: `test_skeleton_baseplate.py` (15 tests). |
 | 1B.10 | Screw-together baseplate | `gridfinity-rebuilt-baseplate.scad` | `style_plate=3` (skel interior) or `style_plate=4` (thin interior), `cutter_screw_together()` | 1B | Verified | `screw_together=True`, `n_screws` (1-3). Horizontal M3 holes (3.35mm dia, 21mm long) along all 4 edges at each grid unit. ext_depth auto: 6.75mm. Multi-screw spacing 5.5mm c-c. Impl: `gf_baseplate.py` `_render_screw_together_holes()`. Tests: `test_baseplate.py` (8 tests). |
-| 1B.11 | Fit-to-drawer baseplate | `gridfinity-rebuilt-baseplate.scad` | `[Fit to Drawer]` section: `distancex/y`, `fitx/fity` | 1B | Not Started | `distancex/y` = target drawer dimension (mm). `gridx/y=0` → auto-fill (floor division). `fitx/fity` (-1 to 1) controls padding alignment: -1=left, 0=center, 1=right. Padding filled with solid material |
+| 1B.11 | Fit-to-drawer baseplate | `gridfinity-rebuilt-baseplate.scad` | `[Fit to Drawer]` section: `distancex/y`, `fitx/fity` | 1B | Verified | `distancex/y` = target drawer dimension (mm). `length_u/width_u=0` → auto-fill (`max(1, floor(dist/42))`). `fitx/fity` (-1 to 1) controls padding alignment: -1=left, 0=center, 1=right. Outer block = `max(grid, distance)`, grid offset = `padding * fit / 2`. All features (magnets, screws, skeleton, screw-together) compatible. Impl: `gf_baseplate.py` (4 params, 4 properties, 6 methods updated). Tests: `test_baseplate.py` (7 tests). |
 
 #### 1B Grid Flexibility (non-integer, half-grid, height modes, Z-snap)
 
@@ -237,7 +237,7 @@ Before declaring Phase 1B complete, verify ALL of the following:
 - [x] 1B.1-1B.4 (Enhanced holes): Verified — work on both baseplates AND bins via shared `gf_holes.py`
 - [x] 1B.5-1B.8 (Bin features): Verified — scoop scaling, tab positioning, custom depth, cylindrical
 - [x] 1B.9 (Skeletonized baseplate): Verified — 16 tests, watertight validated
-- [ ] 1B.10-1B.11 (Baseplate features): 1B.10 Verified (8 tests), 1B.11 Not Started — fit-to-drawer
+- [x] 1B.10-1B.11 (Baseplate features): 1B.10 Verified (8 tests), 1B.11 Verified (7 tests)
 - [ ] 1B.12-1B.15 (Grid flexibility): Not Started — non-integer, half-grid, height modes, Z-snap
 - [ ] 1B.16-1B.17 (Spiral vase): Not Started — shell + base insert
 - [ ] All 17 features status = Verified (with passing tests and isValid checks)
@@ -246,7 +246,7 @@ Before declaring Phase 1B complete, verify ALL of the following:
 - [ ] No invented geometry — every feature traces to FEATURE-SPEC.md row
 - [ ] PRODUCTS.md and PROJECT-MEMORY.md reflect current status
 
-**Current status (2026-02-28):** 10/17 features Verified (1B.1-1B.10). 7 features Not Started (1B.11-1B.17). Phase 1B is **IN PROGRESS**.
+**Current status (2026-02-28):** 11/17 features Verified (1B.1-1B.11). 6 features Not Started (1B.12-1B.17). Phase 1B is **IN PROGRESS**.
 
 ---
 
@@ -259,3 +259,4 @@ Before declaring Phase 1B complete, verify ALL of the following:
 | 2026-02-27 | Phases 1C–1F: All 45 features verified against upstream repos (ostat, smkent, yawkat, CullenJWebb, rngcntr). 1C.15 (embossing) removed — does not exist in ostat. 1C.7b (reduced_double lip) added. 1F.7 description corrected (bin-to-baseplate, not segment-to-segment). anylid license flagged as TBD/blocked. Created `documents/UPSTREAM-REFERENCE.md` with detailed parameters, constants, and dimensions. | Jason + Claude |
 | 2026-02-28 | Remediation: 1B.1-1B.9 status updated to Verified. Enhanced holes now work on bins (via gf_holes boolean cut path). Added Phase 1B Exit Gate checklist. All render tests include isValid() watertight checks. Rugged box lid quarantined as xfail (pre-existing non-watertight geometry). | Jason + Claude |
 | 2026-02-28 | 1B.10 (Screw-together baseplate) implemented and verified. 8 tests, all pass. Added to UPSTREAM-REFERENCE.md. | Jason + Claude |
+| 2026-02-28 | 1B.11 (Fit-to-drawer baseplate) implemented and verified. 7 tests, all pass. 4 params, 4 properties, 6 methods updated in gf_baseplate.py. Added to UPSTREAM-REFERENCE.md. | Jason + Claude |
