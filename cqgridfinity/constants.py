@@ -131,6 +131,12 @@ GR_BP_RCUT_W = 8.5  # weight pocket cross-channel width
 GR_BP_RCUT_L = 4.25  # weight pocket cross-channel length
 GR_BP_RCUT_D = 2.0  # weight pocket cross-channel depth
 
+# Screw-together baseplate (kennetek gridfinity-rebuilt-baseplate.scad)
+GR_ST_SCREW_D = 3.35         # screw hole diameter (M3 clearance)
+GR_ST_SCREW_HEAD_D = 5.0     # screw head diameter (spacing calc only)
+GR_ST_SCREW_SPACING = 0.5    # gap between adjacent screw holes
+GR_ST_ADDITIONAL_H = 6.75    # extra baseplate height for screw-together
+
 # Skeletonized baseplate (kennetek standard.scad, style_plate=2)
 GR_SKEL_RAD = 2.0            # cutout corner radius (r_skel)
 GR_SKEL_H = 1.0              # structural spacing between features (h_skel)

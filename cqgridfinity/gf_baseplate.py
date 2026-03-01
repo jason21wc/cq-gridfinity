@@ -46,6 +46,10 @@ from cqgridfinity.constants import (
     GR_SKEL_RAD,
     GR_SCREW_DEPTH,
     GR_SKEL_SCREW_NONE,
+    GR_ST_ADDITIONAL_H,
+    GR_ST_SCREW_D,
+    GR_ST_SCREW_HEAD_D,
+    GR_ST_SCREW_SPACING,
     GR_STR_BASE_PROFILE,
     GRU,
     GRU2,
@@ -85,6 +89,8 @@ class GridfinityBaseplate(GridfinityObject):
       screw_holes - add screw through-holes in receptacle floors (3.0mm dia)
       weighted - add weight pockets in baseplate bottom
       skeleton - remove material from slab leaving cross-shaped rib pattern (style_plate=2)
+      screw_together - add horizontal M3 screw holes along edges for joining baseplates (style_plate=3/4)
+      n_screws - number of screws per grid unit per edge (1-3, default 1)
       refined_holes - use refined magnet holes (5.86mm dia, 1.9mm deep, tighter press-fit)
       crush_ribs - add crush ribs to magnet holes for press-fit retention (8 ribs)
       chamfer_holes - add entry chamfer to magnet holes (0.8mm at 45deg)
@@ -106,6 +112,8 @@ class GridfinityBaseplate(GridfinityObject):
         self.screw_holes = False
         self.weighted = False
         self.skeleton = False
+        self.screw_together = False
+        self.n_screws = 1
         self.refined_holes = False
         self.crush_ribs = False
         self.chamfer_holes = False
@@ -120,6 +128,8 @@ class GridfinityBaseplate(GridfinityObject):
             mag_depth = self._magnet_hole_depth if self.magnet_holes else 0
             skel_depth = GR_SKEL_H + mag_depth + GR_SKEL_SCREW_NONE
             self.ext_depth = max(self.ext_depth, skel_depth)
+        if self.screw_together:
+            self.ext_depth = max(self.ext_depth, GR_ST_ADDITIONAL_H)
         if self.weighted:
             self.ext_depth = max(self.ext_depth, GR_BP_BOT_H)
         elif self.magnet_holes and self.screw_holes:
@@ -134,7 +144,8 @@ class GridfinityBaseplate(GridfinityObject):
     @property
     def _has_bottom_features(self):
         """True if this baseplate needs a solid slab below the receptacle."""
-        return self.magnet_holes or self.screw_holes or self.weighted or self.skeleton
+        return (self.magnet_holes or self.screw_holes or self.weighted
+                or self.skeleton or self.screw_together)
 
     @property
     def _bp_cell_centres(self):
@@ -182,6 +193,11 @@ class GridfinityBaseplate(GridfinityObject):
             fn += "_skel"
         elif self.weighted:
             fn += "_weighted"
+        # 1b. Screw-together
+        if self.screw_together:
+            fn += "_screwtog"
+            if self.n_screws > 1:
+                fn += "%d" % self.n_screws
         # 2. Hole features
         if self.magnet_holes and self.screw_holes:
             fn += "_mag-screw"
@@ -256,6 +272,8 @@ class GridfinityBaseplate(GridfinityObject):
             r = r.edges(bs).fillet(GR_RAD)
         if self.skeleton:
             r = self._render_skeleton_cutouts(r)
+        if self.screw_together:
+            r = self._render_screw_together_holes(r)
         if self.magnet_holes or self.screw_holes:
             r = self._render_baseplate_holes(r)
         if self.weighted and not self.skeleton:
@@ -308,6 +326,70 @@ class GridfinityBaseplate(GridfinityObject):
 
         cutouts = composite_from_pts(cutout, pts)
         return obj.cut(cutouts)
+
+    def _render_screw_together_holes(self, obj):
+        """Cut horizontal screw holes along all 4 edges for joining baseplates.
+
+        Each edge gets holes at every grid unit position. Each hole is a
+        horizontal cylinder (dia GR_ST_SCREW_D, length GRU/2) centered at the
+        edge, Z-centered in the additional-height section. Adjacent baseplates
+        align so a screw passes from one into the other.
+
+        Multi-screw mode spaces n_screws at 5.5mm center-to-center
+        (GR_ST_SCREW_HEAD_D + GR_ST_SCREW_SPACING) perpendicular to hole axis.
+        """
+        hole_r = GR_ST_SCREW_D / 2
+        hole_len = GRU2  # 21mm, extends inward from edge
+        hole_z = GR_ST_ADDITIONAL_H / 2  # Z-center in extra-height section
+        half_lx = self.length / 2
+        half_ly = self.width / 2
+        screw_cc = GR_ST_SCREW_HEAD_D + GR_ST_SCREW_SPACING  # 5.5mm
+
+        # Multi-screw offsets perpendicular to hole axis
+        offsets = [0.0]
+        if self.n_screws == 2:
+            offsets = [-screw_cc / 2, screw_cc / 2]
+        elif self.n_screws >= 3:
+            offsets = [-screw_cc, 0.0, screw_cc]
+
+        # Template cylinders centered at origin
+        # X-direction: cylinder along X-axis
+        x_hole = (
+            cq.Workplane("YZ")
+            .circle(hole_r)
+            .extrude(hole_len)
+            .translate((-hole_len / 2, 0, 0))
+        )
+        # Y-direction: cylinder along Y-axis
+        y_hole = (
+            cq.Workplane("XZ")
+            .circle(hole_r)
+            .extrude(hole_len)
+            .translate((0, -hole_len / 2, 0))
+        )
+
+        x_pts = []  # positions for X-direction holes
+        y_pts = []  # positions for Y-direction holes
+
+        # ±X edges: holes at each grid unit along Y, extending inward along X
+        for j in range(self.width_u):
+            cy = (j - (self.width_u - 1) / 2) * GRU
+            for off in offsets:
+                x_pts.append((half_lx - hole_len / 2, cy + off, hole_z))
+                x_pts.append((-half_lx + hole_len / 2, cy + off, hole_z))
+
+        # ±Y edges: holes at each grid unit along X, extending inward along Y
+        for i in range(self.length_u):
+            cx = (i - (self.length_u - 1) / 2) * GRU
+            for off in offsets:
+                y_pts.append((cx + off, half_ly - hole_len / 2, hole_z))
+                y_pts.append((cx + off, -half_ly + hole_len / 2, hole_z))
+
+        if x_pts:
+            obj = obj.cut(composite_from_pts(x_hole, x_pts))
+        if y_pts:
+            obj = obj.cut(composite_from_pts(y_hole, y_pts))
+        return obj
 
     def _render_baseplate_holes(self, obj):
         """Cut magnet and/or screw holes into the solid slab below receptacles.

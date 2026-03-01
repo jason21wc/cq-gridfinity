@@ -19,6 +19,32 @@
 
 ---
 
+## Phase 1B: Kennetek Feature Parity (Late Additions)
+
+### 1B.10: Screw-Together Baseplate
+
+**Source:** `kennetek/gridfinity-rebuilt-openscad` (MIT)
+**File:** `gridfinity-rebuilt-baseplate.scad` → `cutter_screw_together()`
+**Styles:** `style_plate=3` (skeleton interior + screw holes), `style_plate=4` (thin interior + screw holes)
+
+**Parameters (verified 2026-02-28):**
+| Parameter | Value | Notes |
+|-----------|-------|-------|
+| `d_screw` | 3.35 mm | Screw hole diameter (M3 clearance) |
+| `d_screw_head` | 5.0 mm | Used only for multi-screw spacing calc |
+| `screw_spacing` | 0.5 mm | Gap between adjacent holes |
+| `n_screws` | 1 (range 1-3) | Screws per grid unit per edge |
+| Additional height | 6.75 mm | Always added for screw-together styles |
+| Hole Z-center | `additional_height / 2` = 3.375 mm | Centered in extra-height section |
+| Hole length | `l_grid / 2` = 21.0 mm | Extends inward from edge |
+| Hole orientation | Horizontal | Perpendicular to the edge they serve |
+| Edges with holes | All 4 | 1 hole group per grid unit per edge |
+| Multi-screw spacing | 5.5 mm center-to-center | `d_screw_head + screw_spacing` |
+
+**Geometry:** Each edge gets horizontal cylindrical holes at every grid unit. Each hole is dia 3.35mm, length 21mm, centered at the edge, Z-centered in the additional-height section. Multi-screw mode distributes holes at 5.5mm c-c perpendicular to the hole axis. Adjacent baseplates align so a screw passes from one into the other.
+
+---
+
 ## Phase 1C: Extended Feature Set (ostat)
 
 **Source repo:** `ostat/gridfinity_extended_openscad` (GPL — spec reference ONLY)
@@ -790,3 +816,4 @@ Exist in yawkat/gridflock but not tracked in FEATURE-SPEC:
 | Date | Change |
 |------|--------|
 | 2026-02-27 | Initial creation. All Phase 1C–1F features verified against upstream repos. |
+| 2026-02-28 | Added Phase 1B.10 (Screw-together baseplate) verified parameters from kennetek source. |
