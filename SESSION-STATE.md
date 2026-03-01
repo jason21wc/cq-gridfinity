@@ -1,6 +1,6 @@
 # Session State
 
-**Last Updated:** 2026-02-28T23:00:00-07:00
+**Last Updated:** 2026-02-28T23:59:00-07:00
 **Memory Type:** Working (transient)
 **Lifecycle:** Prune at session start per §7.0.4
 
@@ -16,10 +16,10 @@
 - **Blocker:** None
 
 ## Immediate Context
-Phase 1B features 1B.1-1B.9 are verified with 94 passing tests. Test suite optimized from 734s → 82s (9x) via pytest-xdist + selective fillet-skip. Ready to resume feature work on 1B.10-1B.17.
+Phase 1B features 1B.1-1B.10 complete with 96 passing tests. 1B.10 (screw-together baseplate) implemented with horizontal M3 edge holes. CadQuery parallelism researched — no code changes needed, findings documented in LEARNING-LOG.md.
 
 ## Next Actions
-1. **Baseplate features** (1B.10-1B.11) — screw-together, fit-to-drawer in `gf_baseplate.py`
+1. **Baseplate features** (1B.11) — fit-to-drawer in `gf_baseplate.py`
 2. **Grid flexibility** (1B.12-1B.15) — non-integer grid, half-grid, height modes, Z-snap
 3. **Spiral vase** (1B.16-1B.17) — new `gf_vase_box.py` module
 
@@ -30,7 +30,7 @@ Phase 1B features 1B.1-1B.9 are verified with 94 passing tests. Test suite optim
 | Tests | **96 total: 94 passed, 1 skipped, 1 xfailed** |
 | Test time | **82s parallel** (-n auto), 373s serial |
 | xfail | Rugged box lid non-watertight (pre-existing upstream) |
-| Phase 1B | 9/17 features Verified (1B.1-1B.9), 8 Not Started |
+| Phase 1B | 10/17 features Verified (1B.1-1B.10), 7 Not Started |
 
 ## Environment
 - Conda env: `gridfinity` (activate with `conda activate gridfinity`)

@@ -29,6 +29,10 @@ Debugging a boolean cut that appeared to succeed but removed no material. Only c
 `Workplane("XZ").extrude(h)` goes **-Y** (counterintuitive). `Workplane("XZ").extrude(-h)` goes +Y. `Workplane("YZ").extrude(h)` goes +X.
 **Rule:** Always verify with `.val().BoundingBox()` when cutting through walls at specific orientations.
 
+#### CadQuery Parallelism & Multi-Core (2026-02-28)
+Boolean ops already parallel via `SetRunParallel(True)` (CadQuery default since `shapes.py:1297`). OCCT spawns 12-thread pool on this machine. Fillet is the real bottleneck — single-threaded kernel, no parallelism possible, 89% of box render time. Python threading useless because OCP never releases the GIL. `multiprocessing.Pool` with `copyreg` BREP serialization is viable for batch STEP generation (4-8x reported per CadQuery #579, #1600) — defer to Phase 2 web UI. Thread pool tunable via `OCP.OSD.OSD_ThreadPool.DefaultPool_s(N)` if oversubscription ever becomes a measured problem.
+**Rule:** Don't add parallelism infrastructure until Phase 2 creates a batch generation use case. Current single-process performance is sufficient (tests 82s with xdist, individual renders sub-second). Re-read this entry before building Phase 2 job queue.
+
 ### OpenSCAD → CadQuery Translation
 
 #### Known Translation Gotchas (2026-02-22)
