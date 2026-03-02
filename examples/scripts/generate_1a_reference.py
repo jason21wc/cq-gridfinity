@@ -2,14 +2,14 @@
 """Generate reference STEP files for all Phase 1A (Already Implemented) features.
 
 Features 0.1-0.20 from documents/FEATURE-SPEC.md.
-Run with: conda run -n gridfinity python examples/generate_1a_reference.py
+Run with: conda run -n gridfinity python examples/scripts/generate_1a_reference.py
 """
 
 import os
 import sys
 import time
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from cqgridfinity import (
     GridfinityBaseplate,
@@ -17,7 +17,7 @@ from cqgridfinity import (
     GridfinitySolidBox,
 )
 
-OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "output")
+OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "..", "output")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 

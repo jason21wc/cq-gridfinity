@@ -7,8 +7,9 @@
 /tests/testfiles/*.iges
 /tests/testfiles/*.stl
 
-# generated example output
-/examples/output/
+# generated example output (STEP files go here; scripts in examples/scripts/ write here)
+/examples/output/*
+!/examples/output/.gitkeep
 /output/
 *.graffle
 

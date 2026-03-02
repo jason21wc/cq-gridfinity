@@ -73,6 +73,15 @@
 | Product Guide | `PRODUCTS.md` | Active |
 | Learning Log | `LEARNING-LOG.md` | Active |
 | Session State | `SESSION-STATE.md` | Active |
+| Phase 1A generator script | `examples/scripts/generate_1a_reference.py` | Active |
+| Phase 1B generator script | `examples/scripts/generate_1b_reference.py` | Active |
+| Generated STEP output | `examples/output/` | Gitignored — run scripts to regenerate |
+
+## Examples Convention
+- Scripts: `examples/scripts/generate_{phase}_reference.py` (committed)
+- Output: `examples/output/{Phase}{Num}_{descriptor}_{dims}.step` (gitignored)
+- One script per phase; no ad-hoc subfolders in `examples/`
+- Run: `conda run -n gridfinity python examples/scripts/generate_{phase}_reference.py`
 
 ## Key Upstream References
 

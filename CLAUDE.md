@@ -27,6 +27,7 @@ cqgridfinity/
 ├── gf_drawer.py                   # Drawer spacers (existing upstream)
 ├── gf_helpers.py                  # Geometry helpers
 ├── gf_holes.py                    # Hole type library (shared by baseplates + bins)
+├── gf_vase.py                     # Spiral vase shell + base insert (1B.16-17)
 ├── patterns/                      # Wall/floor pattern system (planned)
 ├── lids/                          # Lid systems (planned)
 ├── labels/                        # Label systems (planned)
@@ -34,7 +35,24 @@ cqgridfinity/
 ├── drawers/                       # Drawer system (planned)
 ├── gridflock/                     # Segmented baseplates (planned)
 └── scripts/                       # CLI scripts
+
+examples/
+├── scripts/                       # Generator scripts (committed to git)
+│   ├── generate_1a_reference.py   # Phase 1A (features 0.1-0.20)
+│   ├── generate_1b_reference.py   # Phase 1B (features 1B.5-1B.17, all Kennetek)
+│   └── generate_{phase}_reference.py  # One script per phase going forward
+├── output/                        # Generated STEP files (gitignored — regenerate freely)
+│   └── .gitkeep                   # Preserves empty dir in git
+└── demo1.assy                     # PartCAD assembly demo (committed)
 ```
+
+## Examples Convention
+- **Scripts live in `examples/scripts/`** — committed, one file per phase
+- **Output goes to `examples/output/`** — gitignored, regenerate any time with the scripts
+- **Naming:** `{Phase}_{FeatureNum}_{descriptor}_{dimensions}.step`
+  - Example: `1B16_vase_2x2x3.step`, `1B09_skeleton_mag_4x3.step`
+- **Never create ad-hoc subfolders** in `examples/` (e.g., `review_xyz/`) — use `output/` instead
+- **Run scripts from project root:** `conda run -n gridfinity python examples/scripts/generate_1b_reference.py`
 
 ## Gridfinity Spec
 See **GRIDFINITY-SPEC.md** for full dimensional reference (base profile, stacking lip, magnet/screw holes, weighted baseplate, etc.). Quick reference:
