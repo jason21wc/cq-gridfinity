@@ -1,6 +1,6 @@
 # Session State
 
-**Last Updated:** 2026-02-28
+**Last Updated:** 2026-03-01 (1B.16-17 Verified)
 **Memory Type:** Working (transient)
 **Lifecycle:** Prune at session start per §7.0.4
 
@@ -12,24 +12,29 @@
 ## Current Position
 - **Phase:** 1B — Kennetek Feature Parity
 - **Mode:** Standard
-- **Active Task:** Between tasks
+- **Active Task:** 1B complete — Phase 1B Exit Gate pending
 - **Blocker:** None
 
 ## Immediate Context
-Phase 1B features 1B.1-1B.11 complete. Architecture review fixes applied (d8ee6c9): unified hole rendering via `cut_enhanced_holes()`, extracted `_build_label_wall()` helper, unknown kwargs warnings on all 5 classes, exception-safe `render()` with try/finally, 15 combinatorial feature tests, and PRODUCTS.md documentation gaps filled. Lessons documented in LEARNING-LOG.md, gotchas 6-8 added to PROJECT-MEMORY.md.
+1B.16-17 (Spiral Vase) implemented and verified:
+- `GridfinityVaseBox(GridfinityBox)`: thin-wall (2×nozzle) open-top shell. Params: nozzle, layer, bottom_layer, n_divx, style_tab (0-6), style_base (0-4), enable_lip, enable_scoop_chamfer.
+- `GridfinityVaseBase(GridfinityObject)`: base insert with base profile, bottom slab, diagonal ribs (45°/135° per cell), X-protrusion, magnet holes.
+- FDM-only features omitted for B-Rep: magic_slice, alternating-divider slicing, funnel features.
+- Key bug fixed during implementation: all features in pre-transform coords must be placed at `(cx, cy)` directly — the final `translate((-half_l, -half_w, GR_BASE_HEIGHT))` handles centering. Double-subtracting `half_l` would misplace features.
+- 38 tests in tests/test_vase.py, all passing.
 
 ## Next Actions
-1. **Grid flexibility** (1B.12-1B.15) — non-integer grid, half-grid, height modes, Z-snap
-2. **Spiral vase** (1B.16-1B.17) — new `gf_vase_box.py` module
+1. **Phase 1B Exit Gate** — all 17 features Verified; run gate checklist in FEATURE-SPEC.md
+2. **Phase 1C** — Extended features (patterns, lip variants, subdivisions, text)
 
 ## Quick Reference
 
 | Metric | Value |
 |--------|-------|
-| Tests | **128 total: 126 passed, 1 skipped, 1 xfailed** |
-| Test time | **~108s parallel** (-n auto) |
+| Tests | **230 total: 230 passed, 1 skipped, 1 xfailed** |
+| Test time | **~123s parallel** (-n auto) |
 | xfail | Rugged box lid non-watertight (pre-existing upstream) |
-| Phase 1B | 11/17 features Verified (1B.1-1B.11), 6 Not Started |
+| Phase 1B | **17/17 features Verified** |
 
 ## Environment
 - Conda env: `gridfinity` (activate with `conda activate gridfinity`)

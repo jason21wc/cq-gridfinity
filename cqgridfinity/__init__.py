@@ -17,4 +17,5 @@ from .gf_baseplate import GridfinityBaseplate
 from .gf_box import GridfinityBox, GridfinitySolidBox
 from .gf_drawer import GridfinityDrawerSpacer
 from .gf_ruggedbox import GridfinityRuggedBox
+from .gf_vase import GridfinityVaseBox, GridfinityVaseBase
 from . import gf_holes

@@ -96,6 +96,8 @@
 | 6 | **Silent kwargs swallowing** — `for k,v in kwargs` with no else branch hides typos (e.g., `hole=True` vs `holes=True`) | All kwargs loops must `warnings.warn()` on unknown keys |
 | 7 | **Temporary self-mutation without try/finally** — Methods that mutate then restore `self` attributes corrupt state on exception | Wrap in try/finally; save originals before the try block |
 | 8 | **Shared utility bypass** — Creating a shared function but leaving some callers using inline implementations | When creating a shared utility, refactor ALL callers in the same PR |
+| 9 | **Skeleton keepout omission** — Skeleton pocket is `rect - keepout_circle`, not just `rect`. The keepout (radius=GR_SKEL_KEEPOUT_R=7.25mm, centered at each hole position) preserves material so magnet/screw holes have solid material to cut into. Without keepout, all skeleton variants look identical. | Always subtract keepout cylinder when building skeleton corner pockets |
+| 10 | **Pre-transform coordinate double-subtraction** — In multi-cell renders, features must be placed at `(cx, cy)` in pre-transform coords (where cells are at (0,0), (GRU,0), ...). The final `r.translate((-half_l, -half_w, GR_BASE_HEIGHT))` centers the bin. If you subtract `half_l` from `cx` inside the loop AND the final translate also subtracts `half_l`, you subtract twice, misplacing features by `half_l`. | Place at `(cx, cy)` directly; let final translate do centering |
 
 ## Phase Gates
 
@@ -118,9 +120,12 @@
 | 1B.5-1B.8 Bin features | Verified | 2026-02-28 | scoop scaling, tab positioning, custom depth, cylindrical |
 | 1B.9 Skeletonized baseplate | Verified | 2026-02-28 | 16 tests, 4 corner pocket cutouts per cell, cross ribs |
 | 1B.10-1B.11 Baseplate features | Verified | 2026-02-28 | screw-together, fit-to-drawer |
-| 1B.12-1B.15 Grid flexibility | Pending | — | non-integer, half-grid, height modes, Z-snap |
-| 1B.16-1B.17 Spiral vase | Pending | — | shell + base insert |
-| Implement -> Complete | Pending | — | All 1B features pass acceptance |
+| 1B.12 Non-integer grid | Verified | 2026-03-01 | BBox = length_u×42-0.5, floor() grid_centres, 19 tests |
+| 1B.13 Half-grid 21mm | Verified | 2026-03-01 | _gru→GRU2, hole_centres full-grid-equiv frame, 12 tests |
+| 1B.14 Height modes (gridz_define) | Verified | 2026-03-01 | 4 modes: units/internal-mm/external-mm/total-mm, 9 tests |
+| 1B.15 Z-snap | Verified | 2026-03-01 | enable_zsnap param; per-mode content snap; _zs suffix; 20 tests |
+| 1B.16-1B.17 Spiral vase | Verified | 2026-03-01 | GridfinityVaseBox + GridfinityVaseBase in gf_vase.py; 38 tests; FDM slicer tricks omitted for B-Rep |
+| Implement -> Complete | Pending | — | Phase 1B Exit Gate checklist in FEATURE-SPEC.md |
 
 ### Phase 1C-1F: See documents/FEATURE-SPEC.md
 
