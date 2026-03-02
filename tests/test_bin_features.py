@@ -1,4 +1,4 @@
-# Tests for enhanced bin features (1B.5-1B.8)
+# Tests for enhanced bin features (1B.5-1B.8, 1B.14)
 import pytest
 
 from cqgridfinity import *
@@ -333,6 +333,25 @@ def test_cylindrical_basic():
 @pytest.mark.skipif(
     SKIP_TEST_BOX, reason="Skipped intentionally by test scope environment variable"
 )
+def test_cylindrical_compartments_are_open():
+    """Cylindrical holes must be open at the top — no sealed interior cavity.
+
+    Bug (1B.8): cyl_h used int_height instead of max_height, leaving a 2.8mm
+    ceiling (GR_UNDER_H + GR_TOPSIDE_H) that sealed the cylinders from the top.
+    An open bin should have exactly 1 shell (connected solid); a sealed bin
+    produces 2 shells (outer + enclosed void).
+    """
+    b = GridfinityBox(2, 2, 5, cylindrical=True, cylinder_diam=20)
+    r = b.render()
+    shells = r.val().Shells()
+    assert len(shells) == 1, (
+        f"Cylindrical bin has {len(shells)} shells — cylinders may be sealed at top"
+    )
+
+
+@pytest.mark.skipif(
+    SKIP_TEST_BOX, reason="Skipped intentionally by test scope environment variable"
+)
 def test_cylindrical_with_dividers():
     """Cylindrical with dividers should create multiple cylinders."""
     b1 = GridfinityBox(2, 2, 5, cylindrical=True, cylinder_diam=20)
@@ -491,3 +510,93 @@ def test_render_exception_safety():
     with pytest.raises(ValueError):
         box.render()
     assert box.length_div == orig_div
+
+
+# ---------------------------------------------------------------------------
+# 1B.14: Height mode selection (gridz_define 0-3)
+# ---------------------------------------------------------------------------
+
+def test_height_mode0_is_default():
+    """Mode 0 (7mm units) is the default and matches the existing formula."""
+    b = GridfinityBox(2, 2, 5)
+    assert b.gridz_define == 0
+    assert abs(b.height - (3.8 + 7 * 5)) < 1e-6
+
+
+def test_height_mode1_internal_mm():
+    """Mode 1: height_u is internal usable mm; height = height_u + GR_LIP_H + GR_BOT_H."""
+    b = GridfinityBox(2, 2, 5)
+    int_h = b.int_height  # ~25.2mm for a 5-unit bin
+    b1 = GridfinityBox(2, 2, int_h, gridz_define=1)
+    assert abs(b1.height - b.height) < 1e-6
+
+
+def test_height_mode2_external_mm():
+    """Mode 2: height_u is total external mm; height = height_u directly."""
+    b0 = GridfinityBox(2, 2, 5)
+    total_h = b0.height  # 38.8mm
+    b2 = GridfinityBox(2, 2, total_h, gridz_define=2)
+    assert abs(b2.height - total_h) < 1e-6
+
+
+def test_height_mode3_total_mm():
+    """Mode 3: height_u includes stacking lip protrusion; height = height_u - GR_STACKING_LIP_H."""
+    b0 = GridfinityBox(2, 2, 5)
+    total_with_lip = b0.height + GR_STACKING_LIP_H
+    b3 = GridfinityBox(2, 2, total_with_lip, gridz_define=3)
+    assert abs(b3.height - b0.height) < 1e-6
+
+
+def test_height_mode_equivalence():
+    """All 4 modes expressing the same physical height produce the same bin."""
+    b0 = GridfinityBox(2, 2, 5)
+    h = b0.height
+    int_h = b0.int_height
+    b1 = GridfinityBox(2, 2, int_h, gridz_define=1)
+    b2 = GridfinityBox(2, 2, h, gridz_define=2)
+    b3 = GridfinityBox(2, 2, h + GR_STACKING_LIP_H, gridz_define=3)
+    for b in (b1, b2, b3):
+        assert abs(b.height - h) < 1e-6, f"mode {b.gridz_define}: {b.height} != {h}"
+
+
+def test_height_mode_invalid():
+    """gridz_define outside 0-3 raises ValueError."""
+    with pytest.raises(ValueError, match="gridz_define"):
+        GridfinityBox(2, 2, 5, gridz_define=4)
+
+
+def test_height_mode_filename():
+    """Mode 0 has no mode suffix; modes 1-3 append _m{N}."""
+    b0 = GridfinityBox(2, 2, 5)
+    assert "_m" not in b0.filename()
+    b1 = GridfinityBox(2, 2, 25, gridz_define=1)
+    assert "_m1" in b1.filename()
+    b2 = GridfinityBox(2, 2, 38, gridz_define=2)
+    assert "_m2" in b2.filename()
+    b3 = GridfinityBox(2, 2, 43, gridz_define=3)
+    assert "_m3" in b3.filename()
+
+
+@pytest.mark.skipif(
+    SKIP_TEST_BOX, reason="Skipped intentionally by test scope environment variable"
+)
+def test_height_mode1_renders():
+    """Mode 1 bin (internal mm) renders a valid solid with correct dimensions."""
+    # 25mm internal height → same as a ~5-unit bin
+    b = GridfinityBox(2, 2, 25, gridz_define=1, fillet_interior=False)
+    r = b.render()
+    assert r.val().isValid()
+    bb = r.val().BoundingBox()
+    assert abs(bb.zlen - b.height) < 0.2
+
+
+@pytest.mark.skipif(
+    SKIP_TEST_BOX, reason="Skipped intentionally by test scope environment variable"
+)
+def test_height_mode2_renders():
+    """Mode 2 bin (external mm) renders a valid solid with correct dimensions."""
+    b = GridfinityBox(2, 2, 35.0, gridz_define=2, fillet_interior=False)
+    r = b.render()
+    assert r.val().isValid()
+    bb = r.val().BoundingBox()
+    assert abs(bb.zlen - 35.0) < 0.2

@@ -152,8 +152,8 @@ def main():
     width_div = int(argsd["widthdiv"])
     wall = float(argsd["wall"])
     box = GridfinityBox(
-        length_u=int(argsd["length"]),
-        width_u=int(argsd["width"]),
+        length_u=float(argsd["length"]),
+        width_u=float(argsd["width"]),
         height_u=int(argsd["height"]),
         holes=argsd["magnetholes"] or argsd["unsupported"],
         unsupported_holes=argsd["unsupported"],
@@ -177,7 +177,7 @@ def main():
     print("Version: %s" % (cqgridfinity.__version__))
 
     print(
-        "Gridfinity %sbox: %dU x %dU x %dU (%.1f mm x %.1f mm x %.1f mm), %.2f mm walls"
+        "Gridfinity %sbox: %gU x %gU x %dU (%.1f mm x %.1f mm x %.1f mm), %.2f mm walls"
         % (
             bs,
             box.length_u,

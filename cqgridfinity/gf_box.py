@@ -43,10 +43,12 @@ from cqgridfinity.constants import (
     GR_FILLET,
     GR_FLOOR,
     GR_HOLE_D,
+    GR_HOLE_DIST,
     GR_HOLE_H,
     GR_HOLE_SLICE,
     GR_LIP_H,
     GR_LIP_PROFILE,
+    GR_STACKING_LIP_H,
     GR_NO_PROFILE,
     GR_RAD,
     GR_REDUCED_LIP_PROFILE,
@@ -134,6 +136,16 @@ class GridfinityBox(GridfinityObject):
         self.crush_ribs = False  # 8 ribs for friction-fit retention
         self.chamfer_holes = False  # 0.8mm 45° entry chamfer
         self.printable_hole_top = False  # thin bridge layer for FDM
+        # Grid flexibility (1B.12-1B.13)
+        self.half_grid = False  # 21mm grid increments; forces only_corners holes
+        # Height mode selection (1B.14) — mirrors kennetek gridz_define 0-3:
+        #   0: height_u in 7mm gridfinity units (default)
+        #   1: height_u in internal usable mm (excl floor & lip)
+        #   2: height_u in external mm (total bin height)
+        #   3: height_u in external mm including the 4.4mm stacking lip protrusion
+        self.gridz_define = 0
+        # Z-snap (1B.15): round height up to next 7mm Gridfinity multiple
+        self.enable_zsnap = False
         for k, v in kwargs.items():
             if k in self.__dict__:
                 self.__dict__[k] = v
@@ -142,6 +154,22 @@ class GridfinityBox(GridfinityObject):
                     f"{self.__class__.__name__}: unknown keyword argument '{k}' ignored",
                     stacklevel=2,
                 )
+        # Validate height mode (1B.14)
+        if self.gridz_define not in (0, 1, 2, 3):
+            raise ValueError(
+                "gridz_define must be 0-3, got %r" % self.gridz_define
+            )
+        # Validate grid dimensions: must be >= 1 to form a valid base profile.
+        # Non-integer values are accepted (1B.12); partial cells produce
+        # an outer shell extension with no base profile in the partial area.
+        if self.length_u < 1:
+            raise ValueError(
+                "length_u must be >= 1, got %g (minimum Gridfinity unit size)" % self.length_u
+            )
+        if self.width_u < 1:
+            raise ValueError(
+                "width_u must be >= 1, got %g (minimum Gridfinity unit size)" % self.width_u
+            )
         # Normalize scoops: bool→float, clamp to [0, 1]
         if isinstance(self.scoops, bool):
             self.scoops = 1.0 if self.scoops else 0.0
@@ -174,7 +202,7 @@ class GridfinityBox(GridfinityObject):
     def __str__(self):
         s = []
         s.append(
-            "Gridfinity Box %dU x %dU x %dU (%.2f x %.2f x %.2f mm)"
+            "Gridfinity Box %gU x %gU x %dU (%.2f x %.2f x %.2f mm)"
             % (
                 self.length_u,
                 self.width_u,
@@ -191,7 +219,8 @@ class GridfinityBox(GridfinityObject):
         }
         sl = lip_desc.get(self.lip_style, "with mating top lip")
         ss = "Lite style box  " if self.lite_style else ""
-        s.append("  %sWall thickness: %.2f mm  %s" % (ss, self.wall_th, sl))
+        hg = "Half-grid (21mm)  " if self.half_grid else ""
+        s.append("  %s%sWall thickness: %.2f mm  %s" % (hg, ss, self.wall_th, sl))
         s.append(
             "  Floor height  : %.2f mm  Inside height: %.2f mm  Top reference height: %.2f mm"
             % (self.floor_h + GR_BASE_HEIGHT, self.int_height, self.top_ref_height)
@@ -226,6 +255,60 @@ class GridfinityBox(GridfinityObject):
             )
         s.append("  Auto filename: %s" % (self.filename()))
         return "\n".join(s)
+
+    @staticmethod
+    def _z_snap(content_mm: float) -> float:
+        """Round content height up to next 7mm Gridfinity multiple (1B.15).
+
+        Equivalent to Kennetek's z_snap(): h if h%7==0 else h+7-h%7.
+        Uses EPS tolerance to avoid floating-point false positives.
+        """
+        rem = content_mm % GRHU
+        if rem < EPS:
+            return content_mm
+        return content_mm + GRHU - rem
+
+    @property
+    def height(self):
+        """Total bin height in mm, derived from height_u via gridz_define mode (1B.14).
+
+        Mode 0 (default): height_u in 7mm gridfinity units  → 3.8 + 7*height_u
+        Mode 1: height_u in internal usable mm              → height_u + GR_LIP_H + GR_BOT_H
+        Mode 2: height_u is total external mm               → height_u (used as-is)
+        Mode 3: height_u in external mm incl stacking lip   → height_u - GR_STACKING_LIP_H
+
+        If enable_zsnap is True (1B.15), snaps the mode-specific content height
+        to the next 7mm multiple before returning. Equivalent to Kennetek's
+        z_snap(height(z, gridz_define)) applied after gridz_define conversion.
+
+        Mode 0/1 content = the value z_snap operates on in Kennetek.
+        Mode 2/3 content = (external_height - 3.8) so the result stays in the
+        standard-height form 3.8 + k*7 that mode 0 produces.
+        """
+        z = self.height_u
+        if self.gridz_define == 0:
+            content = GRHU * z
+            if self.enable_zsnap:
+                content = self._z_snap(content)
+            return content + 3.8
+        elif self.gridz_define == 1:
+            content = float(z)
+            if self.enable_zsnap:
+                content = self._z_snap(content)
+            return content + GR_LIP_H + GR_BOT_H
+        elif self.gridz_define == 2:
+            if self.enable_zsnap:
+                content = float(z) - 3.8
+                content = self._z_snap(content)
+                return content + 3.8
+            return float(z)
+        else:  # 3
+            raw = float(z) - GR_STACKING_LIP_H
+            if self.enable_zsnap:
+                content = raw - 3.8
+                content = self._z_snap(content)
+                return content + 3.8
+            return raw
 
     @property
     def int_height(self):
@@ -263,10 +346,6 @@ class GridfinityBox(GridfinityObject):
         return self.inner_l, self.inner_w
 
     @property
-    def half_in(self):
-        return GRU2 - self.wall_th - GR_TOL / 2
-
-    @property
     def inner_rad(self):
         return self.outer_rad - self.wall_th
 
@@ -284,11 +363,75 @@ class GridfinityBox(GridfinityObject):
         return max(rad, 0)
 
     @property
+    def _gru(self):
+        """Grid unit size: 21mm for half-grid (1B.13), 42mm for standard bins."""
+        return GRU2 if self.half_grid else GRU
+
+    @property
+    def hole_centres(self):
+        """Magnet/screw hole positions for this bin.
+
+        Standard: 4 holes per cell at ±GR_HOLE_DIST from each cell centre.
+        Half-grid (1B.13): only_corners — 4 corner hole clusters positioned at
+        the equivalent full-grid (42mm) corners mapped into the half-grid
+        pre-translation frame.  Ensures physical compatibility with standard
+        Gridfinity baseplates (42mm grid, ±13mm hole offset).
+
+        Returns [] when the bin is too small to fit any full-grid-aligned holes,
+        i.e. when floor(length_u/2) < 1 or floor(width_u/2) < 1.
+        """
+        if not self.half_grid:
+            return super().hole_centres
+        n_full_l = math.floor(self.length_u / 2)
+        n_full_w = math.floor(self.width_u / 2)
+        if n_full_l < 1 or n_full_w < 1:
+            return []
+        # Deduplicated corner cells in the full-grid equivalent
+        seen: set = set()
+        corners = []
+        for ci in (0, n_full_l - 1):
+            for cj in (0, n_full_w - 1):
+                if (ci, cj) not in seen:
+                    seen.add((ci, cj))
+                    corners.append((ci, cj))
+        # Full-grid cell centre in the final (centred) coordinate frame:
+        #   x_final = (ci - (n_full_l - 1) / 2) * GRU
+        # Convert to pre-translation frame by adding half_dim:
+        #   x_pretrans = x_final + half_l   (half_l uses GRU2 for half-grid)
+        cx_off = self.half_l  # (length_u - 1) * GRU2 / 2
+        cy_off = self.half_w  # (width_u - 1) * GRU2 / 2
+        result = []
+        for (ci, cj) in corners:
+            cx = (ci - (n_full_l - 1) / 2) * GRU + cx_off
+            cy = (cj - (n_full_w - 1) / 2) * GRU + cy_off
+            for di in (-1, 1):
+                for dj in (-1, 1):
+                    result.append((cx - GR_HOLE_DIST * di, -(cy - GR_HOLE_DIST * dj)))
+        return result
+
+    @property
+    def half_in(self):
+        """Half interior width of a single grid cell (used for scoop/divider offsets).
+
+        Scales with _gru so half-grid bins compute correct interior offsets.
+        """
+        return self._gru / 2 - self.wall_th - GR_TOL / 2
+
+    @property
     def _filename_prefix(self) -> str:
         return "gf_bin_"
 
     def _filename_suffix(self) -> str:
-        fn = "x%d" % (self.height_u)
+        fn = "x%s" % self._fmt_unit(self.height_u)
+        # Non-default height mode (1B.14): append _m{mode} so filenames are unambiguous
+        if self.gridz_define != 0:
+            fn += "_m%d" % self.gridz_define
+        # Z-snap (1B.15): mark when enabled so snapped vs unsnapped filenames differ
+        if self.enable_zsnap:
+            fn += "_zs"
+        # Half-grid mode (1B.13): mark before style to avoid ambiguity
+        if self.half_grid:
+            fn += "_hg"
         # 1. Construction style (broadest differentiator)
         if self.lite_style:
             fn += "_lite"
@@ -349,11 +492,12 @@ class GridfinityBox(GridfinityObject):
         try:
             self._int_shell = None
             if self.lite_style:
-                # Clamp dividers for lite_style: max one per grid unit boundary
+                # Clamp dividers for lite_style: max one per full grid unit.
+                # math.floor() supports non-integer length_u/width_u (1B.12).
                 if self.length_div:
-                    self.length_div = self.length_u - 1
+                    self.length_div = math.floor(self.length_u) - 1
                 if self.width_div:
-                    self.width_div = self.width_u - 1
+                    self.width_div = math.floor(self.width_u) - 1
                 if self.solid:
                     raise ValueError(
                         "Cannot select both solid and lite box styles together"
@@ -525,8 +669,9 @@ class GridfinityBox(GridfinityObject):
             h = self.bin_height - GR_BASE_HEIGHT
             profile = [h, *profile]
             zo += h
+        cell = self._gru  # 21mm for half-grid, 42mm for standard (1B.13)
         r = self.extrude_profile(
-            rounded_rect_sketch(GRU - GR_TOL, GRU - GR_TOL, self.outer_rad),
+            rounded_rect_sketch(cell - GR_TOL, cell - GR_TOL, self.outer_rad),
             profile,
         )
         rx = r.faces("<Z").shell(-self.wall_th)
@@ -536,7 +681,7 @@ class GridfinityBox(GridfinityObject):
     def render_shell(self, as_solid=False):
         """Renders the box shell without any added features."""
         r = self.extrude_profile(
-            rounded_rect_sketch(GRU, GRU, self.outer_rad + GR_BASE_CLR), GR_BOX_PROFILE
+            rounded_rect_sketch(self._gru, self._gru, self.outer_rad + GR_BASE_CLR), GR_BOX_PROFILE
         )
         r = r.translate((0, 0, -GR_BASE_CLR))
         r = r.mirror(mirrorPlane="XY")
@@ -699,7 +844,7 @@ class GridfinityBox(GridfinityObject):
         positions = []
         for i in range(n_compartments):
             comp_start = i * comp_length - self.half_in
-            tab_w = min(GRU, comp_length)  # tab max width = 1 grid unit (42mm)
+            tab_w = min(self._gru, comp_length)  # tab max width = 1 grid unit
             if self.label_style in ("auto", "center"):
                 tab_x = comp_start + (comp_length - tab_w) / 2
             elif self.label_style == "left":
@@ -718,7 +863,7 @@ class GridfinityBox(GridfinityObject):
         with upstream cq-gridfinity. Enhanced hole features (crush_ribs,
         chamfer, etc.) use gf_holes boolean cutting for the additional geometry.
         """
-        if not self.holes:
+        if not self.holes or not self.hole_centres:
             return obj
 
         has_enhanced = any([
@@ -758,6 +903,8 @@ class GridfinityBox(GridfinityObject):
 
         Uses gf_holes.hole_filler() for consistency with the shared hole module.
         """
+        if not self.hole_centres:
+            return obj
         filler = hole_filler(self.hole_diam, GR_HOLE_SLICE)
         fillers = composite_from_pts(filler, self.hole_centres)
         return obj.union(fillers.translate((-self.half_l, self.half_w, 0)))
@@ -793,7 +940,11 @@ class GridfinityBox(GridfinityObject):
         radius = diam / 2
 
         raise_h = self._floor_raise
-        cyl_h = self.int_height - raise_h
+        # Must use max_height, not int_height: solid_shell() fills the interior
+        # up to max_height + floor_h (not just int_height + floor_h). Using
+        # int_height leaves a 2.8mm ceiling (GR_UNDER_H + GR_TOPSIDE_H) that
+        # seals the cylinders from the top and makes the bin appear solid.
+        cyl_h = self.max_height - raise_h
         if cyl_h <= 0:
             return obj
 

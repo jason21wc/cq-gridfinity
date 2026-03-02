@@ -142,6 +142,18 @@ class GridfinityBaseplate(GridfinityObject):
             self.length_u = max(1, int(self.distancex // GRU))
         if self.distancey > 0 and self.width_u == 0:
             self.width_u = max(1, int(self.distancey // GRU))
+        # Baseplates require integer grid units (non-integer grids are a bin-only
+        # feature, 1B.12 — gridfinity-rebuilt-bins.scad only).
+        if self.length_u != int(self.length_u):
+            raise ValueError(
+                "GridfinityBaseplate requires integer length_u, got %g. "
+                "Non-integer grid sizes are only supported for bins (1B.12)." % self.length_u
+            )
+        if self.width_u != int(self.width_u):
+            raise ValueError(
+                "GridfinityBaseplate requires integer width_u, got %g. "
+                "Non-integer grid sizes are only supported for bins (1B.12)." % self.width_u
+            )
         self.fitx = max(-1, min(1, self.fitx))
         self.fity = max(-1, min(1, self.fity))
         # Auto-adjust ext_depth to ensure enough material for features
@@ -351,36 +363,56 @@ class GridfinityBaseplate(GridfinityObject):
         """Cut skeleton material-removal pockets from the baseplate slab.
 
         Creates 4 corner pocket cutouts per grid cell, leaving a cross-shaped
-        rib pattern that preserves material around hole positions.
+        rib pattern that preserves material at hole positions.
 
-        Reproduces kennetek profile_skeleton(): the rib half-width equals
-        hole_dist minus keepout_r (5.75mm), so ribs are 11.5mm wide.
-        Each corner pocket is cut_size × cut_size (12.4mm) with r_skel
-        rounded corners, extruded through the full ext_depth.
+        Reproduces kennetek profile_skeleton(): each corner pocket is a
+        cut_size × cut_size (12.4mm) rectangle with r_skel rounded corners,
+        MINUS a keepout cylinder of radius GR_SKEL_KEEPOUT_R (7.25mm) at
+        the hole position.  The hole at GR_HOLE_DIST (13mm) from the cell
+        center sits inside the raw rectangle; the keepout preserves material
+        around it so that magnet/screw holes have solid material to cut into.
+
+        The crescent-shaped voids appear between the cross ribs and the
+        circular "islands" of material surrounding each hole site.
         """
         rib_half_w = GR_HOLE_DIST - GR_SKEL_KEEPOUT_R  # 5.75mm
         cut_size = GR_SKEL_INNER / 2 - rib_half_w  # 12.4mm
         offset = rib_half_w + cut_size / 2  # 11.95mm
         r = GR_SKEL_RAD  # 2.0mm
+        ext = self.ext_depth + EPS
 
-        # Single corner pocket with rounded corners
-        cutout = (
-            cq.Workplane("XY")
-            .rect(cut_size, cut_size)
-            .extrude(self.ext_depth + EPS)
-            .edges("|Z").fillet(r)
-            .translate((0, 0, -EPS))
-        )
+        # The hole is at GR_HOLE_DIST from the cell centre; the pocket is
+        # centred at `offset` from the cell centre.  The hole position
+        # relative to the pocket centre (always in the "outward" direction):
+        hole_from_pocket = GR_HOLE_DIST - offset  # 1.05mm
 
-        # 4 corner positions per cell, tiled across all cells
-        pts = []
-        for cx, cy in self._bp_cell_centres:
-            for dx in (-1, 1):
-                for dy in (-1, 1):
-                    pts.append((cx + dx * offset, cy + dy * offset, 0))
+        # Build one pocket shape per corner direction, then tile across cells.
+        # Each pocket = rounded rectangle − keepout cylinder at the hole site.
+        for dx in (-1, 1):
+            for dy in (-1, 1):
+                rect = (
+                    cq.Workplane("XY")
+                    .rect(cut_size, cut_size)
+                    .extrude(ext)
+                    .edges("|Z").fillet(r)
+                    .translate((0, 0, -EPS))
+                )
+                # Keepout cylinder: slightly taller than the rect to cut cleanly.
+                keepout = (
+                    cq.Workplane("XY")
+                    .circle(GR_SKEL_KEEPOUT_R)
+                    .extrude(ext + EPS)
+                    .translate((dx * hole_from_pocket, dy * hole_from_pocket, -EPS))
+                )
+                pocket = rect.cut(keepout)
 
-        cutouts = composite_from_pts(cutout, pts)
-        return obj.cut(cutouts)
+                pts = [
+                    (cx + dx * offset, cy + dy * offset, 0)
+                    for cx, cy in self._bp_cell_centres
+                ]
+                obj = obj.cut(composite_from_pts(pocket, pts))
+
+        return obj
 
     def _render_screw_together_holes(self, obj):
         """Cut horizontal screw holes along all 4 edges for joining baseplates.

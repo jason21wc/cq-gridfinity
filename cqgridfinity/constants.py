@@ -92,6 +92,9 @@ for h in GR_LIP_PROFILE:
     else:
         GR_LIP_H += h
 GR_NO_PROFILE = (GR_LIP_H,)
+# Kennetek STACKING_LIP_HEIGHT (spec STACKING_LIP_LINE y-max = 4.4mm).
+# Used for gridz_define Mode 3 (height_u includes the stacking lip protrusion).
+GR_STACKING_LIP_H = 4.4
 
 # Reduced lip profile: keeps underside chamfer for stacking compatibility
 # but replaces overhanging sections with straight wall for easier printing

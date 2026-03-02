@@ -84,12 +84,23 @@ class GridfinityObject:
         return self._cq_obj
 
     @property
+    def _gru(self):
+        """Grid unit size for XY dimensions (mm).
+
+        Returns GRU (42mm) for standard bins and baseplates.
+        Subclasses override to return GRU2 (21mm) for half-grid mode (1B.13).
+        All XY dimension properties derive from this single value so that
+        half-grid support is automatic across the whole hierarchy.
+        """
+        return GRU
+
+    @property
     def length(self):
-        return self.length_u * GRU
+        return self.length_u * self._gru
 
     @property
     def width(self):
-        return self.width_u * GRU
+        return self.width_u * self._gru
 
     @property
     def height(self):
@@ -100,11 +111,11 @@ class GridfinityObject:
 
     @property
     def outer_l(self):
-        return self.length_u * GRU - GR_TOL
+        return self.length_u * self._gru - GR_TOL
 
     @property
     def outer_w(self):
-        return self.width_u * GRU - GR_TOL
+        return self.width_u * self._gru - GR_TOL
 
     @property
     def outer_dim(self):
@@ -112,11 +123,14 @@ class GridfinityObject:
 
     @property
     def half_l(self):
-        return (self.length_u - 1) * GRU2
+        # (n-1) * _gru/2: the distance from the first grid-centre to the outer
+        # shell centre.  Algebraically equal to (n*_gru - _gru)/2 for any
+        # positive n including non-integers (1B.12) and half-grid (1B.13).
+        return (self.length_u - 1) * self._gru / 2
 
     @property
     def half_w(self):
-        return (self.width_u - 1) * GRU2
+        return (self.width_u - 1) * self._gru / 2
 
     @property
     def half_dim(self):
@@ -128,18 +142,20 @@ class GridfinityObject:
 
     @property
     def grid_centres(self):
+        gru = self._gru
         return [
-            (x * GRU, y * GRU)
-            for x in range(self.length_u)
-            for y in range(self.width_u)
+            (x * gru, y * gru)
+            for x in range(math.floor(self.length_u))
+            for y in range(math.floor(self.width_u))
         ]
 
     @property
     def hole_centres(self):
+        gru = self._gru
         return [
-            (x * GRU - GR_HOLE_DIST * i, -(y * GRU - GR_HOLE_DIST * j))
-            for x in range(self.length_u)
-            for y in range(self.width_u)
+            (x * gru - GR_HOLE_DIST * i, -(y * gru - GR_HOLE_DIST * j))
+            for x in range(math.floor(self.length_u))
+            for y in range(math.floor(self.width_u))
             for i in (-1, 1)
             for j in (-1, 1)
         ]
@@ -169,6 +185,20 @@ class GridfinityObject:
         """
         return ""
 
+    @staticmethod
+    def _fmt_unit(v):
+        """Format a grid unit value for filenames.
+
+        Integers render as plain ints (e.g., 2 → "2").
+        Non-integers use 'p' in place of '.' (e.g., 2.5 → "2p5").
+        Designed for values in the range 0-100; non-finite inputs raise ValueError.
+        """
+        if not math.isfinite(v):
+            raise ValueError("Grid unit must be a finite number, got %r" % v)
+        if v == math.floor(v):
+            return "%d" % int(v)
+        return ("%g" % v).replace(".", "p")
+
     def filename(self, prefix=None, path=None):
         """Returns a descriptive readable filename representing a Gridfinity object.
 
@@ -178,6 +208,7 @@ class GridfinityObject:
         Examples:
           gf_baseplate_4x3_mag-screw_csk
           gf_bin_3x2x5_mag_scoops_labels
+          gf_bin_2p5x3x4         (non-integer: 2.5 U rendered as "2p5")
 
         Subclasses override _filename_prefix and _filename_suffix() to
         provide type-specific naming without isinstance chains.
@@ -186,7 +217,7 @@ class GridfinityObject:
         if path is not None:
             fn = path + os.sep
         fn += prefix if prefix is not None else self._filename_prefix
-        fn += "%dx%d" % (self.length_u, self.width_u)
+        fn += "%sx%s" % (self._fmt_unit(self.length_u), self._fmt_unit(self.width_u))
         fn += self._filename_suffix()
         return fn
 
