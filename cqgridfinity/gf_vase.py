@@ -45,7 +45,6 @@ from cqgridfinity.constants import (
     GR_HOLE_D,
     GR_HOLE_H,
     GR_LIP_H,
-    GR_LIP_PROFILE,
     GR_MAGNET_H,
     GR_RAD,
     GR_TOL,
@@ -303,15 +302,15 @@ class GridfinityVaseBox(GridfinityBox):
 
         # ── 5. Optional stacking lip ─────────────────────────────────────────
         if self.enable_lip:
-            lip_profile = GR_LIP_PROFILE
             lip_top = (
                 cq.Workplane("XY")
                 .placeSketch(rs)
                 .extrude(GR_TOPSIDE_H)
                 .translate((*self.half_dim, bin_h))
             )
-            ri_inner = rounded_rect_sketch(in_l - 2 * wall_th, in_w - 2 * wall_th,
-                                           max(in_rad - wall_th, 0.5))
+            # Inner cut matches the bin interior (in_l × in_w) so the lip ring
+            # is exactly wall_th wide on each side — flush with the bin walls.
+            ri_inner = rounded_rect_sketch(in_l, in_w, in_rad)
             lip_cut = (
                 cq.Workplane("XY")
                 .placeSketch(ri_inner)
@@ -341,17 +340,8 @@ class GridfinityVaseBox(GridfinityBox):
 
         # ── 7. Optional scoop chamfer (back wall bottom interior) ─────────────
         if self.enable_scoop_chamfer and bin_h > d_bottom + 1.0:
-            # Chamfer the bottom-rear interior edge: 45° wedge cut
+            # Chamfer the bottom-rear interior edge: 45° triangular wedge cut
             scoop_d = min(8.0, (bin_h - d_bottom) * 0.3)
-            scoop = (
-                cq.Workplane("XZ")
-                .moveTo(self.outer_w / 2, d_bottom)
-                .lineTo(self.outer_w / 2, d_bottom + scoop_d)
-                .lineTo(self.outer_w / 2 - scoop_d, d_bottom)
-                .close()
-                .revolve(0)  # used as wire only — extrude below
-            )
-            # Use a simple wedge-shaped cut on the back interior surface
             scoop_wedge = (
                 cq.Workplane("YZ")
                 .moveTo(self.outer_w / 2 - wall_th, d_bottom)
