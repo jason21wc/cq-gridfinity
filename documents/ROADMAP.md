@@ -154,6 +154,42 @@ using as the stable foundation for the rest."*
 
 **Exit criteria:** DoD-1 through DoD-6 pass for the ship set.
 
+#### P1 progress (2026-08-09)
+
+| Item | Status |
+|------|--------|
+| `tools/step_audit.py` | ✅ Built |
+| `examples/scripts/generate_shipset.py` | ✅ Built — 32 models in ~366s |
+| DoD-1 (one command) | ✅ |
+| DoD-2 (watertight) | ✅ 32/32 |
+| DoD-4 (B-Rep quality) | ✅ **32/32 clean, 0 flagged** |
+| **DoD-3 (opens in real CAD)** | ⏳ **Awaiting Jason** — files in `~/Downloads/gridfinity-shipset/` |
+| DoD-5 (purpose documented) | Partial — ship set has `MANIFEST.md`; full parameter pass outstanding |
+| DoD-6 (granularity audit) | Not started |
+
+**The premise holds.** Models are ~47–55% planar with the balance in cylinders,
+cones, tori, and spheres — real analytic surfaces, 35–590 kB. Tessellated geometry
+would be ~100% `Plane` at thousands of faces. Divided bins even carry *sphere*
+surfaces at divider-fillet intersections, which no mesh export could produce.
+
+**Outlier:** `ruggedbox_4x3x6.step` is 5,468 faces / 19.8 MB — ~40× the next largest.
+Expected for a multi-part assembly, but it may load slowly, and it is the one file
+where CAD-import behaviour most needs a human check. Note the audit reports it
+*valid* despite the known non-watertight lid `xfail`; the assembly export likely does
+not surface the defect the way the unit test does. **Do not read that green as
+clearing the xfail.**
+
+**Bug found and fixed by this phase:** all four lids failed to generate —
+`GridfinitySolidBox(n, n, 1)` raised `Standard_Failure:
+BRepSweep_Translation::Constructor`. At `height_u=1`, `int_height` is negative so
+`render_interior()` falls back to a cavity of `height - GR_BOT_H`, while the solid
+fill still referenced `max_height`, which is **0** there — passing 0 to `extrude()`
+and under-filling regardless. Fixed via a shared `cavity_height` property so the fill
+and `top_ref_height` cannot drift apart, plus an `EPS` guard for `solid_ratio=0`.
+
+The lesson is the argument for P1 existing: solid-bin lids had been documented in
+`PRODUCTS.md` as the entire lid story **before one had ever been generated**.
+
 **Explicitly not in scope:** new geometry features. P1 adds no capability. It makes
 what exists usable and proves the premise.
 

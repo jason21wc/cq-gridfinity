@@ -10,9 +10,30 @@
 ---
 
 ## Current Position
-- **Phase:** P0 COMPLETE — ready to start P1 (foundation hardening + ship set)
+- **Phase:** P1 in progress — ship set built and audited
 - **Plan:** `documents/ROADMAP.md` (supersedes the old 1C–1F parity sequence)
-- **Blocker:** None
+- **Blocker:** **DoD-3 needs Jason** — open `~/Downloads/gridfinity-shipset/` in
+  Shapr3D and Fusion 360. Everything else in P1 is unblocked
+
+### P1 status
+
+| Item | Status |
+|------|--------|
+| `tools/step_audit.py` | ✅ surface-type census; exits non-zero on flags (CI-ready) |
+| `examples/scripts/generate_shipset.py` | ✅ 32 models, `--out` configurable |
+| DoD-2 watertight | ✅ 32/32 |
+| DoD-4 B-Rep quality | ✅ **32/32 clean, 0 flagged** — ~47–55% planar, balance in cylinders/cones/tori/spheres |
+| **DoD-3 opens in CAD** | ⏳ **awaiting Jason** |
+| DoD-5 / DoD-6 | Outstanding |
+
+**Priority files to open:** `bin_2x2x6_scoop_label` (most-printed combo),
+`bin_2x3x6_div2` (divider fillet intersections — carries sphere surfaces),
+`baseplate_4x4_magnet` (repeated cylinders at scale), `ruggedbox_4x3x6`
+(**19.8 MB, 5,468 faces** — may load slowly).
+
+> The audit reports the rugged box *valid* despite the known non-watertight lid
+> `xfail`. The assembly export likely does not surface the defect the way the unit
+> test does. **Do not read that as clearing the xfail.**
 
 ## What Changed This Session
 

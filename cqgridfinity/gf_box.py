@@ -322,6 +322,21 @@ class GridfinityBox(GridfinityObject):
         return self.int_height + GR_UNDER_H + GR_TOPSIDE_H
 
     @property
+    def cavity_height(self):
+        """Height of the interior cavity actually built by render_interior().
+
+        For normal bins this is max_height. For very short bins (height_u=1)
+        int_height is negative, render_interior() falls back to a single
+        straight profile of (height - GR_BOT_H), and max_height is 0 -- so
+        max_height is the wrong reference there. Using it would under-fill a
+        solid box and pass 0 to extrude(), which raises
+        Standard_Failure: BRepSweep_Translation::Constructor.
+        """
+        if self.int_height < 0:
+            return self.height - GR_BOT_H
+        return self.max_height
+
+    @property
     def floor_h(self):
         if self.lite_style:
             return GR_FLOOR - self.wall_th
@@ -573,7 +588,7 @@ class GridfinityBox(GridfinityObject):
         """The height of the top surface of a solid box or the floor
         height of an empty box."""
         if self.solid:
-            return self.max_height * self.solid_ratio + GR_BOT_H
+            return self.cavity_height * self.solid_ratio + GR_BOT_H
         if self.lite_style:
             return self.floor_h
         return GR_BOT_H
@@ -632,11 +647,14 @@ class GridfinityBox(GridfinityObject):
         )
         rci = rci.translate((*self.half_dim, self.floor_h))
         if self.solid or force_solid:
-            hs = self.max_height * self.solid_ratio
-            ri = rounded_rect_sketch(*self.inner_dim, self.inner_rad)
-            rf = cq.Workplane("XY").placeSketch(ri).extrude(hs)
-            rf = rf.translate((*self.half_dim, self.floor_h))
-            rci = rci.cut(rf)
+            hs = self.cavity_height * self.solid_ratio
+            # solid_ratio=0 (or a zero-height cavity) means nothing to fill;
+            # extrude(0) would raise Standard_Failure.
+            if hs > EPS:
+                ri = rounded_rect_sketch(*self.inner_dim, self.inner_rad)
+                rf = cq.Workplane("XY").placeSketch(ri).extrude(hs)
+                rf = rf.translate((*self.half_dim, self.floor_h))
+                rci = rci.cut(rf)
         if self.scoops and self.lip_style != "none" and not self.lite_style:
             rf = (
                 cq.Workplane("XY")

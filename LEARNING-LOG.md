@@ -92,6 +92,25 @@ accumulated in the render path.
 entirely. Don't leave dead variables "for reference" — they confuse future readers and
 can silently carry broken imports (e.g., `GR_LIP_PROFILE` was imported only for this).
 
+#### Documenting a Feature Before Generating It Once (2026-08-09)
+`PRODUCTS.md` documented solid-bin lids as the project's entire lid story — with a
+rationale for why sliding and snap lids were cut — before a single 1U solid box had
+ever been generated. All four crashed on the first ship-set run
+(`Standard_Failure: BRepSweep_Translation::Constructor`).
+**Rule:** a feature is not documented until it has been generated and validated once.
+If docs claim a capability, the ship set must contain an instance of it.
+
+#### Derived Dimensions Break at Range Edges (2026-08-09)
+`max_height` is `int_height + GR_UNDER_H + GR_TOPSIDE_H`. At `height_u=1`,
+`int_height` is **negative** (-2.8mm) and `max_height` collapses to exactly **0**.
+`render_interior()` already handled this with a fallback cavity profile, but the
+solid-fill branch a few lines below still referenced `max_height` — so the two
+disagreed about how tall the cavity was, and `extrude(0)` raised.
+**Rule:** when a derived dimension has a fallback branch, every consumer must use the
+same source of truth. Extract it as a property (`cavity_height`) rather than
+recomputing per call site. Test geometry at the **minimum** of every unit range, not
+just typical values — `height_u=1`, `length_u=1`, `solid_ratio=0`.
+
 ### Debugging
 
 #### Safe Fillet Pattern (2026-02-27)

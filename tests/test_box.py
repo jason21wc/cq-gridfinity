@@ -159,6 +159,34 @@ def test_solid_box():
     assert _almost_same(b1.top_ref_height, 14)
 
 
+@pytest.mark.parametrize("length_u,width_u", [(1, 1), (1, 2), (2, 2), (2, 3)])
+def test_solid_box_1u_lid(length_u, width_u):
+    """1U solid boxes are the community-standard Gridfinity lid.
+
+    Regression: these crashed with Standard_Failure:
+    BRepSweep_Translation::Constructor. At height_u=1, int_height is negative,
+    so render_interior() falls back to a cavity profile of (height - GR_BOT_H)
+    while the solid fill still referenced max_height -- which is 0 there. That
+    passed 0 to extrude() and would have under-filled the box regardless.
+    See GridfinityBox.cavity_height.
+    """
+    b = GridfinitySolidBox(length_u, width_u, 1)
+    r = b.render()
+    assert r.val().isValid()
+    assert len(r.solids().vals()) == 1
+    assert _almost_same(
+        size_3d(r), (length_u * 42 - 0.5, width_u * 42 - 0.5, 10.8)
+    )
+    # Fully solid: the top reference is the full external height.
+    assert _almost_same(b.top_ref_height, 10.8)
+
+
+def test_solid_box_zero_ratio_does_not_crash():
+    """solid_ratio=0 means nothing to fill -- must not reach extrude(0)."""
+    b = GridfinityBox(2, 2, 1, solid=True, solid_ratio=0.0)
+    assert b.render().val().isValid()
+
+
 @pytest.mark.slow
 @pytest.mark.skipif(
     SKIP_TEST_BOX, reason="Skipped intentionally by test scope environment variable"
