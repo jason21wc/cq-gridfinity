@@ -10,7 +10,7 @@
 ---
 
 ## Current Position
-- **Phase:** P0 — closing 1B, reconciling docs
+- **Phase:** P0 COMPLETE — ready to start P1 (foundation hardening + ship set)
 - **Plan:** `documents/ROADMAP.md` (supersedes the old 1C–1F parity sequence)
 - **Blocker:** None
 
@@ -54,10 +54,11 @@ anylid dispositioned in 8 batches → **21 Keep, 21 Cut**. See
 
 ## Next Actions
 
-1. **Finish P0** — reconcile `FEATURE-SPEC.md` rows against triage dispositions;
-   update `PROJECT-MEMORY.md` and `PRODUCTS.md`
-2. **Start P1** — ship set generator (~35 models), then **DoD-3: open STEP files in
-   FreeCAD and Fusion 360.** Never verified to date and it is the whole premise
+1. **Start P1** — ship set generator (~35 models), then **DoD-3: open STEP files in
+   Shapr3D and Fusion 360.** Never verified to date and it is the whole premise
+2. **Build `tools/step_audit.py`** — surface-type census (real B-Rep stores a magnet
+   hole as one cylindrical face; tessellation stores it as hundreds of planar facets).
+   Automates DoD-4; run over the ship set in CI
 3. **Then P2** (divider objects) or **P3** (rugged box) — independent; P2 recommended
    first as it is smaller and unlocks P4
 

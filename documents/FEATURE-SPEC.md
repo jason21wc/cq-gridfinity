@@ -128,6 +128,71 @@ All features in this phase trace to **kennetek/gridfinity-rebuilt-openscad** (MI
 
 ---
 
+## ⚠️ Disposition Index — Phases 1C–1F
+
+**The 1C–1F phase groupings are RETIRED.** They were ordered by upstream-project
+parity, which is explicitly not a goal (see Stop Rule in `CLAUDE.md`). The rows below
+remain as the **traceability record** — proof that each feature has a verified
+upstream source. They are **not a work queue**.
+
+Implementation requires **both** gates: a traced row here (admission) **and** a `Keep`
+disposition below (demand). Full rationale and use cases: `documents/FEATURE-TRIAGE.md`.
+Sequencing: `documents/ROADMAP.md`.
+
+### KEEP — 21 features
+
+| ID | Feature | Phase |
+|----|---------|-------|
+| 1C.7 | Minimum lip | P4 |
+| 1C.8 | Finger slide, configurable walls | P4 |
+| 1C.12 | Irregular subdivisions (unequal compartments) | P2 |
+| 1C.13 | Divider wall notches | P2 |
+| 1C.16 | Bottom text debossing *(must bundle font)* | P4 |
+| 1D.3 | Cullenect click-in label **(MIT)** | P4 |
+| 1D.4 | Cullenect label negative volume **(MIT)** | P4 |
+| 1D.12 *(partial)* | Angled divider tops (65°) — **as a `Divider` attribute only** | P2 |
+| 1E.1 | Clip latch | P3 |
+| 1E.2 | Draw latch | P3 |
+| 1E.3 | Lip seal (4 types) | P3 |
+| 1E.4 | Integrated baseplate — **as magnets × skeletonized booleans, not 4 named styles** | P3 |
+| 1E.5 | Stacking latch mounting | P3 |
+| 1E.6 | Third hinge | P3 |
+| 1E.7 | Hinge end stops | P3 |
+| 1E.8 | Parametric walls (7 params) | P3 |
+| 1F.1 | Baseplate segmentation **(MIT)** | P5 |
+| 1F.3 | Edge puzzle connector **(MIT)** | P5 |
+| 1F.6 | Dynamic filler **(MIT)** | P5 |
+| 1F.7 | ClickGroove retention **(MIT)** | P5 |
+| — | Hole grid (shape · size · rows · cols) — **subsumes `cylindrical` mode; no named presets** | P2 |
+
+### CUT — 21 features
+
+| ID | Feature | Reason |
+|----|---------|--------|
+| 1C.1–1C.6 | Wall patterns (grid, hex, brick, slat, per-wall, 9 fill modes) | **Deferred** — B-Rep cost unmeasured (face count, fillet interaction); benefit is filament + aesthetics |
+| 1C.17, 1C.18 | Floor patterns (grid, hex) | Same |
+| 1C.7b | Reduced double lip | No constructible user story |
+| 1C.9 | Finger slide, chamfered | Style variant of 1C.8 |
+| 1C.10 | Tapered bin corners | Cosmetic; collides with label shelf + stacking lip region |
+| 1C.11 | Wall cutouts | **Revisit after P2** — collision checks are cheap against divider objects, expensive against integers |
+| 1C.14 | Extendable (split) bins | Weak for a **STEP** generator — users can split a body in their own CAD |
+| 1D.1, 1D.2 | Anylid click-lock lid + baseplate-on-top | **License unresolved** — no repo, MakerWorld only. Blocked ≠ deferred |
+| 1D.5, 1D.6, 1D.7 | Item holders (battery, hex bit, card) | Capability kept via the generic **hole grid**; named catalogues dropped |
+| 1D.8 | Sliding lid | Tolerance tuning doesn't converge across printers; conflicts with stacking lip for the same rim. Solid-bin lid already ships this at zero cost |
+| 1D.9, 1D.10 | Drawer chest + sliding drawers | Separate product line; tolerance-critical sliding fit at large scale. `GridfinityDrawerSpacer` covers fitting Gridfinity into drawers you own |
+| 1D.11 | Catch-all tray | Subsumed — a 1U bin with dividers *is* a catch-all tray |
+| 1D.12 *(as a bin type)* | Vertical divider bin | Capability kept as a divider attribute; packaging redundant |
+| 1F.2 | Intersection puzzle connector | Geometry defined by an **SVG file**, not dimensions — the only feature not expressible parametrically |
+| 1F.4, 1F.5 | Filler: none, integer-fraction | Need *a* filler policy, not three |
+
+> **Not in this matrix, evaluated and rejected:** Clickfinity / CLICKbase magnet-free
+> baseplates. Architecturally superior to ClickGroove (retention lives entirely in the
+> baseplate and grips stock unmodified bins), but **STL-only with no open-source
+> license**. Note that "no open-source license" ≠ NonCommercial: **ND** or *no grant*
+> blocks derivative works regardless of whether money changes hands.
+
+---
+
 ### Phase 1C: Extended Feature Set
 
 Features in this phase use **ostat/gridfinity_extended_openscad** (GPL) as **dimensional/behavioral spec reference ONLY**. All implementations are independent CadQuery code. All source references verified 2026-02-27. See `documents/UPSTREAM-REFERENCE.md` for detailed parameters and constants.

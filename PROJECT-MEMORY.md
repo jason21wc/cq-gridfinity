@@ -43,6 +43,13 @@
 | 2026-02-26 | Feature Traceability Spec | Every feature must trace to upstream source; prevents AI-invented scope creep | Final |
 | 2026-02-26 | Standard governance mode | Based on calibration: PARTIALLY novel, HIGH certainty, MEDIUM stakes, LONG-TERM | Final |
 | 2026-02-28 | Test suite optimization: xdist + fillet-skip | 734s→82s (9x). Topology tests keep full fillets (@slow). OBB acceleration abandoned (8% slower). | Final |
+| 2026-08-09 | **Stop Rule — admission ≠ obligation** | Feature Traceability was an admission gate with no demand gate, so the matrix could only grow. Rows now carry Keep/Cut/Triage; only Keep may be built. Upstream parity is explicitly NOT a goal | Final |
+| 2026-08-09 | **Re-sequence phases by user value, not upstream parity** | Parity ordering (1B kennetek → 1C ostat → 1E rugged → 1F gridflock) put the rugged box, a headline goal, behind wall patterns and label variants. Replaced by P0–P6 in `documents/ROADMAP.md` | Final |
+| 2026-08-09 | **smkent is the flagship rugged box; Pred's stays as-is** | Pred's `gf_ruggedbox.py` is CC BY-**NC**-SA — a derivative stays NC, so extending it yields a better box that is still commercially blocked. smkent is CC BY-SA (verified on GitHub), better engineered (support-free printing, filament lip seals, hinge stops), actively maintained, and independently chosen by Perplexing Labs. New module `gf_ruggedbox_smkent.py` | Final |
+| 2026-08-09 | **STEP output is the differentiator, not feature breadth** | Perplexing Labs ships a polished parametric web generator on smkent's box covering Rebuilt/Extended/RuggedBox/GRIPS/openGrid — with **STL output**. The format gap holds against the best in the ecosystem. Corollary: never trade B-Rep quality for feature count | Final |
+| 2026-08-09 | **Fine dimensional granularity is a first-class requirement** | Floats everywhere; ≤0.1mm on fit-critical dims; 0.05mm for press/sliding fits; typed numeric entry in the Phase 2 UI. Filament shrinkage corrections are 0.04–0.18mm on a 22mm latch, so Perplexing Labs' 1mm increments are unusable for fit tuning (observed by Jason in practice) | Final |
+| 2026-08-09 | **Defer all wall/floor patterns (8 features)** | Cheap in mesh, potentially expensive in B-Rep: face-count explosion in STEP, interaction with filleting (already 89% of box render time), watertightness risk. Benefit is filament savings and aesthetics. Revisit only on demonstrated need, after measuring | Final |
+| 2026-08-09 | **Add project-level Definition of Done** | The plan had per-feature acceptance criteria but no definition of product success, so 52 Verified features coexisted with zero users. DoD-1..6 in ROADMAP.md; DoD-3 (STEP opens cleanly in Shapr3D/Fusion 360) is the core premise and has never been tested | Final |
 
 ## Technical Stack
 
@@ -107,6 +114,7 @@
 | 8 | **Shared utility bypass** — Creating a shared function but leaving some callers using inline implementations | When creating a shared utility, refactor ALL callers in the same PR |
 | 9 | **Skeleton keepout omission** — Skeleton pocket is `rect - keepout_circle`, not just `rect`. The keepout (radius=GR_SKEL_KEEPOUT_R=7.25mm, centered at each hole position) preserves material so magnet/screw holes have solid material to cut into. Without keepout, all skeleton variants look identical. | Always subtract keepout cylinder when building skeleton corner pockets |
 | 10 | **Pre-transform coordinate double-subtraction** — In multi-cell renders, features must be placed at `(cx, cy)` in pre-transform coords (where cells are at (0,0), (GRU,0), ...). The final `r.translate((-half_l, -half_w, GR_BASE_HEIGHT))` centers the bin. If you subtract `half_l` from `cx` inside the loop AND the final translate also subtracts `half_l`, you subtract twice, misplacing features by `half_l`. | Place at `(cx, cy)` directly; let final translate do centering |
+| 11 | **VaseBox stacking lip inner cut** — `ri_inner` for the lip ring must use `(in_l, in_w)` (the bin interior dimensions), NOT `(in_l - 2*wall_th, in_w - 2*wall_th)`. The latter makes the ring 2×wall_th wide, creating a 1.2mm ledge overhanging into the interior — visible from above as a rectangular blockage at every top corner. The lip ring should be exactly wall_th wide on each side. | `ri_inner = rounded_rect_sketch(in_l, in_w, in_rad)` |
 
 ## Phase Gates
 
@@ -120,7 +128,7 @@
 | Tests passing | Passed | 2026-02-26 | 28/28 pass |
 | Governance setup | Passed | 2026-02-26 | Feature spec, calibration, phase gates |
 
-### Phase 1B: Kennetek Feature Parity — IN PROGRESS
+### Phase 1B: Kennetek Feature Parity — **CLOSED 2026-08-09**
 
 | Gate | Status | Date | Notes |
 |------|--------|------|-------|
@@ -134,12 +142,32 @@
 | 1B.14 Height modes (gridz_define) | Verified | 2026-03-01 | 4 modes: units/internal-mm/external-mm/total-mm, 9 tests |
 | 1B.15 Z-snap | Verified | 2026-03-01 | enable_zsnap param; per-mode content snap; _zs suffix; 20 tests |
 | 1B.16-1B.17 Spiral vase | Verified | 2026-03-01 | GridfinityVaseBox + GridfinityVaseBase in gf_vase.py; 38 tests; FDM slicer tricks omitted for B-Rep |
-| Implement -> Complete | Pending | — | Phase 1B Exit Gate checklist in FEATURE-SPEC.md |
+| Implement -> Complete | **Passed** | 2026-08-09 | 230 passed, 1 skipped, 1 xfailed (138.57s). One item recorded partial, not ticked: `isValid()` coverage substantial but not universal — audit carried into P1 |
 
-### Phase 1C-1F: See documents/FEATURE-SPEC.md
+### Phases 1C–1F — **RETIRED, do not start**
 
-### Phase 2: Local Web UI — DEFERRED
-Deferred until Phase 1 library is feature-complete. No UI work until geometry is solid.
+Superseded by `documents/ROADMAP.md` (P0–P6). The 1C–1F groupings no longer exist as
+work units; their 42 features were triaged individually in
+`documents/FEATURE-TRIAGE.md` → **21 Keep, 21 Cut**.
+
+| New phase | Goal |
+|-----------|------|
+| **P0** | Close 1B, reconcile docs ← current |
+| **P1** | Foundation hardening + ship the common set (~35 models); **verify DoD-3** |
+| **P2** | Divider objects — the one targeted refactor |
+| **P3** | Rugged box, smkent flagship |
+| **P4** | Bin feature layers |
+| **P5** | Baseplate completion (segmentation, connectors, ClickGroove) |
+| **P6** | Web UI, then deploy |
+
+P2 and P3 are independent; P2 recommended first (smaller, unlocks P4).
+
+### Phase 2: Local Web UI — DEFERRED (now P6)
+Deferred until the library ships the common set. Two requirements now fixed:
+D7 granularity (typed numeric entry, not steppers alone) and presets-configure-the-
+engine (no separate model classes per preset).
 
 ### Phase 3: Deploy — DEFERRED
-Deferred until Phase 2 web UI exists. Docker image size (~500MB+ for OpenCASCADE) requires planning.
+Deferred until the web UI exists. Docker image size (~500MB+ for OpenCASCADE) requires
+planning. Note: bottom-text debossing **must bundle a font** and use `fontPath` —
+system font lookup differs across macOS/Linux/Docker.

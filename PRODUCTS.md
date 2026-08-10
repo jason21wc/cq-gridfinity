@@ -94,14 +94,31 @@ A **feature-rich extension** of Gridfinity that adds dozens of options not in th
 | Enhanced holes (baseplates) | Yes | No | Yes |
 | Screw-together baseplates | Yes | No | Yes |
 | Fit-to-drawer baseplates | Yes | No | Yes |
-| Cylindrical bins | No | Yes | Yes |
-| Wall/floor patterns | No | Yes | Planned (1C) |
+| Cylindrical bins | No | Yes | Yes → becomes **hole grid** (P2) |
+| Unequal compartments | No | Yes | Planned (P2) |
 | Rugged boxes (Pred) | No | No | Yes (upstream) |
-| Rugged boxes (smkent) | No | No | Planned (1E) |
-| Lids (Anylid) | No | No | Planned (1D) |
-| Click-in labels | No | No | Planned (1D) |
-| Segmented baseplates | No | No | Planned (1F) |
-| STEP output | No | No | **Yes** |
+| Rugged boxes (smkent) | No | No | Planned (**P3**) |
+| Click-in labels (Cullenect) | No | No | Planned (P4) |
+| Segmented baseplates | No | No | Planned (P5) |
+| Magnet-free retention (ClickGroove) | No | No | Planned (P5) |
+| Wall/floor patterns | No | Yes | **Deferred** — see below |
+| Lids (Anylid snap-on) | No | No | **Cut** — license unresolved |
+| Sliding lids | No | Yes | **Cut** — use a solid-bin lid |
+| Drawer systems | No | Yes | **Cut** |
+| STEP output | No | No | **Yes — the differentiator** |
+
+**On coverage:** feature breadth is deliberately *not* the goal. The best generator in
+the ecosystem — [Perplexing Labs](https://gridfinity.perplexinglabs.com/) — already
+ships a polished parametric web UI with live 3D preview spanning Rebuilt, Extended,
+Rugged Box, GRIPS, and openGrid. **It outputs STL.** So does everything else. The gap
+we fill is the format, and it holds against the best in the field.
+
+The corollary matters: **we will not trade B-Rep quality for feature count.** Wall and
+floor patterns are deferred for exactly this reason — hundreds of boolean cuts per
+wall are free in a mesh but risk face-count explosion, fillet failures, and
+watertightness problems in a B-Rep solid, which attacks the one thing that makes this
+project worth using. See `documents/FEATURE-TRIAGE.md` for the full disposition of all
+42 evaluated features (21 Keep, 21 Cut).
 
 ---
 
@@ -317,10 +334,43 @@ GridfinityBox(4, 2, 3, solid=True, solid_ratio=0.75)
 **What it is:** A completely filled (or partially filled) Gridfinity block with no interior cavity. Used as a blank for CNC machining, custom modifications, or as a spacer/filler.
 
 **When to use:**
+- **As a lid — see below.** This is the most common use
 - Starting point for custom tool holders (subtract your tool shape)
 - Spacers to fill unused baseplate positions
 - Weighted blocks for stability
 - `solid_ratio` controls fill level (0.0 = empty, 1.0 = fully solid)
+
+### Lid (solid bin) — the community standard
+
+```python
+GridfinitySolidBox(2, 2, 1)   # a lid for any 2x2 bin
+```
+
+**What it is:** A short solid bin set on top of another bin. Gridfinity's stacking
+lip **is** a lid interface — it was designed that way — so a solid bin mates with the
+bin below it and stays put. No separate lid mechanism required.
+
+This is the ecosystem's standard answer to "I want a lid," and one of the most
+collected model sets on Printables is exactly this: bins, baseplates, and solid bins
+used as lids.
+
+**When to use:**
+- Dust cover for bins on an open shelf
+- Keeping small parts in when a bin gets moved
+- Anywhere you'd reach for a lid and don't need a latch
+
+**When it's not enough:**
+- **Retention under tipping or carrying** — a solid-bin lid rests, it doesn't latch.
+  If the bin will be tipped or carried, use a rugged box
+- **Sealing against dust ingress or weather** — that's the rugged box's lip seal
+
+> **Why there is no sliding or snap-on lid:** sliding lids were evaluated and cut.
+> The geometry is easy, but the sliding fit must be tuned per printer, per filament,
+> and it doesn't converge to one clearance value — every generator that ships one
+> exposes a clearance knob and tells you to tune it. The groove also competes with
+> the stacking lip for the same 4–6mm of rim, so you lose stacking or interior
+> height. Snap-on lids (anylid) are blocked on unresolved licensing.
+> See `documents/FEATURE-TRIAGE.md`.
 
 ### Cylindrical Bin
 
@@ -347,10 +397,25 @@ GridfinityRuggedBox(4, 3, 6)
 
 **What it is:** A heavy-duty enclosed box with hinged lid, clasps, and optional handles. Based on Pred's design (upstream cq-gridfinity). Designed for transport and protection.
 
+Parametric today: hinges (optionally bolted), side and front clasps, front handle,
+side handles, lid baseplate, inside baseplate, front label, back feet, wall v-grooves,
+rib style, lid window, stackable geometry.
+
 **When to use:**
 - Portable tool kits
 - Transport of delicate or organized items
 - When you need a lid and secure closure
+
+> **⚠️ License:** this module is **CC BY-NC-SA 4.0 — NonCommercial**. It is the only
+> component in the project that restricts commercial use. See `LICENSE-COMPONENTS.md`.
+
+> **Coming in P3 — smkent flagship variant** (`gf_ruggedbox_smkent.py`, CC BY-SA 4.0,
+> commercial use permitted). Adds a **lip seal** for genuine weather resistance
+> (including a groove sized for a loop of 1.75mm filament as a gasket), an
+> **over-center draw latch** that actively clamps the lid — a seal only seals under
+> compression — plus a clip latch, hinge end stops, an auto third hinge for wide
+> lids, box-to-box stacking latches, and seven wall/tolerance parameters.
+> See `documents/ROADMAP.md` §P3.
 
 ---
 
@@ -463,7 +528,12 @@ GridfinityBox(2, 1, 3, lip_style="none", length_div=3)
 | **PLA** | Most Gridfinity components | Stiff, easy to print, dimensionally accurate |
 | **PETG** | Bins that see temperature changes | Slightly more flexible, better layer adhesion |
 | **ABS/ASA** | Outdoor or high-temp environments | Requires enclosure, prone to warping on large baseplates |
-| **TPU** | Soft-grip tool holders | Not suitable for baseplates or structural components |
+| **TPU** | Soft-grip tool holders; lip-seal gasket stock | Not suitable for baseplates or structural components |
+
+> **⚠️ Do not print spring-retention geometry in PLA.** Any part that holds another
+> part under sustained elastic load — magnet-free click baseplates, flexure latches —
+> will **creep** in PLA and lose grip over weeks. Use PETG, ABS, ASA, or nylon. This
+> is consistent across every source in the ecosystem.
 
 ### Print Settings
 

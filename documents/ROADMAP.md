@@ -100,18 +100,19 @@ moving, swap them; nothing breaks.
 
 ---
 
-### P0 — Close Phase 1B
+### P0 — Close Phase 1B ✅ COMPLETE (2026-08-09)
 
-Status: gate is passing but was never formally closed, and P1C work was queued
-behind it anyway. Honor the gate.
-
-- [x] All tests pass — **230 passed, 1 skipped, 1 xfailed** (138s, 2026-08-09)
+- [x] All tests pass — **230 passed, 1 skipped, 1 xfailed** (138.57s)
 - [x] xfail justified — rugged box lid non-watertight, pre-existing upstream
-- [ ] Mark 1B Exit Gate complete in `FEATURE-SPEC.md`
-- [ ] Reconcile `FEATURE-SPEC.md` rows with `FEATURE-TRIAGE.md` dispositions
-- [ ] Update `CLAUDE.md` phase plan to point at this roadmap
-- [ ] Fix doc drift: `CLAUDE.md` architecture tree lists six directories that do not
-      exist (`patterns/`, `lids/`, `labels/`, `holders/`, `drawers/`, `gridflock/`)
+- [x] 1B Exit Gate marked complete in `FEATURE-SPEC.md`, with one item recorded
+      **partial rather than ticked**: `isValid()` coverage is substantial but not
+      universal. Carried into P1
+- [x] `FEATURE-SPEC.md` reconciled — disposition index added for all 42 features
+- [x] `CLAUDE.md` phase plan points at this roadmap
+- [x] Doc drift fixed — the six non-existent directories are gone
+- [x] `PROJECT-MEMORY.md` — 7 decisions logged, phase gates updated
+- [x] `PRODUCTS.md` — solid-bin lid documented, rugged box licensing noted,
+      coverage table re-pointed, PLA creep warning added
 
 ---
 
