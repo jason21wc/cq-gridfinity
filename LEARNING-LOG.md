@@ -77,6 +77,21 @@ All 5 classes used `for k, v in kwargs: if k in self.__dict__: ...` with no `els
 Individual feature tests all passed, but multi-feature combinations (scoop + label + divider, raised floor + scoop, etc.) were untested. These interactions are where fillets fail and geometry becomes invalid.
 **Rule:** After implementing a batch of features, add parametrized `@pytest.mark.parametrize` combination tests. Use `fillet_interior=False` + `isValid()` for fast coverage.
 
+#### VaseBox Stacking Lip — Inner Cut Formula (2026-03-02)
+Stacking lip ring was 2.4mm wide (double wall thickness) because `ri_inner` used
+`in_l - 2*wall_th` instead of `in_l`. The 1.2mm interior overhang appeared as a
+rectangular void/ceiling at every top corner when viewed from above in a CAD viewer.
+**Rule:** Lip ring inner cut = bin interior dimensions (`in_l × in_w`). Width of ring
+= wall_th. Do not subtract wall_th again from a dimension that's already interior.
+
+#### Dead Code Risk from Abandoned Approaches (2026-03-02)
+VaseBox had a `scoop` variable built with `revolve(0)` that was never used — a leftover
+from a scrapped approach. The `revolve(0)` didn't error, so tests passed while dead code
+accumulated in the render path.
+**Rule:** When switching implementation approaches mid-function, delete the old approach
+entirely. Don't leave dead variables "for reference" — they confuse future readers and
+can silently carry broken imports (e.g., `GR_LIP_PROFILE` was imported only for this).
+
 ### Debugging
 
 #### Safe Fillet Pattern (2026-02-27)
