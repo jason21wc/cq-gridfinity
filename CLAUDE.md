@@ -28,14 +28,19 @@ cqgridfinity/
 ├── gf_helpers.py                  # Geometry helpers
 ├── gf_holes.py                    # Hole type library (shared by baseplates + bins)
 ├── gf_vase.py                     # Spiral vase shell + base insert (1B.16-17)
-├── patterns/                      # Wall/floor pattern system (planned)
-├── lids/                          # Lid systems (planned)
-├── labels/                        # Label systems (planned)
-├── holders/                       # Item holders (planned)
-├── drawers/                       # Drawer system (planned)
-├── gridflock/                     # Segmented baseplates (planned)
-└── scripts/                       # CLI scripts
+├── shims/                         # Compatibility shims
+└── scripts/                       # CLI scripts (gridfinitybox, gridfinitybase, ruggedbox)
+```
 
+**Planned modules** (per `documents/ROADMAP.md` — none exist yet):
+```
+gf_divider.py                      # Divider objects — P2 (unequal, notches, angled tops)
+gf_ruggedbox_smkent.py             # smkent rugged box, CC BY-SA 4.0 — P3
+gf_labels.py                       # Cullenect click-in labels, MIT — P4
+gf_gridflock.py                    # Segmentation + connectors + ClickGroove, MIT — P5
+```
+
+```
 examples/
 ├── scripts/                       # Generator scripts (committed to git)
 │   ├── generate_1a_reference.py   # Phase 1A (features 0.1-0.20)
@@ -64,15 +69,24 @@ See **GRIDFINITY-SPEC.md** for full dimensional reference (base profile, stackin
 - Wall: 0.95mm min | Divider: 1.2mm | Internal fillet: 2.8mm
 
 ## Development Phases
-1. **Phase 1 — Library + CLI** ← CURRENT
-   - 1A: Foundation (licensing, refactoring, docs) — DONE
-   - 1B: Kennetek feature parity (enhanced holes, bins, baseplates, vase)
-   - 1C: Extended features (patterns, lip variants, subdivisions, text)
-   - 1D: Accessories (lids, labels, holders, drawers, trays)
-   - 1E: Rugged box expansion (smkent variant)
-   - 1F: GridFlock segmented baseplates
-2. **Phase 2 — Local Web UI** (FastAPI + Three.js)
-3. **Phase 3 — Deploy** (Docker, job queue, caching)
+
+> **Authoritative plan: `documents/ROADMAP.md`.** The old parity-ordered sequence
+> (1C → 1D → 1E → 1F) is **retired**. Phases were re-ordered by user value after a
+> full feature triage. **Do not start "Phase 1C" — it no longer exists.**
+
+- **1A** — Foundation (licensing, refactoring, docs) — DONE
+- **1B** — Kennetek feature parity — **CLOSED 2026-08-09** (17/17 Verified)
+- **P0** — Close 1B, reconcile docs ← CURRENT
+- **P1** — Foundation hardening + ship the common set (proves the STEP premise)
+- **P2** — Divider objects (the one targeted refactor)
+- **P3** — Rugged box, smkent flagship (`gf_ruggedbox_smkent.py`, CC BY-SA)
+- **P4** — Bin feature layers (labels, finger slide, min lip, bottom text)
+- **P5** — Baseplate completion (segmentation, connectors, ClickGroove)
+- **P6** — Web UI (FastAPI + Three.js), then deploy
+
+**Why the change:** phases were ordered by upstream-project parity, which put the
+rugged box (a headline goal) behind wall patterns and label variants. Parity is not
+a goal — see the Stop Rule.
 
 ## In-Scope Projects (6 + upstream)
 - **kennetek/gridfinity-rebuilt-openscad** (MIT) — primary geometry spec
@@ -96,6 +110,38 @@ See **GRIDFINITY-SPEC.md** for full dimensional reference (base profile, stackin
 - **Phase Gate Validation:** Before starting a new phase, confirm all features in that phase pass the gate checklist in `documents/FEATURE-SPEC.md`.
 - **Out of Scope:** Check the Out of Scope list in `documents/FEATURE-SPEC.md` before implementing anything not in the matrix.
 - **GPL Isolation:** ostat code is GPL. Read dimensions/behavior only. Write independent CadQuery code. Never translate, port, or adapt ostat code.
+
+### The Stop Rule (admission ≠ obligation)
+
+Feature Traceability is an **admission gate**, not a work queue. A row in
+`documents/FEATURE-SPEC.md` grants *permission* to build a feature. It does not
+create an *obligation* to build it, and it is not evidence that the feature should exist
+in this project.
+
+Every feature must pass **both** gates before implementation:
+
+| Gate | Question | Fails if |
+|------|----------|----------|
+| **Admission** (existing) | Does it trace to a verified upstream source? | No row, or `[needs verify]` unresolved |
+| **Demand** (new) | Would a real user reach for this, and has Jason kept it in triage? | Status is `Cut`, or `Triage` (undecided) |
+
+**Rules:**
+1. **Upstream parity is not a goal.** Covering 100% of another project's option list is
+   explicitly NOT the objective. Cover what gets used; cut the rest.
+2. **Every matrix row carries a Disposition:** `Keep` · `Cut` · `Triage`. Only `Keep`
+   rows may be implemented. `Cut` rows stay in the matrix with a one-line reason — the
+   record of a deliberate decision is worth more than a deleted row.
+3. **Disposition is Jason's call, not Claude's.** Claude proposes a ranking and a
+   rationale; Jason decides. Never promote a row from `Triage` to `Keep` autonomously.
+4. **Cut is the default for undecided work.** A row sitting in `Triage` at a phase gate
+   does not block the gate — it is simply not built.
+5. **Adding a row requires a use case**, not just an upstream source. State who wants
+   it and why in the Rationale column.
+6. **Blocked ≠ deferred.** A feature whose license is unresolved (e.g. anylid) is `Cut`
+   until the license is resolved, not carried as pending work.
+
+**Governance basis:** Art. I §5 (Discovery Before Commitment — reassess at milestones),
+Art. III §1 (Verification & Validation — define success before starting).
 
 ## Testing Strategy
 - Each component gets a test file
