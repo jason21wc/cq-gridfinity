@@ -219,6 +219,38 @@ def test_no_cavity_height_solid_ok_hollow_raises(height_mm):
         hollow.render()
 
 
+def test_as_lid_default():
+    """Default lid is GR_LID_TH above the feet -- 8.00mm total."""
+    b = GridfinitySolidBox.as_lid(2, 3)
+    r = b.render()
+    assert r.val().isValid()
+    assert _almost_same(b.lid_thickness, GR_LID_TH)
+    assert _almost_same(r.val().BoundingBox().zlen, GR_BASE_HEIGHT + GR_LID_TH)
+    assert b.filename() == "gf_lid_2x3_th3p25"
+
+
+@pytest.mark.parametrize("thickness", [GR_LID_TH_MIN, 2.0, 5.0])
+def test_as_lid_custom_thickness(thickness):
+    """Any thickness at or above the floor builds; total is derived."""
+    b = GridfinitySolidBox.as_lid(2, 2, thickness=thickness)
+    r = b.render()
+    assert r.val().isValid()
+    assert _almost_same(b.lid_thickness, thickness)
+    assert _almost_same(r.val().BoundingBox().zlen, GR_BASE_HEIGHT + thickness)
+
+
+@pytest.mark.parametrize("thickness", [0.1, 0.5, GR_LID_TH_MIN - 0.01])
+def test_as_lid_below_minimum_raises(thickness):
+    """Below one wall thickness is a policy floor, not a crash guard."""
+    with pytest.raises(ValueError, match="below the"):
+        GridfinitySolidBox.as_lid(2, 2, thickness=thickness)
+
+
+def test_solid_box_filename_unaffected_by_lid_support():
+    """A plain solid box must still be named as a bin, not a lid."""
+    assert GridfinitySolidBox(4, 2, 3).filename() == "gf_bin_4x2x3_solid"
+
+
 @pytest.mark.parametrize("height_mm", [7.01, 8.0, 10.8])
 def test_height_above_cavity_threshold_builds_both(height_mm):
     """Just above GR_BOT_H both a lid and a hollow bin are valid."""

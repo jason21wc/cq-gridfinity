@@ -41,6 +41,16 @@ GRHU = 7
 GRU_CUT = 42.2  # base extrusion width
 GR_WALL = 1.0  # nominal exterior wall thickness
 GR_DIV_WALL = 1.2  # width of dividing walls
+
+# Lid geometry. A Gridfinity lid is a solid box: its feet drop into the
+# stacking lip of the bin below. "Thickness" always means material ABOVE the
+# 4.75mm feet -- total height is GR_BASE_HEIGHT + thickness.
+GR_LID_TH = 3.25  # default lid thickness -> 8.00mm total. Change to retune.
+GR_LID_TH_MIN = GR_WALL  # practical floor -> 5.75mm total (5 layers @0.2mm).
+# Below one wall thickness a lid is a single-digit number of layers spanning
+# the full footprint: it warps off the bed and flexes in use. The geometry is
+# still valid down to ~0.26mm, which is why this limit is a policy, not a
+# crash guard -- see GridfinityBox.render() for the geometric floor.
 GR_TOL = 0.5  # nominal tolerance
 
 GR_RAD = 4  # nominal exterior filleting radius

@@ -31,6 +31,7 @@ from cqgridfinity import (
     GridfinityRuggedBox,
     GridfinitySolidBox,
 )
+from cqgridfinity.constants import GR_BASE_HEIGHT, GR_LID_TH
 
 DEFAULT_OUT = Path(__file__).resolve().parents[1] / "output" / "shipset"
 
@@ -108,11 +109,15 @@ def build_manifest(skip_rugged: bool = False):
     # -- Lids --------------------------------------------------------------
     # A solid bin IS the community-standard lid: the stacking lip mates it to
     # the bin below. Rests, does not latch -- see PRODUCTS.md.
+    # as_lid() takes material thickness ABOVE the feet; total height is derived.
+    # Default GR_LID_TH=3.25mm -> 8.00mm total. A full 1U (10.8mm) is 30 layers
+    # to do a job 16 can do, and eats a whole unit of stack height.
     for lu, wu in ((1, 1), (1, 2), (2, 2), (2, 3)):
         items.append((
-            f"lid_{lu}x{wu}x1_solid",
-            lambda lu=lu, wu=wu: GridfinitySolidBox(lu, wu, 1),
-            "Lid - solid bin sits on top, held by the stacking lip",
+            f"lid_{lu}x{wu}_th{GR_LID_TH:g}",
+            lambda lu=lu, wu=wu: GridfinitySolidBox.as_lid(lu, wu),
+            f"Lid - {GR_LID_TH}mm above the feet ({GR_BASE_HEIGHT + GR_LID_TH}mm total); "
+            "sits on a bin, held by the stacking lip",
         ))
 
     # -- Rugged box --------------------------------------------------------

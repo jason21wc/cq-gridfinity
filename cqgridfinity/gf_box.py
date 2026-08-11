@@ -46,6 +46,8 @@ from cqgridfinity.constants import (
     GR_HOLE_DIST,
     GR_HOLE_H,
     GR_HOLE_SLICE,
+    GR_LID_TH,
+    GR_LID_TH_MIN,
     GR_LIP_H,
     GR_LIP_PROFILE,
     GR_STACKING_LIP_H,
@@ -1031,3 +1033,60 @@ class GridfinitySolidBox(GridfinityBox):
 
     def __init__(self, length_u, width_u, height_u, **kwargs):
         super().__init__(length_u, width_u, height_u, **kwargs, solid=True)
+        # Set by as_lid() so filenames say "lid" and report thickness rather
+        # than leaking total height and the gridz_define mode number.
+        self._is_lid = False
+
+    @property
+    def _filename_prefix(self) -> str:
+        # NOTE: the base is a @property, so this override needs the decorator
+        # too, and super() cannot call it. Read the parent value explicitly.
+        if self._is_lid:
+            return "gf_lid_"
+        return GridfinityBox._filename_prefix.fget(self)
+
+    def _filename_suffix(self) -> str:
+        if not self._is_lid:
+            return super()._filename_suffix()
+        return "_th%s" % self._fmt_unit(self.lid_thickness)
+
+    @classmethod
+    def as_lid(cls, length_u, width_u, thickness=None, **kwargs):
+        """Build a Gridfinity lid: a solid box specified by material thickness.
+
+        A lid is a solid box whose feet drop into the stacking lip of the bin
+        below, holding it located. It rests; it does not latch.
+
+        `thickness` is the material ABOVE the 4.75mm Gridfinity feet -- the
+        number you actually care about. Total height is derived as
+        GR_BASE_HEIGHT + thickness, so you never do that arithmetic yourself.
+
+            GridfinitySolidBox.as_lid(2, 3)                 # 3.25mm -> 8.00mm total
+            GridfinitySolidBox.as_lid(2, 3, thickness=2.0)  # 2.00mm -> 6.75mm total
+
+        Defaults live in constants.py: GR_LID_TH (default) and GR_LID_TH_MIN
+        (floor). Retune them there rather than passing a value everywhere.
+
+        Raises ValueError below GR_LID_TH_MIN. That floor is a *policy* -- the
+        geometry stays valid down to ~0.26mm, but a lid that thin is a handful
+        of layers spanning the whole footprint and will warp and flex. The
+        separate geometric floor is enforced in GridfinityBox.render().
+        """
+        th = GR_LID_TH if thickness is None else float(thickness)
+        if th < GR_LID_TH_MIN:
+            raise ValueError(
+                "Lid thickness %.2f mm is below the %.2f mm minimum "
+                "(one wall thickness). That is only %d layer(s) at 0.2 mm "
+                "spanning the full footprint -- it will warp and flex. "
+                "Lower GR_LID_TH_MIN in constants.py to override."
+                % (th, GR_LID_TH_MIN, max(1, round(th / 0.2)))
+            )
+        # gridz_define=2: height_u is total external mm.
+        obj = cls(length_u, width_u, GR_BASE_HEIGHT + th, gridz_define=2, **kwargs)
+        obj._is_lid = True
+        return obj
+
+    @property
+    def lid_thickness(self):
+        """Material above the Gridfinity feet, in mm."""
+        return self.height - GR_BASE_HEIGHT

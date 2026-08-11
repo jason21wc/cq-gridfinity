@@ -343,8 +343,32 @@ GridfinityBox(4, 2, 3, solid=True, solid_ratio=0.75)
 ### Lid (solid bin) — the community standard
 
 ```python
-GridfinitySolidBox(2, 2, 1)   # a lid for any 2x2 bin
+GridfinitySolidBox.as_lid(2, 3)                 # default 3.25mm -> 8.00mm total
+GridfinitySolidBox.as_lid(2, 3, thickness=2.0)  # 2.00mm -> 6.75mm total
 ```
+
+**`thickness` is material above the feet** — the number you actually care about.
+Total height is derived, so you never add 4.75mm yourself:
+
+```
+        ┌─────────────────────┐  ┬
+        │   solid material    │  │  thickness   ← you specify this
+        ├──┐               ┌──┤  ┴
+        │  \             /   │     4.75mm       ← Gridfinity feet (fixed)
+        └───┘           └────┘
+        └──── total height ────┘  = 4.75 + thickness
+```
+
+| | Thickness | Total | Layers @0.2mm |
+|---|---|---|---|
+| Minimum (`GR_LID_TH_MIN`) | 1.00mm | 5.75mm | 5 |
+| **Default (`GR_LID_TH`)** | **3.25mm** | **8.00mm** | 16 |
+| Full 1U | 6.05mm | 10.80mm | 30 |
+
+Retune the default and the floor in `constants.py` rather than passing a value
+everywhere. The minimum is a **policy**, not a crash guard — geometry stays valid
+down to ~0.26mm, but a lid that thin is a handful of layers spanning the whole
+footprint and will warp off the bed and flex in use.
 
 **What it is:** A short solid bin set on top of another bin. Gridfinity's stacking
 lip **is** a lid interface — it was designed that way — so a solid bin mates with the
