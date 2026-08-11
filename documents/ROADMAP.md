@@ -154,7 +154,7 @@ using as the stable foundation for the rest."*
 
 **Exit criteria:** DoD-1 through DoD-6 pass for the ship set.
 
-#### P1 progress (2026-08-09)
+#### P1 status (2026-08-10)
 
 | Item | Status |
 |------|--------|
@@ -162,10 +162,29 @@ using as the stable foundation for the rest."*
 | `examples/scripts/generate_shipset.py` | ✅ Built — 32 models in ~366s |
 | DoD-1 (one command) | ✅ |
 | DoD-2 (watertight) | ✅ 32/32 |
+| **DoD-3 (opens in real CAD)** | ✅ **VERIFIED 2026-08-10 by Jason** |
 | DoD-4 (B-Rep quality) | ✅ **32/32 clean, 0 flagged** |
-| **DoD-3 (opens in real CAD)** | ⏳ **Awaiting Jason** — files in `~/Downloads/gridfinity-shipset/` |
 | DoD-5 (purpose documented) | Partial — ship set has `MANIFEST.md`; full parameter pass outstanding |
 | DoD-6 (granularity audit) | Not started |
+
+### ✅ DoD-3 VERIFIED — the premise is proven
+
+**2026-08-10.** Jason opened the ship set in real CAD and confirmed the geometry
+imports and reads correctly — **base profile holes, magnet holes, scoops, labels,
+and the rest**. Not a spot check: the features that would most likely degrade into
+facet soup all survived as editable CAD geometry.
+
+This is the criterion the project existed to satisfy and had **never been tested**
+through 52 Verified features, 230 tests, and 71 generated models. It now passes.
+
+Consequences:
+- The core thesis — *native B-Rep STEP where the whole ecosystem ships mesh* — is
+  no longer a claim. It is a measured result.
+- Downstream phases can proceed on the assumption that the geometry pipeline is
+  sound. Bugs from here are feature bugs, not foundation bugs.
+- `tools/step_audit.py` is now a *calibrated* gate: its clean verdict on these
+  models corresponds to a human confirming them in Shapr3D and Fusion 360. That
+  correspondence is what makes it usable as CI.
 
 **The premise holds.** Models are ~47–55% planar with the balance in cylinders,
 cones, tori, and spheres — real analytic surfaces, 35–590 kB. Tessellated geometry

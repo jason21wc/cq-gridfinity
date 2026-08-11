@@ -10,10 +10,19 @@
 ---
 
 ## Current Position
-- **Phase:** P1 in progress — ship set built and audited
+- **Phase:** P1 substantially complete — **DoD-3 VERIFIED**. Next: choose P2 or P3
 - **Plan:** `documents/ROADMAP.md` (supersedes the old 1C–1F parity sequence)
-- **Blocker:** **DoD-3 needs Jason** — open `~/Downloads/gridfinity-shipset/` in
-  Shapr3D and Fusion 360. Everything else in P1 is unblocked
+- **Blocker:** None
+
+### 🎯 The premise is proven (2026-08-10)
+
+Jason opened the ship set in Shapr3D and Fusion 360. **Base profile holes, magnet
+holes, scoops, labels — all import and read as editable CAD geometry.** The founding
+claim of the project had never been tested; it now holds as a measured result.
+
+`tools/step_audit.py` is therefore *calibrated*: its clean verdict on these models
+corresponds to a human confirming them in real CAD. That is what makes it valid as a
+CI gate rather than a self-referential check.
 
 ### P1 status
 
@@ -21,15 +30,11 @@
 |------|--------|
 | `tools/step_audit.py` | ✅ surface-type census; exits non-zero on flags (CI-ready) |
 | `examples/scripts/generate_shipset.py` | ✅ 32 models, `--out` configurable |
+| DoD-1 one command | ✅ |
 | DoD-2 watertight | ✅ 32/32 |
-| DoD-4 B-Rep quality | ✅ **32/32 clean, 0 flagged** — ~47–55% planar, balance in cylinders/cones/tori/spheres |
-| **DoD-3 opens in CAD** | ⏳ **awaiting Jason** |
-| DoD-5 / DoD-6 | Outstanding |
-
-**Priority files to open:** `bin_2x2x6_scoop_label` (most-printed combo),
-`bin_2x3x6_div2` (divider fillet intersections — carries sphere surfaces),
-`baseplate_4x4_magnet` (repeated cylinders at scale), `ruggedbox_4x3x6`
-(**19.8 MB, 5,468 faces** — may load slowly).
+| **DoD-3 opens in CAD** | ✅ **VERIFIED** |
+| DoD-4 B-Rep quality | ✅ 32/32 clean, 0 flagged |
+| DoD-5 / DoD-6 | Outstanding — parameter purpose pass, granularity audit |
 
 > The audit reports the rugged box *valid* despite the known non-watertight lid
 > `xfail`. The assembly export likely does not surface the defect the way the unit
@@ -75,13 +80,15 @@ anylid dispositioned in 8 batches → **21 Keep, 21 Cut**. See
 
 ## Next Actions
 
-1. **Start P1** — ship set generator (~35 models), then **DoD-3: open STEP files in
-   Shapr3D and Fusion 360.** Never verified to date and it is the whole premise
-2. **Build `tools/step_audit.py`** — surface-type census (real B-Rep stores a magnet
-   hole as one cylindrical face; tessellation stores it as hundreds of planar facets).
-   Automates DoD-4; run over the ship set in CI
-3. **Then P2** (divider objects) or **P3** (rugged box) — independent; P2 recommended
-   first as it is smaller and unlocks P4
+1. **Choose P2 or P3** — independent, either order:
+   - **P2 divider objects** — smaller; replaces `length_div`/`width_div` integers,
+     unlocks unequal compartments + notches + angled tops, folds `cylindrical` into a
+     hole-grid modifier (removes a pipeline bypass), moves compatibility rules out of
+     inline `raise ValueError` into declared metadata
+   - **P3 rugged box** — the headline goal; new `gf_ruggedbox_smkent.py` (CC BY-SA)
+2. **Finish DoD-5/DoD-6** — parameter purpose pass and granularity audit. Can run
+   alongside either
+3. **Wire `step_audit.py` into CI** — now calibrated against a human CAD verdict
 
 ## Open Items
 
