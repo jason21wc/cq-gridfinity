@@ -337,6 +337,16 @@ class GridfinityBox(GridfinityObject):
         return self.max_height
 
     @property
+    def has_cavity(self):
+        """True if this box has any interior volume above the floor.
+
+        False when total height <= GR_BOT_H (7.0mm) -- the base profile and
+        floor consume the whole box. Legitimate for a solid box used as a lid;
+        meaningless for a hollow bin.
+        """
+        return self.cavity_height > EPS
+
+    @property
     def floor_h(self):
         if self.lite_style:
             return GR_FLOOR - self.wall_th
@@ -525,6 +535,16 @@ class GridfinityBox(GridfinityObject):
                     raise ValueError(
                         "Wall thickness cannot exceed 1.5 mm for lite box style"
                     )
+            # A box cannot be shorter than its own base profile. Below this the
+            # shell wall extrude collapses to zero or negative and OpenCASCADE
+            # raises Standard_Failure: BRepSweep_Translation::Constructor.
+            _min_h = GR_BASE_HEIGHT + GR_BASE_CLR
+            if self.height <= _min_h:
+                raise ValueError(
+                    "Total height %.2f mm is not greater than the base profile "
+                    "(%.2f mm). Nothing can be built above the Gridfinity feet."
+                    % (self.height, _min_h)
+                )
             if self.wall_th > 2.5:
                 raise ValueError("Wall thickness cannot exceed 2.5 mm")
             if self.wall_th < 0.5:
@@ -629,7 +649,23 @@ class GridfinityBox(GridfinityObject):
         return self._int_shell
 
     def render_interior(self, force_solid=False):
-        """Renders the interior cutting solid of the box."""
+        """Renders the interior cutting solid of the box, or None if there is none.
+
+        Returns None when the box has no cavity at all (total height <=
+        GR_BOT_H). Callers must skip their cut in that case -- the shell is
+        already the finished object. Previously this built a zero- or
+        negative-height profile and OpenCASCADE raised
+        Standard_Failure: BRepSweep_Translation::Constructor.
+        """
+        if not self.has_cavity:
+            if not (self.solid or force_solid):
+                raise ValueError(
+                    "Bin height %.2f mm leaves no interior cavity: the base "
+                    "profile and floor consume everything up to %.2f mm. "
+                    "Use solid=True for a lid, or increase the height."
+                    % (self.height, GR_BOT_H)
+                )
+            return None
         wall_u = self.wall_th - GR_WALL
         wall_h = self.int_height + wall_u
         under_h = ((GR_UNDER_H - wall_u) * SQRT2, 45)
@@ -673,7 +709,8 @@ class GridfinityBox(GridfinityObject):
         if self._ext_shell is not None:
             return self._ext_shell
         r = self.render_shell(as_solid=True)
-        self._ext_shell = r.cut(self.render_interior(force_solid=True))
+        inner = self.render_interior(force_solid=True)
+        self._ext_shell = r if inner is None else r.cut(inner)
         return self._ext_shell
 
     def mask_with_obj(self, obj):
@@ -719,7 +756,10 @@ class GridfinityBox(GridfinityObject):
         )
         rc = rc.intersect(r).union(rw)
         if not as_solid:
-            return rc.cut(self.interior_solid)
+            interior = self.interior_solid
+            if interior is None:
+                return rc  # no cavity (e.g. a 1U solid lid) -- shell is final
+            return rc.cut(interior)
         return rc
 
     def render_dividers(self):

@@ -187,6 +187,49 @@ def test_solid_box_zero_ratio_does_not_crash():
     assert b.render().val().isValid()
 
 
+# --- Height boundary family -------------------------------------------------
+# Three separate zero-length extrudes lurked around the short-height edges, all
+# surfacing as Standard_Failure: BRepSweep_Translation::Constructor.
+#   height <= 5.00 (GR_BASE_HEIGHT + GR_BASE_CLR) -> shell wall extrude == 0
+#   height <= 7.00 (GR_BOT_H)                     -> cavity profile == 0
+#   height_u == 1 in unit mode                    -> max_height == 0 for the fill
+# All three must now raise a clear ValueError or build cleanly -- never crash.
+
+
+@pytest.mark.parametrize("height_mm", [3.0, 4.0, 5.0])
+def test_height_below_base_profile_raises(height_mm):
+    """A box shorter than its own Gridfinity feet is impossible, not a crash."""
+    for kwargs in ({"solid": True}, {}):
+        b = GridfinityBox(2, 2, height_mm, gridz_define=2, **kwargs)
+        with pytest.raises(ValueError, match="base profile"):
+            b.render()
+
+
+@pytest.mark.parametrize("height_mm", [5.5, 6.0, 7.0])
+def test_no_cavity_height_solid_ok_hollow_raises(height_mm):
+    """Between the feet and GR_BOT_H there is no interior: lid yes, bin no."""
+    lid = GridfinityBox(2, 2, height_mm, solid=True, gridz_define=2)
+    r = lid.render()
+    assert r.val().isValid()
+    assert not lid.has_cavity
+    assert _almost_same(r.val().BoundingBox().zlen, height_mm)
+
+    hollow = GridfinityBox(2, 2, height_mm, gridz_define=2)
+    with pytest.raises(ValueError, match="no interior cavity"):
+        hollow.render()
+
+
+@pytest.mark.parametrize("height_mm", [7.01, 8.0, 10.8])
+def test_height_above_cavity_threshold_builds_both(height_mm):
+    """Just above GR_BOT_H both a lid and a hollow bin are valid."""
+    for kwargs in ({"solid": True}, {}):
+        b = GridfinityBox(2, 2, height_mm, gridz_define=2, **kwargs)
+        r = b.render()
+        assert r.val().isValid()
+        assert b.has_cavity
+        assert _almost_same(r.val().BoundingBox().zlen, height_mm)
+
+
 @pytest.mark.slow
 @pytest.mark.skipif(
     SKIP_TEST_BOX, reason="Skipped intentionally by test scope environment variable"

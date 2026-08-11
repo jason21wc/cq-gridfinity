@@ -111,6 +111,42 @@ same source of truth. Extract it as a property (`cavity_height`) rather than
 recomputing per call site. Test geometry at the **minimum** of every unit range, not
 just typical values — `height_u=1`, `length_u=1`, `solid_ratio=0`.
 
+#### Fixing One Instance Is Not Fixing the Class (2026-08-10)
+The 1U lid crash (`extrude(0)`) was fixed at the solid-fill site. Jason then probed a
+neighbouring height and found a **second** instance in the cavity profile; a range
+sweep found a **third** in the shell wall extrude. Three separate zero-length
+extrudes, all surfacing as the same `Standard_Failure:
+BRepSweep_Translation::Constructor`, at three heights:
+
+| Boundary | Collapsed |
+|----------|-----------|
+| `height <= GR_BASE_HEIGHT + GR_BASE_CLR` (5.0) | shell wall extrude |
+| `height <= GR_BOT_H` (7.0) | cavity profile |
+| `height_u == 1` unit mode | solid fill (`max_height == 0`) |
+
+**Rule:** when a bug is "a derived dimension hit zero," it is a *class*, not an
+instance. Sweep the whole input range in both modes before declaring it fixed —
+`for h in range(...): try: render()`. A five-line sweep found two more bugs than
+careful reading did.
+
+**Corollary — distinguish "valid" from "correct".** Sub-7mm lids were `isValid()`
+before the real fix, but only because a *negative*-height extrude happened not to
+remove material anywhere harmful. Passing validation while relying on an accident is
+not a fix. `render_interior()` now returns `None` and callers skip their cut
+deliberately.
+
+#### Validation Batch Sizing — Diverse, Not Numerous (2026-08-10)
+The first ship set generated **32 models before a single human looked at one**. Jason
+pushed back: if his first review had surfaced a systemic problem, most of those 32
+would be scrap and he'd have reviewed nothing useful. Same anti-pattern the roadmap
+re-sequencing was meant to kill — producing volume ahead of validation.
+
+**Rule:** every item in a review batch must be able to fail *independently*. Each one
+either (a) exercises a distinct failure mode, or (b) **is** the axis under comparison
+(e.g. three lid thicknesses when thickness is the open question). Never ship eight
+variations that share one assumption — if the assumption is wrong you have spent eight
+reviews to learn one fact. Small and diverse beats large and redundant.
+
 ### Debugging
 
 #### Safe Fillet Pattern (2026-02-27)
