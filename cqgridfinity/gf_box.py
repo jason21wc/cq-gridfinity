@@ -24,6 +24,7 @@
 # Gridfinity Boxes
 
 import math
+from dataclasses import replace
 import warnings
 
 import cadquery as cq
@@ -65,6 +66,7 @@ from cqgridfinity.constants import (
     SQRT2,
 )
 from cqgridfinity.gf_divider import Divider, dividers_from_counts
+from cqgridfinity.gf_holegrid import HoleGrid
 from cqgridfinity.gf_obj import GridfinityObject
 from cqgridfinity.gf_holes import (
     cut_enhanced_holes,
@@ -137,6 +139,9 @@ class GridfinityBox(GridfinityObject):
         self.compartment_depth = 0  # raise compartment floor (mm), 0=full depth
         self.height_internal = 0  # override internal height (mm), 0=default
         self.cylindrical = False  # cut cylindrical compartments
+        # Generic hole grid: shape (circle/hex/rect), size, rows, cols.
+        # Overrides `cylindrical` when set. See gf_holegrid.HoleGrid.
+        self.hole_grid = None
         self.cylinder_diam = GR_CYL_DIAM  # cylinder diameter (mm)
         self.cylinder_chamfer = GR_CYL_CHAMFER  # cylinder top chamfer (mm)
         # Enhanced hole options (kennetek gridfinity-rebuilt-holes.scad)
@@ -569,7 +574,7 @@ class GridfinityBox(GridfinityObject):
             if self.wall_th < 0.5:
                 raise ValueError("Wall thickness must be at least 0.5 mm")
             self._ext_shell = None
-            if self.cylindrical:
+            if self.cylindrical or self.hole_grid is not None:
                 r = self.solid_shell()
                 r = self._render_cylindrical_cuts(r)
             else:
@@ -583,7 +588,12 @@ class GridfinityBox(GridfinityObject):
                 for e in (rd, rl, rs):
                     if e is not None:
                         r = r.union(e)
-            if not self.solid and not self.cylindrical and self.fillet_interior:
+            if (
+                not self.solid
+                and not self.cylindrical
+                and self.hole_grid is None
+                and self.fillet_interior
+            ):
                 effective_floor = GR_FLOOR + self._floor_raise
                 heights = [effective_floor]
                 if self.labels:
@@ -1119,47 +1129,112 @@ class GridfinityBox(GridfinityObject):
         rf = cq.Workplane("XY").placeSketch(rs).extrude(raise_h)
         return rf.translate((*self.half_dim, self.floor_h))
 
-    def _render_cylindrical_cuts(self, obj):
-        """Cut cylindrical compartments into a solid bin shell."""
+    @property
+    def _resolved_hole_grid(self):
+        """The hole grid to cut, or None.
+
+        `cylindrical=True` is sugar for a circular grid laid out on the bin's
+        compartments, so the old parameters keep working unchanged.
+        """
+        if self.hole_grid is not None:
+            return self.hole_grid
+        if self.cylindrical:
+            return HoleGrid(
+                shape="circle",
+                size=self.cylinder_diam,
+                chamfer=self.cylinder_chamfer,
+            )
+        return None
+
+    def _hole_grid_positions(self, grid):
+        """Centres for each hole, and the space available around one hole."""
         x_spans = self._compartment_spans("x")
         y_spans = self._compartment_spans("y")
+        if grid.derives_layout:
+            # One hole per compartment -- the original cylindrical behaviour.
+            pts = [
+                (xs + xl / 2, ys + yl / 2)
+                for xs, xl in x_spans
+                for ys, yl in y_spans
+            ]
+            avail = (min(l for _, l in x_spans), min(l for _, l in y_spans))
+            return pts, avail
+        # Explicit rows x cols spread evenly across the whole interior.
+        cols, rows = grid.cols, grid.rows
+        pitch_x, pitch_y = self.inner_l / cols, self.inner_w / rows
+        x0, y0 = -self.half_in, -self.half_in
+        pts = [
+            (x0 + (i + 0.5) * pitch_x, y0 + (j + 0.5) * pitch_y)
+            for i in range(cols)
+            for j in range(rows)
+        ]
+        return pts, (pitch_x, pitch_y)
 
-        # Cylinder fits within the smallest compartment dimension. With unequal
-        # compartments the tightest one governs, so a single diameter still fits
-        # everywhere -- matching the previous single-diameter behaviour.
-        max_diam = min(
-            min(l for _, l in x_spans), min(l for _, l in y_spans)
-        ) - 0.5
-        diam = min(self.cylinder_diam, max_diam)
-        if diam <= 0:
+    def _hole_cutter(self, grid, height):
+        """One hole solid of the configured shape, chamfered at the mouth."""
+        if grid.shape == "circle":
+            cutter = cq.Workplane("XY").circle(grid.effective_size / 2).extrude(height)
+            limit = grid.effective_size / 2
+        elif grid.shape == "hex":
+            # polygon() takes the circumscribed diameter; hex stock is
+            # specified across flats, so convert.
+            across_corners = grid.effective_size * 2.0 / math.sqrt(3.0)
+            cutter = cq.Workplane("XY").polygon(6, across_corners).extrude(height)
+            limit = grid.effective_size / 2
+        else:  # rect
+            cutter = (
+                cq.Workplane("XY")
+                .rect(grid.effective_size, grid.effective_size_y)
+                .extrude(height)
+            )
+            limit = min(grid.effective_size, grid.effective_size_y) / 2
+        if grid.chamfer > 0:
+            cf = min(grid.chamfer, height / 2 - 0.01, limit - 0.01)
+            if cf > 0:
+                cutter = cutter.edges(">Z").chamfer(cf)
+        return cutter
+
+    def _render_cylindrical_cuts(self, obj):
+        """Cut an array of shaped holes into a solid bin shell.
+
+        Subtractive construction: the shell is solid and holes are removed,
+        which is a different build from the additive hollow-shell path. The two
+        stay separate modes rather than being forced into one pipeline.
+        """
+        grid = self._resolved_hole_grid
+        if grid is None:
             return obj
-        radius = diam / 2
+        pts, avail = self._hole_grid_positions(grid)
+        if not pts:
+            return obj
+
+        # Shrink to fit the tightest cell. With unequal compartments the
+        # smallest one governs, so a single size still fits everywhere.
+        fx, fy = grid.footprint()
+        scale = min((avail[0] - 0.5) / fx, (avail[1] - 0.5) / fy, 1.0)
+        if scale <= 0:
+            return obj
+        if scale < 1.0:
+            grid = replace(
+                grid,
+                size=grid.size * scale,
+                size_y=None if grid.size_y is None else grid.size_y * scale,
+            )
 
         raise_h = self._floor_raise
         # Must use max_height, not int_height: solid_shell() fills the interior
         # up to max_height + floor_h (not just int_height + floor_h). Using
         # int_height leaves a 2.8mm ceiling (GR_UNDER_H + GR_TOPSIDE_H) that
-        # seals the cylinders from the top and makes the bin appear solid.
-        cyl_h = self.max_height - raise_h
-        if cyl_h <= 0:
+        # seals the holes from the top and makes the bin appear solid.
+        full_h = self.max_height - raise_h
+        depth = full_h if grid.depth is None else min(grid.depth, full_h)
+        if depth <= 0:
             return obj
-
-        # Create single chamfered cylinder
-        cyl = cq.Workplane("XY").circle(radius).extrude(cyl_h)
-        if self.cylinder_chamfer > 0:
-            cf = min(self.cylinder_chamfer, cyl_h / 2 - 0.01, radius - 0.01)
-            if cf > 0:
-                cyl = cyl.edges(">Z").chamfer(cf)
-
-        # Calculate compartment centres
-        pts = [
-            (xs + xl / 2, ys + yl / 2, 0)
-            for xs, xl in x_spans
-            for ys, yl in y_spans
-        ]
-
-        z0 = self.floor_h + raise_h
-        cuts = composite_from_pts(cyl.translate((0, 0, z0)), pts)
+        cyl = self._hole_cutter(grid, depth)
+        # A depth-limited grid must open at the TOP, so sink it from there.
+        z_top = self.floor_h + raise_h + full_h
+        pts = [(x, y, 0) for x, y in pts]
+        cuts = composite_from_pts(cyl.translate((0, 0, z_top - depth)), pts)
         return obj.cut(cuts)
 
 
