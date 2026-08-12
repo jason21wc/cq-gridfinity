@@ -318,6 +318,17 @@ load and loses grip. PETG, ABS, ASA, or nylon.
 
 ---
 
+### Backlog — after the foundation is working
+
+Deferred by decision, not by oversight. Revisit once the phase that unblocks each
+one has landed.
+
+| Item | Unblocked by | Notes |
+|------|--------------|-------|
+| **Insertable / removable dividers** (grooves in the bin walls that a loose divider slides into) | **P2** | Jason's request, 2026-08-11. **Not the same as ostat 1C.13** — those are U-notches that cut a *fixed* divider down so an insert can sit over it (`UPSTREAM-REFERENCE.md:251`). A groove-and-slide mechanism is a different design. **No traced upstream source found yet**: `gridfinitylayouttool.com` advertises removable dividers but is a web generator with no verifiable open-source license. Research a borrowable source first; if none exists, build custom and say so. Cheap after P2 because grooves are a wall feature keyed to divider positions — expensive before, because that placement logic would be written against two integers and then rewritten |
+| Wall cutouts (1C.11) | **P2** | Cut for now; collision checks against divider objects are far simpler than against integers |
+| Wall / floor patterns (1C.1–1C.6, 1C.17–1C.18) | Measurement spike | Deferred entirely. B-Rep cost unmeasured |
+
 ### P6 — Web UI
 
 Unchanged in intent. Two requirements now fixed by earlier decisions:

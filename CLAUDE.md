@@ -105,7 +105,16 @@ a goal — see the Stop Rule.
 
 ## Governance Rules (MUST FOLLOW)
 - **Feature Traceability:** Every feature MUST have a row in `documents/FEATURE-SPEC.md` with an upstream source before implementation begins. No row = no implementation.
-- **No Invented Features:** Do NOT create features that don't exist in any upstream project. If you think something should exist, flag it — don't build it.
+- **Prefer Existing Over Custom:** Use established standards, libraries, and upstream
+  implementations when they exist. Custom work is allowed — but only after saying, out
+  loud, what already exists that we could borrow instead, and why we are not.
+  - Before building: search for an upstream repo, library, or standard that covers it.
+  - If one exists → use it, or state explicitly why we are not (license, quality, fit).
+  - If none exists → say so plainly, then build it. Custom is a legitimate outcome,
+    not a rule violation.
+  - **The failure mode is silence**, not custom code. Never quietly reinvent something
+    that already exists, and never present a custom design as if no alternative
+    was available.
 - **Verify Before Implementing:** If a feature's source file says `[needs verify]`, read the actual upstream source to confirm the feature exists and note the specific file/function before writing code.
 - **Phase Gate Validation:** Before starting a new phase, confirm all features in that phase pass the gate checklist in `documents/FEATURE-SPEC.md`.
 - **Out of Scope:** Check the Out of Scope list in `documents/FEATURE-SPEC.md` before implementing anything not in the matrix.
