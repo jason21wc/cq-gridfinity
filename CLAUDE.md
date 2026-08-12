@@ -115,6 +115,21 @@ a goal — see the Stop Rule.
   - **The failure mode is silence**, not custom code. Never quietly reinvent something
     that already exists, and never present a custom design as if no alternative
     was available.
+
+  **Governance basis:** `coding-quality-supply-chain-solution-integrity` (Supply Chain
+  & Solution Integrity — "The Dependency Verification Act"), failure mode **A5:
+  Hallucinated or Unnecessary Custom Implementation**. Also **A4: Hallucinated
+  Dependencies** — verify a source actually exists and is what you think before
+  depending on it. Applied here to upstream designs, not just packages: smkent's
+  CC BY-SA license was confirmed on GitHub rather than trusted from our own notes,
+  and Clickfinity was rejected after checking that no open-source license exists.
+
+  > **History:** this rule previously read *"Do NOT create features that don't exist
+  > in any upstream project — flag it, don't build it."* That absolute prohibition
+  > was project-local (added 2026-02-26, `0eddd45`) and stricter than the governance
+  > principle it derived from. It caused a legitimate feature request to be refused
+  > rather than scoped. Corrected 2026-08-11. **When a local rule blocks something,
+  > check it against ai-governance before treating it as binding.**
 - **Verify Before Implementing:** If a feature's source file says `[needs verify]`, read the actual upstream source to confirm the feature exists and note the specific file/function before writing code.
 - **Phase Gate Validation:** Before starting a new phase, confirm all features in that phase pass the gate checklist in `documents/FEATURE-SPEC.md`.
 - **Out of Scope:** Check the Out of Scope list in `documents/FEATURE-SPEC.md` before implementing anything not in the matrix.
