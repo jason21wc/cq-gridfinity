@@ -1120,6 +1120,13 @@ class GridfinityRuggedBox(GridfinityObject):
             )
             for pt in self.lid_window_hole_pos(z=1):
                 r = r.cut(rc.translate(pt))
+        # The lid's integrated Gridfinity baseplate leaves 48 invalid conical
+        # faces -- 4 chamfers per cell, all at one height, all 0.517mm^2. The
+        # shell is closed and the volume is correct, but BRepCheck rejects the
+        # faces, and CAD packages then refuse to treat the lid as a solid body
+        # (Shapr3D's double-tap body selection fails on it). ShapeFix corrects
+        # the face representations with zero change to the geometry.
+        r = self.repair_if_invalid(r)
         self._cq_obj = r
         self._obj_label = "lid"
         return self._cq_obj

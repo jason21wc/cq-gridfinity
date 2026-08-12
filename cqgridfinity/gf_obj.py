@@ -27,7 +27,9 @@ import math
 import os
 import warnings
 
+from OCP.BRepCheck import BRepCheck_Analyzer
 from OCP.BRepMesh import BRepMesh_IncrementalMesh
+from OCP.ShapeFix import ShapeFix_Shape
 from OCP.StlAPI import StlAPI_Writer
 import cadquery as cq
 from cadquery import exporters
@@ -169,6 +171,35 @@ class GridfinityObject:
                 # positioned labels, etc.); skip gracefully
                 return obj
         return obj
+
+    def repair_if_invalid(self, obj):
+        """Repair a solid with OCC's ShapeFix, but only if it is actually invalid.
+
+        Boolean-heavy geometry occasionally leaves faces whose parametrisation
+        or tolerance is subtly wrong -- the shell is closed and the volume is
+        right, but BRepCheck rejects individual faces. Downstream CAD then
+        refuses to treat the result as a solid body, so it cannot be selected
+        or edited even though it looks correct.
+
+        ShapeFix_Shape corrects the face representations without altering the
+        geometry. This is a no-op when the shape is already valid, so it costs
+        nothing on the common path.
+
+        Returns the repaired object, or the original if repair fails or does
+        not help -- never raises.
+        """
+        try:
+            shape = obj.val() if isinstance(obj, cq.Workplane) else obj
+            if BRepCheck_Analyzer(shape.wrapped).IsValid():
+                return obj
+            fixer = ShapeFix_Shape(shape.wrapped)
+            fixer.Perform()
+            fixed = cq.Shape.cast(fixer.Shape())
+            if not BRepCheck_Analyzer(fixed.wrapped).IsValid():
+                return obj  # repair did not help; keep the original
+            return cq.Workplane(obj=fixed) if isinstance(obj, cq.Workplane) else fixed
+        except Exception:
+            return obj
 
     @property
     def _filename_prefix(self) -> str:

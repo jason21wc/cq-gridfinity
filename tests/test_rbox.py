@@ -47,11 +47,15 @@ def test_rugged_box():
 @pytest.mark.skipif(
     SKIP_TEST_RBOX, reason="Skipped intentionally by test scope environment variable"
 )
-@pytest.mark.xfail(
-    reason="Non-watertight: rugged box lid geometry (pre-existing upstream issue)",
-    strict=False,
-)
 def test_rugged_box_lid():
+    """Lid must be a valid solid.
+
+    Was xfail: the integrated Gridfinity baseplate left 48 invalid conical
+    faces (4 chamfers per cell, all at one height, all 0.517mm^2). The shell
+    was closed and the volume correct, but BRepCheck rejected the faces and
+    CAD packages would not treat the lid as a selectable solid body. Fixed by
+    repair_if_invalid() in render_lid(); volume and face count are unchanged.
+    """
     b1 = _rugged_box()
     r = b1.render_lid()
     assert r is not None

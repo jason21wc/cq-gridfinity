@@ -147,6 +147,35 @@ either (a) exercises a distinct failure mode, or (b) **is** the axis under compa
 variations that share one assumption — if the assumption is wrong you have spent eight
 reviews to learn one fact. Small and diverse beats large and redundant.
 
+#### "Valid" Has Several Meanings — Check the Right One (2026-08-11)
+The rugged box lid was carried as `xfail` labelled *"non-watertight"* for months. It
+was not non-watertight: its shell was **closed**, its volume correct. `BRepCheck` was
+rejecting **48 individual faces** — all `Cone`, all at z=1.83, all exactly 0.517mm²,
+i.e. 4 chamfers per cell × 12 cells on the lid's integrated Gridfinity baseplate.
+`ShapeFix_Shape` corrected the face parametrisation with **zero** change to volume or
+face count (76752.852mm³ and 1510 faces, before and after).
+
+**Rule:** distinguish *shell closed* from *faces valid* from *is a solid*. They fail
+independently and a single `isValid()` collapses them. When triaging, enumerate which
+sub-shapes fail and what they have in common — 48 identical faces at one height named
+the culprit feature immediately, where months of "non-watertight" never did.
+
+**Corollary:** a defect parked as `xfail` stops being investigated. This one had a
+real user-visible consequence — CAD would not treat the lid as a selectable body —
+that nobody connected to the quarantined test.
+
+#### Do Not Hypothesise About Third-Party Tool Behaviour (2026-08-11)
+Asked why Shapr3D would not select the lid on double-click, I guessed it was a
+"tangent face chain" selection. Jason told me to go read actual sources. Shapr3D's
+own docs: *"Double tap is for selecting whole bodies... select an entire body by
+double-clicking any face"*, and imported STEP retains its hierarchy. So double-click
+**is** body selection — my guess was wrong, and the real story was that the lid was
+not a valid body at all, which pointed straight at the defect above.
+
+**Rule:** behaviour of an external tool is a fact to look up, not a mechanism to
+reason out. Guessing wrong sends the investigation away from the real defect. A
+labelled hypothesis is still a wrong answer if the truth was one search away.
+
 ### Debugging
 
 #### Safe Fillet Pattern (2026-02-27)
