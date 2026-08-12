@@ -28,7 +28,7 @@ import warnings
 
 import cadquery as cq
 from cqkit import HasZCoordinateSelector, VerticalEdgeSelector, FlatEdgeSelector
-from cqkit.cq_helpers import rounded_rect_sketch, composite_from_pts
+from cqkit.cq_helpers import rounded_rect_sketch, composite_from_pts, rotate_z
 from cqgridfinity.constants import (
     EPS,
     GR_BASE_CLR,
@@ -64,6 +64,7 @@ from cqgridfinity.constants import (
     GRHU,
     SQRT2,
 )
+from cqgridfinity.gf_divider import Divider, dividers_from_counts
 from cqgridfinity.gf_obj import GridfinityObject
 from cqgridfinity.gf_holes import (
     cut_enhanced_holes,
@@ -110,6 +111,11 @@ class GridfinityBox(GridfinityObject):
         self.height_u = height_u
         self.length_div = 0
         self.width_div = 0
+        # Explicit divider objects. None means "derive evenly-spaced dividers
+        # from length_div/width_div", which is what every existing caller does.
+        # Set a list to place them individually -- unequal compartments,
+        # notches, per-divider height, angled tops. See gf_divider.Divider.
+        self.dividers = None
         self.scoops = False
         self.labels = False
         self.solid = False
@@ -498,13 +504,20 @@ class GridfinityBox(GridfinityObject):
                 fn += "_hi%.1f" % self.height_internal
             if self.cylindrical:
                 fn += "_cyl%.0f" % self.cylinder_diam
-            if self.length_div:
-                fn += "_div%d" % (self.length_div)
-            if self.width_div:
-                if self.length_div:
-                    fn += "x%d" % (self.width_div)
+            # Divider counts come from the resolved list, so an explicit layout
+            # is named as accurately as the count-based sugar. "u" marks an
+            # explicit (possibly unequal) layout so it cannot be confused with
+            # an evenly divided bin of the same count.
+            nx_div = len(self._dividers_on("x"))
+            ny_div = len(self._dividers_on("y"))
+            tag = "divu" if self.dividers is not None else "div"
+            if nx_div:
+                fn += "_%s%d" % (tag, nx_div)
+            if ny_div:
+                if nx_div:
+                    fn += "x%d" % (ny_div)
                 else:
-                    fn += "_divx%d" % (self.width_div)
+                    fn += "_%sx%d" % (tag, ny_div)
         # 5. Non-default parameters
         if abs(self.wall_th - GR_WALL) > 1e-3:
             fn += "_w%.2f" % (self.wall_th)
@@ -521,10 +534,14 @@ class GridfinityBox(GridfinityObject):
             if self.lite_style:
                 # Clamp dividers for lite_style: max one per full grid unit.
                 # math.floor() supports non-integer length_u/width_u (1B.12).
-                if self.length_div:
-                    self.length_div = math.floor(self.length_u) - 1
-                if self.width_div:
-                    self.width_div = math.floor(self.width_u) - 1
+                # Only applies to the count-based sugar -- an explicit divider
+                # list is the caller stating exactly what they want, so we
+                # respect it rather than silently rewriting their layout.
+                if self.dividers is None:
+                    if self.length_div:
+                        self.length_div = math.floor(self.length_u) - 1
+                    if self.width_div:
+                        self.width_div = math.floor(self.width_u) - 1
                 if self.solid:
                     raise ValueError(
                         "Cannot select both solid and lite box styles together"
@@ -640,8 +657,37 @@ class GridfinityBox(GridfinityObject):
         return lh
 
     @property
+    def divider_list(self):
+        """The dividers to build: explicit if given, else derived from counts.
+
+        This is the single source of truth for every consumer -- walls, scoops
+        along walls, label tab counts, hole-grid cell counts. `length_div` /
+        `width_div` remain the ergonomic input for even spacing and are
+        unchanged; they simply generate the same objects an explicit list would.
+        """
+        if self.dividers is not None:
+            return list(self.dividers)
+        return dividers_from_counts(self.length_div, self.width_div)
+
+    def _dividers_on(self, axis):
+        """Dividers splitting the given axis, ordered by position."""
+        return sorted(
+            (d for d in self.divider_list if d.axis == axis), key=lambda d: d.pos
+        )
+
+    @property
     def has_dividers(self):
-        return self.length_div > 0 or self.width_div > 0
+        return len(self.divider_list) > 0
+
+    def _divider_offset(self, d):
+        """Absolute coordinate of a divider in the pre-translation frame.
+
+        The interior's low edge sits at -half_in on BOTH axes (algebraically:
+        half_l - inner_l/2 == -(gru/2 - wall_th - GR_TOL/2) == -half_in, and
+        likewise for width), which is why one constant serves both.
+        """
+        span = self.inner_l if d.axis == "x" else self.inner_w
+        return d.pos * span - self.half_in
 
     @property
     def interior_solid(self):
@@ -765,39 +811,120 @@ class GridfinityBox(GridfinityObject):
         return rc
 
     def render_dividers(self):
-        r = None
-        if self.length_div > 0 and not self.solid:
-            wall_w = (
-                cq.Workplane("XY")
-                .rect(GR_DIV_WALL, self.outer_w)
-                .extrude(self.max_height)
-                .translate((0, 0, self.floor_h))
-            )
-            xl = self.inner_l / (self.length_div + 1)
-            pts = [
-                ((x + 1) * xl - self.half_in, self.half_w)
-                for x in range(self.length_div)
-            ]
-            r = composite_from_pts(wall_w, pts)
+        """Build every divider wall from `divider_list`.
 
-        if self.width_div > 0 and not self.solid:
-            wall_l = (
-                cq.Workplane("XY")
-                .rect(self.outer_l, GR_DIV_WALL)
-                .extrude(self.max_height)
-                .translate((0, 0, self.floor_h))
-            )
-            yl = self.inner_w / (self.width_div + 1)
-            pts = [
-                (self.half_l, (y + 1) * yl - self.half_in)
-                for y in range(self.width_div)
-            ]
-            rw = composite_from_pts(wall_l, pts)
-            if r is not None:
-                r = r.union(rw)
-            else:
-                r = rw
+        Each wall is placed individually rather than as a patterned array, so
+        unequal spacing, per-divider thickness and height, notches and angled
+        tops all fall out of the same loop instead of needing separate paths.
+        """
+        if self.solid:
+            return None
+        r = None
+        for d in self.divider_list:
+            wall = self._render_divider_wall(d)
+            if wall is None:
+                continue
+            r = wall if r is None else r.union(wall)
         return r
+
+    def _render_divider_wall(self, d):
+        """One divider wall, including its notch and angled top if set."""
+        height = self.max_height if d.height is None else min(d.height, self.max_height)
+        if height <= EPS:
+            return None
+        # Wall spans the full outer dimension of the other axis; the shell cut
+        # trims the overhang, which is how the original array-based code worked.
+        if d.axis == "x":
+            section, centre = (d.thickness, self.outer_w), (
+                self._divider_offset(d),
+                self.half_w,
+            )
+            span = self.outer_w
+        else:
+            section, centre = (self.outer_l, d.thickness), (
+                self.half_l,
+                self._divider_offset(d),
+            )
+            span = self.outer_l
+        wall = (
+            cq.Workplane("XY")
+            .rect(*section)
+            .extrude(height)
+            .translate((*centre, self.floor_h))
+        )
+        wall = self._apply_divider_top_angle(wall, d, height, span)
+        wall = self._apply_divider_notch(wall, d, height, span, centre)
+        return wall
+
+    def _apply_divider_top_angle(self, wall, d, height, span):
+        """Give the divider a symmetric roof so items drop in without catching.
+
+        The top becomes a ridge: it peaks on the wall's centreline and slopes
+        down to zero at both faces at `top_angle` from horizontal. A one-sided
+        chamfer would bias items toward one compartment; a ridge sheds into
+        either. Used for filing flat items upright (ostat 1D.12).
+        """
+        if not d.top_angle:
+            return wall
+        th = d.thickness
+        rise = (th / 2) * math.tan(math.radians(abs(d.top_angle)))
+        rise = min(rise, height - EPS)
+        if rise <= EPS:
+            return wall
+        top_z = self.floor_h + height
+        # Region ABOVE the two roof planes. Extended to +/-th (twice the
+        # half-thickness) along the same slope lines, so the cutter overhangs
+        # the wall faces instead of sharing them -- coincident faces are where
+        # boolean ops get fragile. The slope still reaches z=0 exactly at
+        # +/-th/2, which is the wall surface.
+        profile = [
+            (-th, -rise),
+            (0.0, rise),
+            (th, -rise),
+            (th, 2 * rise),
+            (-th, 2 * rise),
+        ]
+        plane = "XZ" if d.axis == "x" else "YZ"
+        cutter = cq.Workplane(plane).polyline(profile).close().extrude(span + 2)
+        # Position by bounding box rather than assuming an extrude direction:
+        # Workplane("XZ") extrudes toward -Y, "YZ" toward +X, and relying on
+        # that sign is exactly the bug this replaces.
+        offs = self._divider_offset(d)
+        cx, cy = (offs, self.half_w) if d.axis == "x" else (self.half_l, offs)
+        bb = cutter.val().BoundingBox()
+        cutter = cutter.translate(
+            (
+                cx - (bb.xmin + bb.xmax) / 2,
+                cy - (bb.ymin + bb.ymax) / 2,
+                top_z - (bb.zmin + bb.zmax) / 2 - rise / 2,
+            )
+        )
+        return wall.cut(cutter)
+
+    def _apply_divider_notch(self, wall, d, height, span, centre):
+        """Cut a U-notch down from the top so long items bridge compartments."""
+        if not d.has_notch:
+            return wall
+        depth = min(d.notch_depth, height - EPS)
+        if depth <= EPS:
+            return wall
+        width = d.notch_width if d.notch_width > 0 else span / 2
+        top_z = self.floor_h + height
+        if d.axis == "x":
+            cutter = (
+                cq.Workplane("XY")
+                .rect(d.thickness * 3, width)
+                .extrude(depth + EPS)
+                .translate((centre[0], centre[1], top_z - depth))
+            )
+        else:
+            cutter = (
+                cq.Workplane("XY")
+                .rect(width, d.thickness * 3)
+                .extrude(depth + EPS)
+                .translate((centre[0], centre[1], top_z - depth))
+            )
+        return wall.cut(cutter)
 
     def render_scoops(self):
         if not self.scoops or self.solid:
@@ -822,19 +949,16 @@ class GridfinityBox(GridfinityObject):
         rs = rsc.translate((-self.half_in, yo, zo))
         # intersect to prevent solids sticking out of rounded corners
         r = rs.intersect(self.interior_solid)
-        if self.width_div > 0:
+        y_divs = self._dividers_on("y")
+        if y_divs:
             # add scoops along each internal dividing wall in the width dimension
-            yl = self.inner_w / (self.width_div + 1)
-            pts = [
-                (-self.half_in, (y + 1) * yl - self.half_in)
-                for y in range(self.width_div)
-            ]
+            pts = [(-self.half_in, self._divider_offset(d)) for d in y_divs]
             rs = composite_from_pts(rsc, pts)
             r = r.union(rs.translate((0, GR_DIV_WALL / 2 + srad / 2, zo)))
             r = r.intersect(self.render_shell(as_solid=True))
         return r
 
-    def _build_label_wall(self, sketch, nx, comp_l, yo, z_top):
+    def _build_label_wall(self, sketch, spans, yo, z_top):
         """Build label geometry for one wall (back wall or divider wall).
 
         Returns a CadQuery solid (full-width or positioned tabs), or None.
@@ -844,7 +968,7 @@ class GridfinityBox(GridfinityObject):
             return rsc.translate((-self.half_in, yo, z_top))
         else:
             r = None
-            for tab_x, tab_w in self._compute_tab_positions(nx, comp_l):
+            for tab_x, tab_w in self._compute_tab_positions(spans):
                 rsc = cq.Workplane("YZ").placeSketch(sketch).extrude(tab_w)
                 rsc = rsc.translate((tab_x, yo, z_top))
                 r = rsc if r is None else r.union(rsc)
@@ -868,15 +992,14 @@ class GridfinityBox(GridfinityObject):
         )
         yo = -lw + self.outer_w / 2 + self.half_w + self.wall_th / 4
         z_top = self.floor_h + self.max_height
-        nx = self.length_div + 1
-        comp_l = self.inner_l / nx
+        spans = self._compartment_spans("x")
 
-        r = self._build_label_wall(back_sketch, nx, comp_l, yo, z_top)
+        r = self._build_label_wall(back_sketch, spans, yo, z_top)
         if r is None:
             return None
         r = r.intersect(self.interior_solid)
 
-        if self.width_div > 0:
+        if self._dividers_on("y"):
             # add label flanges along each dividing wall
             div_sketch = (
                 cq.Sketch()
@@ -889,29 +1012,40 @@ class GridfinityBox(GridfinityObject):
                 .vertices("<Y")
                 .fillet(self.label_lip_height / 2)
             )
-            yl = self.inner_w / (self.width_div + 1)
-            for j in range(self.width_div):
-                div_yo = (j + 1) * yl - self.half_in + GR_DIV_WALL / 2
+            for d in self._dividers_on("y"):
+                div_yo = self._divider_offset(d) + d.thickness / 2
                 wall = self._build_label_wall(
-                    div_sketch, nx, comp_l, div_yo - self.label_width, z_top
+                    div_sketch, spans, div_yo - self.label_width, z_top
                 )
                 if wall is not None:
                     r = r.union(wall)
         return r
 
-    def _compute_tab_positions(self, n_compartments, comp_length):
+    def _compartment_spans(self, axis):
+        """(start, length) of each compartment along an axis, low edge first.
+
+        Boundaries are divider *centres*, matching how the original uniform
+        arithmetic worked -- it never subtracted wall thickness either. For
+        evenly spaced dividers this returns exactly the same spans as
+        `i * inner/(n+1) - half_in`; it simply also handles unequal spacing.
+        """
+        span = self.inner_l if axis == "x" else self.inner_w
+        lo = -self.half_in
+        bounds = [lo]
+        bounds += [self._divider_offset(d) for d in self._dividers_on(axis)]
+        bounds.append(lo + span)
+        return [(bounds[i], bounds[i + 1] - bounds[i]) for i in range(len(bounds) - 1)]
+
+    def _compute_tab_positions(self, spans):
         """Compute (x_start, width) pairs for each compartment's label tab."""
         positions = []
-        for i in range(n_compartments):
-            comp_start = i * comp_length - self.half_in
+        for comp_start, comp_length in spans:
             tab_w = min(self._gru, comp_length)  # tab max width = 1 grid unit
             if self.label_style in ("auto", "center"):
                 tab_x = comp_start + (comp_length - tab_w) / 2
-            elif self.label_style == "left":
-                tab_x = comp_start
             elif self.label_style == "right":
                 tab_x = comp_start + comp_length - tab_w
-            else:
+            else:  # "left", "full", or any other -- anchor to the compartment
                 tab_x = comp_start
             positions.append((tab_x, tab_w))
         return positions
@@ -987,13 +1121,15 @@ class GridfinityBox(GridfinityObject):
 
     def _render_cylindrical_cuts(self, obj):
         """Cut cylindrical compartments into a solid bin shell."""
-        nx = self.length_div + 1
-        ny = self.width_div + 1
-        comp_l = self.inner_l / nx
-        comp_w = self.inner_w / ny
+        x_spans = self._compartment_spans("x")
+        y_spans = self._compartment_spans("y")
 
-        # Cylinder fits within the smallest compartment dimension
-        max_diam = min(comp_l, comp_w) - 0.5
+        # Cylinder fits within the smallest compartment dimension. With unequal
+        # compartments the tightest one governs, so a single diameter still fits
+        # everywhere -- matching the previous single-diameter behaviour.
+        max_diam = min(
+            min(l for _, l in x_spans), min(l for _, l in y_spans)
+        ) - 0.5
         diam = min(self.cylinder_diam, max_diam)
         if diam <= 0:
             return obj
@@ -1015,13 +1151,12 @@ class GridfinityBox(GridfinityObject):
             if cf > 0:
                 cyl = cyl.edges(">Z").chamfer(cf)
 
-        # Calculate compartment centers
-        pts = []
-        for i in range(nx):
-            for j in range(ny):
-                cx = self.half_l - self.inner_l / 2 + (i + 0.5) * comp_l
-                cy = self.half_w - self.inner_w / 2 + (j + 0.5) * comp_w
-                pts.append((cx, cy, 0))
+        # Calculate compartment centres
+        pts = [
+            (xs + xl / 2, ys + yl / 2, 0)
+            for xs, xl in x_spans
+            for ys, yl in y_spans
+        ]
 
         z0 = self.floor_h + raise_h
         cuts = composite_from_pts(cyl.translate((0, 0, z0)), pts)

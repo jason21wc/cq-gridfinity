@@ -14,6 +14,7 @@ script_dir = os.path.dirname(__file__)
 from .constants import *
 from .gf_obj import GridfinityObject
 from .gf_baseplate import GridfinityBaseplate
+from .gf_divider import Divider, dividers_from_counts
 from .gf_box import GridfinityBox, GridfinitySolidBox
 from .gf_drawer import GridfinityDrawerSpacer
 from .gf_ruggedbox import GridfinityRuggedBox
