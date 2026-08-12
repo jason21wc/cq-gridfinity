@@ -1,9 +1,24 @@
 name: Run Tests
 
+# The primary regression gate is LOCAL: `make hooks-install` wires tools/check.sh
+# to run before every push. This workflow is a cheap backstop only.
+#
+# Two deliberate changes from the inherited upstream config:
+#   - Added `push` to main. It previously ran on pull_request only, and since we
+#     commit straight to main it had never actually run on our work.
+#   - Trimmed the Python matrix from 4 versions to 1. We develop on 3.11, and a
+#     4-way matrix is 4x the runner minutes for no signal we act on.
+#
+# This repo is public, so GitHub-hosted runner minutes are free. Keep it cheap
+# anyway -- a slow gate is a gate people bypass.
+
 on:
+  push:
+    branches:
+      - main
   pull_request:
     branches:
-      - main  # Runs on pull requests targeting the main branch
+      - main
 
 jobs:
   tests:
@@ -16,7 +31,7 @@ jobs:
       fail-fast: false
       matrix:
         os: ["ubuntu-latest"]
-        python-version: ["3.9", "3.10", "3.11", "3.12"]
+        python-version: ["3.11"]
     steps:
       - name: Check out code
         uses: actions/checkout@v4
@@ -30,8 +45,27 @@ jobs:
       - name: Install cadquery
         run: mamba install cadquery
       - name: Install pip dependencies
-        run: pip install cqkit pytest
+        run: pip install cqkit pytest pytest-xdist
       - name: Install current version of cq-gridfinity
         run: pip install .
       - name: Run tests
-        run: pytest tests
+        run: pytest tests -q
+      - name: STEP B-Rep audit
+        # Guards the project's core claim: native B-Rep, not tessellation
+        # wearing a .step extension. Exits non-zero on any flagged model.
+        run: |
+          mkdir -p /tmp/audit
+          python - /tmp/audit <<'PY'
+          import sys
+          from pathlib import Path
+          from cqgridfinity import GridfinityBaseplate, GridfinityBox, GridfinitySolidBox
+          out = Path(sys.argv[1])
+          for name, build in [
+              ("bin_scoop_label", lambda: GridfinityBox(2, 2, 6, scoops=True, labels=True)),
+              ("bin_divided", lambda: GridfinityBox(2, 3, 6, length_div=1, width_div=1)),
+              ("baseplate_magnet", lambda: GridfinityBaseplate(3, 3, magnet_holes=True)),
+              ("lid", lambda: GridfinitySolidBox.as_lid(2, 3)),
+          ]:
+              build().save_step_file(str(out / f"{name}.step"))
+          PY
+          python tools/step_audit.py /tmp/audit

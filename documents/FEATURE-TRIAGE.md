@@ -35,9 +35,10 @@ correction is smaller than one 1mm step.
 
 **Requirements:**
 1. All dimensional parameters accept **floats**. Never quantize or round user input.
-2. Fit-critical dimensions (latches, hinges, seals, lid clearances, hole diameters)
-   must be adjustable in **0.1mm steps or finer**; prefer **0.05mm** where a
-   press-fit or sliding fit is involved.
+2. **Scope (narrowed by Jason 2026-08-11):** this applies to the **smkent clasp and
+   latch dimensions** — the ones Perplexing Labs restricts to 1mm steps. **0.1mm is
+   the target granularity; do not go finer.** Everything else in the library is fine
+   as it is. This is a **P3** concern, not a library-wide sweep.
 3. Phase 2 UI: numeric entry, not steppers alone. Any slider must have a typed-value
    companion field.
 4. `size_tolerance` (1E.8) is the designated global fit knob and must accept

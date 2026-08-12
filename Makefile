@@ -47,6 +47,24 @@ lint-check: ## check if lint status is consistent between commits
 	@black --diff --check cqgridfinity/scripts/*.py
 	@black --diff --check tests/*.py
 
+check: ## fast local gate: tests + B-Rep audit of a diverse model subset
+	@tools/check.sh
+
+check-full: ## full local gate: tests + entire ship set + B-Rep audit (~7 min)
+	@tools/check.sh --full
+
+audit: ## audit STEP files in a directory: make audit DIR=examples/output
+	@conda run --no-capture-output -n gridfinity python tools/step_audit.py $(or $(DIR),examples/output)
+
+hooks-install: ## install the local pre-push gate (no cloud CI needed)
+	@git config core.hooksPath .githooks
+	@chmod +x .githooks/pre-push tools/check.sh
+	@echo "Pre-push hook installed. Bypass a single push with: git push --no-verify"
+
+hooks-uninstall: ## remove the local pre-push gate
+	@git config --unset core.hooksPath || true
+	@echo "Pre-push hook removed."
+
 test: ## run tests quickly with the default Python
 	py.test -s -v --cov -W ignore::DeprecationWarning:nptyping.typing_
 

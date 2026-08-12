@@ -49,7 +49,7 @@ Art. III §1:
 | DoD-3 | **STEP files open cleanly in real CAD** | Manual check in **Shapr3D** and **Fusion 360** (Jason's tools), ≥1 per category. FreeCAD as a free-tool sanity check. *Never verified to date* |
 | DoD-4 | Geometry is B-Rep, not dense tessellation | **Automated** — surface-type census per model (see below), plus face count and file size |
 | DoD-5 | Every parameter documents *why you'd choose it* | Doc review — no parameter ships without a use case |
-| DoD-6 | Fit-critical dimensions adjust in ≤0.1mm steps | Parameter audit against D7 |
+| DoD-6 | **smkent clasp/latch dimensions** adjust in 0.1mm steps | Parameter audit — **P3 scope only** |
 
 **DoD-3 is the most important and the most neglected.** The entire premise is
 "editable CAD geometry." Nothing to date has tested that claim in the CAD packages

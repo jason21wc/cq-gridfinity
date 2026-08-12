@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+#
+# Local pre-push gate. Runs the fast regression check before code leaves this
+# machine -- test suite plus a B-Rep audit of a diverse model subset.
+#
+# Install:  make hooks-install
+# Bypass:   git push --no-verify
+#
+# Runs locally by design: no GitHub Actions minutes, no cloud credits.
+
+exec "$(git rev-parse --show-toplevel)/tools/check.sh"
