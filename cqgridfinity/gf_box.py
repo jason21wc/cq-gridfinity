@@ -1159,16 +1159,47 @@ class GridfinityBox(GridfinityObject):
             ]
             avail = (min(l for _, l in x_spans), min(l for _, l in y_spans))
             return pts, avail
-        # Explicit rows x cols spread evenly across the whole interior.
         cols, rows = grid.cols, grid.rows
-        pitch_x, pitch_y = self.inner_l / cols, self.inner_w / rows
-        x0, y0 = -self.half_in, -self.half_in
+        px, py = grid.effective_pitch
+        if px is None and py is None:
+            # Spread evenly to fill the interior. No slack exists, so the
+            # alignment settings have nothing to act on.
+            pitch_x, pitch_y = self.inner_l / cols, self.inner_w / rows
+            x0, y0 = -self.half_in, -self.half_in
+            pts = [
+                (x0 + (i + 0.5) * pitch_x, y0 + (j + 0.5) * pitch_y)
+                for i in range(cols)
+                for j in range(rows)
+            ]
+            return pts, (pitch_x, pitch_y)
+
+        # Fixed pitch: the array occupies only part of the interior, and the
+        # leftover goes wherever align_x/align_y say.
+        fx, fy = grid.footprint()
+        pitch_x = px if px is not None else self.inner_l / cols
+        pitch_y = py if py is not None else self.inner_w / rows
+        first_x = self._aligned_start(
+            self.inner_l, (cols - 1) * pitch_x + fx, grid.align_x, fx
+        )
+        first_y = self._aligned_start(
+            self.inner_w, (rows - 1) * pitch_y + fy, grid.align_y, fy
+        )
         pts = [
-            (x0 + (i + 0.5) * pitch_x, y0 + (j + 0.5) * pitch_y)
+            (first_x + i * pitch_x, first_y + j * pitch_y)
             for i in range(cols)
             for j in range(rows)
         ]
         return pts, (pitch_x, pitch_y)
+
+    def _aligned_start(self, interior, occupied, align, hole_extent):
+        """Centre of the first hole along one axis, honouring alignment.
+
+        align -1 puts the slack at the high edge (array flush low), 0 splits it,
+        +1 puts it at the low edge. Same convention as baseplate fitx/fity.
+        """
+        slack = max(interior - occupied, 0.0)
+        offset = slack / 2.0 * (1.0 + align)
+        return -self.half_in + offset + hole_extent / 2.0
 
     def _hole_cutter(self, grid, height):
         """One hole solid of the configured shape, chamfered at the mouth."""

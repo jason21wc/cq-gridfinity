@@ -69,6 +69,17 @@ class HoleGrid:
             undersized, so a nominal 14.5mm AA cell needs a slightly larger
             hole. Defaults to 0 -- set it explicitly rather than having the
             library guess at your printer's behaviour.
+        pitch: Centre-to-centre spacing along X, mm. None spreads the holes
+            evenly to fill the interior, which is the default and leaves no
+            slack. Set a pitch when the spacing matters more than filling the
+            bin -- 18650 cells at a fixed 19mm, say -- and the leftover space
+            then goes wherever `align_x` puts it.
+        pitch_y: Same along Y. Defaults to `pitch`.
+        align_x: Where slack goes along X when `pitch` is set. -1 flush to the
+            low edge, 0 centred, 1 flush to the high edge; continuous in
+            between, clamped. Matches the baseplate `fitx`/`fity` convention.
+            Ignored when the holes are spread evenly, since there is no slack.
+        align_y: Same along Y.
     """
 
     shape: str = "circle"
@@ -79,6 +90,10 @@ class HoleGrid:
     depth: Optional[float] = None
     chamfer: float = 0.5
     clearance: float = 0.0
+    pitch: Optional[float] = None
+    pitch_y: Optional[float] = None
+    align_x: float = 0.0
+    align_y: float = 0.0
 
     def __post_init__(self):
         if self.shape not in SHAPES:
@@ -99,6 +114,22 @@ class HoleGrid:
             raise ValueError("HoleGrid chamfer cannot be negative")
         if self.clearance < 0:
             raise ValueError("HoleGrid clearance cannot be negative")
+        for name in ("pitch", "pitch_y"):
+            v = getattr(self, name)
+            if v is not None and v <= 0:
+                raise ValueError("HoleGrid %s must be positive, got %r" % (name, v))
+        # Clamp rather than raise, matching baseplate fitx/fity behaviour.
+        self.align_x = max(-1.0, min(1.0, float(self.align_x)))
+        self.align_y = max(-1.0, min(1.0, float(self.align_y)))
+
+    @property
+    def effective_pitch(self):
+        """(x, y) pitch, or (None, None) when spreading evenly."""
+        if self.pitch is None and self.pitch_y is None:
+            return None, None
+        px = self.pitch
+        py = self.pitch_y if self.pitch_y is not None else self.pitch
+        return px, py
 
     @property
     def effective_size(self) -> float:

@@ -413,6 +413,67 @@ GridfinityBox(3, 2, 5, cylindrical=True, length_div=2, width_div=1)
 
 **Trade-offs:** Less volume-efficient than rectangular compartments. Cannot use scoops, labels, or interior fillets.
 
+### Hole Grid — arrays of shaped holes
+
+```python
+from cqgridfinity import GridfinityBox, HoleGrid
+
+GridfinityBox(4, 2, 3, hole_grid=HoleGrid("circle", size=10.5, rows=4, cols=12))
+GridfinityBox(3, 2, 3, hole_grid=HoleGrid("hex", size=6.35, rows=4, cols=10))
+GridfinityBox(2, 2, 3, hole_grid=HoleGrid("rect", size=24, size_y=2.1, rows=8, cols=2))
+```
+
+**What it is:** The general form of the cylindrical bin — an array of holes cut
+into a solid bin. `cylindrical=True` is the shorthand for a circular grid laid
+out one-per-compartment.
+
+**When to use:** anything you store in quantity standing up — AA/AAA/18650
+cells, hex bit shanks, drill bits, dowels, SD cards, test tubes.
+
+There is deliberately **no catalogue of named sizes.** You specify shape, size
+and grid. With STEP output you can always tweak a single hole in CAD; what you
+cannot do by hand is lay out a 4×12 array, so that is what the library provides.
+
+| Parameter | Why you'd set it |
+|-----------|------------------|
+| `shape` | `circle` for cells and dowels, `hex` for bit shanks (they stop rotating), `rect` for cards and flat stock |
+| `size` | Hole size. For `hex` this is **across flats** — how hex stock is specified, so a 1/4" shank is 6.35 |
+| `size_y` | Second dimension for `rect`. Defaults to square |
+| `rows`, `cols` | Explicit array. Omit both to fall back to one hole per compartment |
+| `depth` | Blind holes, so short items don't disappear to the bottom. Omit for full depth |
+| `chamfer` | Eases insertion and removes the first-layer lip |
+| `clearance` | **Added** to `size`. FDM holes print undersized, so a nominal 14.5mm cell may want ~0.25mm. Defaults to 0 — set it for your printer rather than letting the library guess |
+| `pitch`, `pitch_y` | Fix the centre-to-centre spacing instead of spreading to fill. Use when spacing matters more than filling the bin |
+| `align_x`, `align_y` | Where the leftover space goes once `pitch` is fixed: `-1` flush low, `0` centred, `1` flush high. Same convention as baseplate `fitx`/`fity`. Ignored without a pitch, since spreading evenly leaves no slack |
+
+**Trade-offs:** subtractive construction, so like the cylindrical bin it cannot
+combine with scoops, labels, or interior fillets.
+
+### Dividers — unequal compartments, notches, angled tops
+
+```python
+from cqgridfinity import GridfinityBox, Divider
+
+GridfinityBox(3, 2, 6, length_div=2)                      # even, unchanged
+GridfinityBox(3, 2, 6, dividers=[Divider("x", 0.25),      # 25 / 50 / 25
+                                 Divider("x", 0.75)])
+```
+
+`length_div` / `width_div` still work exactly as before and remain the right
+tool for even splits. Reach for explicit `Divider` objects when even is wrong.
+
+| Parameter | Why you'd set it |
+|-----------|------------------|
+| `axis` | `"x"` splits the length, `"y"` splits the width |
+| `pos` | Position as a **fraction** (0–1) of the interior, not mm — so a layout survives a change of bin size |
+| `thickness` | Thicker walls for heavy contents; thinner to save material |
+| `height` | A short divider separates without boxing items in, and lets you reach across |
+| `notch_depth`, `notch_width` | U-notch cut down from the top, so long items (screwdrivers, drill bits) bridge two compartments. Width defaults to half the wall |
+| `top_angle` | Symmetric ridge on top, typically 65°. For filing flat items upright — sandpaper, sockets, PCBs — so they drop in without catching an edge. A ridge sheds into either compartment; a one-sided chamfer would bias one |
+
+**Compose freely:** dividers work with scoops (which follow the `y` walls) and
+labels (which follow the `x` compartments), including when spacing is unequal.
+
 ### Rugged Box
 
 ```python

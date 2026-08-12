@@ -135,3 +135,81 @@ def test_hole_grid_overrides_cylindrical():
 
 def test_no_grid_leaves_box_untouched():
     assert _render(hole_grid=None, cylindrical=False).val().isValid()
+
+
+# --- Fixed pitch and alignment ---------------------------------------------
+
+
+def test_pitch_must_be_positive():
+    with pytest.raises(ValueError, match="pitch must be positive"):
+        HoleGrid("circle", size=8, pitch=0)
+
+
+def test_align_is_clamped_not_rejected():
+    """Matches baseplate fitx/fity, which clamps rather than raising."""
+    g = HoleGrid("circle", size=8, align_x=-5, align_y=42)
+    assert g.align_x == -1.0
+    assert g.align_y == 1.0
+
+
+def test_pitch_y_defaults_to_pitch():
+    assert HoleGrid("circle", size=8, pitch=12).effective_pitch == (12, 12)
+    assert HoleGrid("circle", size=8, pitch=12, pitch_y=5).effective_pitch == (12, 5)
+    assert HoleGrid("circle", size=8).effective_pitch == (None, None)
+
+
+def test_fixed_pitch_spacing_is_exact():
+    b = GridfinityBox(3, 2, 5)
+    g = HoleGrid("circle", size=10, rows=2, cols=4, pitch=15)
+    pts, _ = b._hole_grid_positions(g)
+    xs = sorted({round(p[0], 6) for p in pts})
+    assert len(xs) == 4
+    assert all(
+        xs[i + 1] - xs[i] == pytest.approx(15) for i in range(len(xs) - 1)
+    )
+
+
+@pytest.mark.parametrize(
+    "align,expect_edge",
+    [(-1, "low"), (1, "high")],
+)
+def test_alignment_puts_array_flush_against_the_chosen_edge(align, expect_edge):
+    b = GridfinityBox(3, 2, 5)
+    size = 10.0
+    g = HoleGrid("circle", size=size, rows=2, cols=4, pitch=15, align_x=align)
+    pts, _ = b._hole_grid_positions(g)
+    xs = sorted({p[0] for p in pts})
+    lo_edge, hi_edge = -b.half_in, -b.half_in + b.inner_l
+    if expect_edge == "low":
+        assert xs[0] - size / 2 == pytest.approx(lo_edge)
+    else:
+        assert xs[-1] + size / 2 == pytest.approx(hi_edge)
+
+
+def test_alignment_zero_centres_the_array():
+    b = GridfinityBox(3, 2, 5)
+    g = HoleGrid("circle", size=10, rows=2, cols=4, pitch=15, align_x=0)
+    pts, _ = b._hole_grid_positions(g)
+    xs = sorted({p[0] for p in pts})
+    centre = -b.half_in + b.inner_l / 2
+    assert (xs[0] + xs[-1]) / 2 == pytest.approx(centre)
+
+
+def test_alignment_ignored_when_spreading_evenly():
+    """With no pitch there is no slack, so alignment has nothing to act on."""
+    b = GridfinityBox(3, 2, 5)
+    a, _ = b._hole_grid_positions(HoleGrid("circle", size=8, rows=2, cols=4))
+    c, _ = b._hole_grid_positions(
+        HoleGrid("circle", size=8, rows=2, cols=4, align_x=-1, align_y=1)
+    )
+    assert sorted(a) == pytest.approx(sorted(c))
+
+
+def test_corner_anchored_grid_renders_valid():
+    r = _render(
+        hole_grid=HoleGrid(
+            "hex", size=8, rows=2, cols=3, pitch=12, align_x=-1, align_y=-1
+        )
+    )
+    assert r.val().isValid()
+    assert len(r.solids().vals()) == 1
