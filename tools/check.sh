@@ -37,7 +37,8 @@ if [ "$MODE" = "full" ]; then
 else
     # A deliberately DIVERSE subset, not a numerous one: each model exercises a
     # distinct failure mode, so one defect cannot invalidate the whole batch.
-    #   bin+features  -> scoop/label/fillet interaction
+    #   bin+features  -> scoop/label/fillet interaction, and the corrected
+    #                    stacking lip (spec conformance covers the numbers)
     #   divided bin   -> divider intersections, where fillet kernels fail
     #   baseplate     -> repeated cylindrical features
     #   lid           -> the short-height boundary family

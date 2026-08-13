@@ -207,6 +207,25 @@ canonical source first, then test code against the notes.
 Generalises: whenever a test's oracle was produced by the same process as the thing
 under test, the test is circular. Find an independent oracle.
 
+#### A Wrong Constant Can Hide for Years Behind Self-Consistency (2026-08-13)
+cq-gridfinity's stacking lip was 0.6mm short of spec from its **first commit**,
+and nothing caught it in over two years. Not the 341 tests, not `isValid()`, not
+the B-Rep audit, not opening files in Fusion. Every check passed because the code
+was *internally consistent*: the profile said 3.8 and the height formula said 3.8,
+so they agreed with each other and disagreed with the world.
+
+The file even contradicted itself in plain sight — `GR_STACKING_LIP_H = 4.4` sat
+a few lines below a profile summing to 3.8 — and no test compared them.
+
+**Rule:** self-consistency is not correctness. At least one test must compare
+generated output against an **external** oracle — a published drawing, a
+standards document, another implementation — not against your own constants.
+
+**What actually found it:** asking "what does the rugged box use to compute
+clearance?" The answer (kennetek `h_lip = 3.548`, consumed by smkent) came from a
+completely different direction and corroborated the corrected value to 0.0035mm.
+Cross-checking an independent consumer beat any amount of staring at our own code.
+
 ### Debugging
 
 #### Safe Fillet Pattern (2026-02-27)
