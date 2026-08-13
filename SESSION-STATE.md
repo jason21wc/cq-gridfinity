@@ -84,19 +84,20 @@ anylid dispositioned in 8 batches → **21 Keep, 21 Cut**. See
 
 ## Next Actions
 
-1. **Choose P2 or P3** — independent, either order:
-   - **P2 divider objects** — smaller; replaces `length_div`/`width_div` integers,
-     unlocks unequal compartments + notches + angled tops, folds `cylindrical` into a
-     hole-grid modifier (removes a pipeline bypass), moves compatibility rules out of
-     inline `raise ValueError` into declared metadata
-   - **P3 rugged box** — the headline goal; new `gf_ruggedbox_smkent.py` (CC BY-SA)
-2. **Finish DoD-5/DoD-6** — parameter purpose pass and granularity audit. Can run
-   alongside either
-3. **Wire `step_audit.py` into CI** — now calibrated against a human CAD verdict
+1. **Resume P3** at step 3 of 8 — draw latch (pairs with the lip seal, which
+   needs compression), then seal, hinges, integrated baseplate, per-part export
+2. **DoD-5 remainder** — purpose/use-case docs for the ~35 pre-existing box
+   parameters (the P2 additions are already documented)
+3. **DoD-6** — clasp/latch granularity audit, 0.1mm steps, scoped to P3
+
 
 ## Open Items
 
 - `isValid()` coverage audit (from the 1B gate)
+- **Repo is still a fork** — PRs default to targeting michaelgale/cq-gridfinity.
+  Detaching is a one-time GitHub support request; Jason's call
+- Pred's rugged box clearance is a hardcoded `+3`, not derived from any lip
+  constant. It works by ~2.8mm of margin rather than by design. Left alone
 - Wall/floor patterns deferred, not permanently cut — revisit only on demonstrated
   need. B-Rep cost (face count, fillet interaction) is unmeasured
 - Wall cutouts (1C.11) cut *for now* — cheap to revisit after P2, since collision
@@ -109,11 +110,13 @@ anylid dispositioned in 8 batches → **21 Keep, 21 Cut**. See
 
 | Metric | Value |
 |--------|-------|
-| Tests | **230 passed, 1 skipped, 1 xfailed** (138.57s) |
-| xfail | Rugged box lid non-watertight (pre-existing upstream) |
-| Phase 1B | **CLOSED** — 17/17 Verified |
+| Tests | **367 passed, 1 skipped, 0 xfailed** |
+| Quarantined failures | **None** — rugged box lid fixed 2026-08-11 |
+| Ship set | 32 models, 32 audit-clean, DoD-3 human-verified |
+| Local gate | `make check` (3m24s) via pre-push hook; `make check-full` |
 | Triage | 42 features → 21 Keep, 21 Cut |
-| LOC | ~4,900 across 9 modules |
+| Modules | 12 (added `gf_divider`, `gf_holegrid`, `gf_ruggedbox_smkent`) |
+
 
 ## Environment
 - Conda env: `gridfinity` (activate with `conda activate gridfinity`)
