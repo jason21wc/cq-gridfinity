@@ -14,6 +14,54 @@
 
 This repository contains a python library to build [Gridfinity](https://gridfinity.xyz) boxes, baseplates, and other objects based on the [CadQuery](https://github.com/CadQuery/cadquery) python library.  The Gridfinity system was created by [Zach Freedman](https://www.youtube.com/c/ZackFreedman) as a versatile system of modular organization and storage modules.  A vibrant community of user contributed modules and utilities has grown around the Gridfinity system.  This repository contains python classes to create gridfinity compatible parameterized components such as baseplates and boxes.
 
+
+---
+
+## This fork: native STEP output and spec conformance
+
+This is a fork of [michaelgale/cq-gridfinity](https://github.com/michaelgale/cq-gridfinity),
+extended to cover more of the Gridfinity ecosystem with **native B-Rep STEP output**.
+
+Every generator in the ecosystem produces meshes. This one produces real CAD
+geometry: a magnet hole is a *cylindrical face* you can select and edit, not a
+few hundred triangles wearing a `.step` extension. Verified by
+`tools/step_audit.py` (a surface-type census) and confirmed by hand in Shapr3D
+and Fusion 360.
+
+### Stacking lip corrected to the published spec
+
+Upstream's stacking lip profile did not match the official Gridfinity drawings.
+Its final 45° segment was **1.3mm**, making the lip **3.8mm** tall. The
+[official drawing set](https://github.com/Stu142/Gridfinity-Documentation)
+("Bin Sharp Stacking Lip Profile") specifies **1.9mm**, for a **4.4mm** lip:
+
+| Segment | Official drawing | Upstream | This fork |
+|---------|-----------------|----------|-----------|
+| First 45° | 0.7 | 0.7 | 0.7 |
+| Vertical | 1.8 | 1.8 | 1.8 |
+| **Final 45°** | **1.9** | 1.3 | **1.9** |
+| **Nominal lip height** | **4.4** | 3.8 | **4.4** |
+| Total bin height | `7×u + 4.4` | `7×u + 3.8` | `7×u + 4.4` |
+
+The tip is filleted **R0.6**, matching kennetek's
+`STACKING_LIP_FILLET_RADIUS` ("Fillet so the stacking lip does not come to a
+sharp point"). Rounding lowers the apex by exactly `r·√2 = 0.8485mm`, so the
+finished part measures `7×u + 3.5515` — reported separately as `actual_height`,
+the same nominal/actual distinction kennetek draws.
+
+That figure is independently corroborated: kennetek publishes `h_lip = 3.548`,
+which smkent's rugged box uses to budget lid clearance. **We agree to 0.0035mm.**
+Upstream's 3.8 matched neither the nominal nor the actual value.
+
+Traced to cq-gridfinity's initial commit (2023-11-09) — one day *before* the
+official drawings were published — and never revisited.
+
+**Compatibility note:** bins from this fork are ~0.25mm shorter than bins from
+upstream cq-gridfinity, and conform to the published spec. Mixing bins across
+the two is not recommended; a stack of several will accumulate the difference.
+
+---
+
 Examples of how I am starting to use Gridfinity to organize my tools are shown below using components built with this python library:
 
 <img src=./images/examples.png width=800>

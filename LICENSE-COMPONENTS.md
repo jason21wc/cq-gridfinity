@@ -16,13 +16,18 @@ These components are MIT licensed. You may use, modify, and redistribute freely 
 | `cqgridfinity/gf_drawer.py` | cq-gridfinity upstream | Michael Gale |
 | `cqgridfinity/gf_helpers.py` | cq-gridfinity upstream | Michael Gale |
 | `cqgridfinity/gf_holes.py` | Independent implementation (kennetek spec ref) | Jason Collier |
+| `cqgridfinity/gf_divider.py` | Independent implementation | Jason Collier |
+| `cqgridfinity/gf_holegrid.py` | Independent implementation | Jason Collier |
+| `cqgridfinity/gf_vase.py` | Independent implementation (kennetek spec ref) | Jason Collier |
+| `tools/step_audit.py` | Independent implementation | Jason Collier |
+| `examples/scripts/` | Independent implementation | Jason Collier |
 | `cqgridfinity/constants.py` | cq-gridfinity upstream + kennetek spec | Michael Gale, Jason Collier |
-| `cqgridfinity/gridflock/` | Independent implementation (yawkat spec ref, MIT + CC-BY 4.0) | Jason Collier |
-| `cqgridfinity/labels/cullenect_label.py` | Independent implementation (CullenJWebb spec ref, MIT) | Jason Collier |
-| `cqgridfinity/patterns/` | Independent implementation | Jason Collier |
-| `cqgridfinity/lids/` | Independent implementation | Jason Collier |
-| `cqgridfinity/holders/` | Independent implementation | Jason Collier |
-| `cqgridfinity/drawers/` | Independent implementation | Jason Collier |
+| `cqgridfinity/gridflock/` *(planned)* | Independent implementation (yawkat spec ref, MIT + CC-BY 4.0) | Jason Collier |
+| `cqgridfinity/labels/cullenect_label.py` *(planned)* | Independent implementation (CullenJWebb spec ref, MIT) | Jason Collier |
+| `cqgridfinity/patterns/` *(planned)* | Independent implementation | Jason Collier |
+| `cqgridfinity/lids/` *(planned)* | Independent implementation | Jason Collier |
+| `cqgridfinity/holders/` *(planned)* | Independent implementation | Jason Collier |
+| `cqgridfinity/drawers/` *(planned)* | Independent implementation | Jason Collier |
 
 ### Source References (MIT)
 
@@ -50,11 +55,18 @@ Full license: [creativecommons.org/licenses/by-nc-sa/4.0/](https://creativecommo
 
 ---
 
-## CC BY-SA 4.0 Licensed Components (Planned)
+## CC BY-SA 4.0 Licensed Components
 
 | Module | Source | Original Author |
 |--------|--------|----------------|
-| `cqgridfinity/gf_ruggedbox_smkent.py` | Independent implementation (smkent spec ref) | smkent (design), Jason Collier (CadQuery implementation) |
+| `cqgridfinity/gf_ruggedbox_smkent.py` | Independent implementation (smkent design) | smkent (design), Jason Collier (CadQuery implementation) |
+
+> **Why this is a separate module from `gf_ruggedbox.py`:** Pred's rugged box is
+> CC BY-**NC**-SA. A derivative of a NonCommercial work stays NonCommercial, so
+> extending it would produce a better box that is still commercially blocked.
+> The two implementations are deliberately independent and **no code crosses
+> between them**. smkent's design is read directly (CC BY-SA permits adaptation
+> with attribution and share-alike), unlike the GPL references below.
 
 **License terms:** You may share and adapt under the following terms:
 - **Attribution** — Credit smkent as the original designer
