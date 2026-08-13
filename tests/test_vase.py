@@ -109,7 +109,7 @@ def test_vasebox_1x1_renders_valid():
 
 @pytest.mark.skipif(SKIP_TEST_BOX, reason="Skipped by SKIP_TEST_BOX env var")
 def test_vasebox_1x1_height():
-    """1×1×3 VaseBox (no lip, no tab) Z = b.height = 3.8 + 3*7 = 24.8mm.
+    """1×1×3 VaseBox (no lip, no tab) Z = b.height = 4.4 + 3*7 = 25.4mm.
 
     Tab (style_tab=0) and lip (enable_lip=True) both add ~1.2mm above b.height;
     disable both to test the core height formula in isolation.

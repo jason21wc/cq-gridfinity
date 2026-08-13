@@ -77,7 +77,23 @@ def test_interior_holds_the_gridfinity_footprint():
     b = _box()
     assert b.int_length == pytest.approx(5 * 42)
     assert b.int_width == pytest.approx(4 * 42)
-    assert b.int_height == pytest.approx(6 * 7)
+    # Interior height is N*7 PLUS room for the bins' stacking lips, matching
+    # smkent's top_height = N*7 + h_lip.
+    assert b.int_height == pytest.approx(6 * 7 + b.bin_lip_clearance)
+
+
+def test_lip_clearance_matches_kennetek_h_lip():
+    """smkent budgets lid clearance with kennetek's h_lip = 3.548. We derive
+    the same number from our own lip geometry instead of hardcoding it."""
+    assert _box().bin_lip_clearance == pytest.approx(3.548, abs=0.01)
+
+
+def test_a_full_height_bin_actually_fits():
+    """The point of the clearance: a 6U bin must fit a 6U box."""
+    from cqgridfinity import GridfinityBox
+
+    b = _box()
+    assert GridfinityBox(2, 2, 6).actual_height <= b.int_height + 1e-6
 
 
 def test_outer_size_adds_two_walls():

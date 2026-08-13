@@ -60,7 +60,7 @@ def test_scoop_scaling_half():
     assert b.scoops == 0.5
     r = b.render()
     assert r.val().isValid()
-    assert _almost_same(size_3d(r), (83.5, 83.5, 38.8))
+    assert _almost_same(size_3d(r), (83.5, 83.5, b.actual_height))
     # Half scoop should be between no-scoop and full-scoop volumes
     b_none = GridfinityBox(2, 2, 5, scoops=False, fillet_interior=False)
     b_full = GridfinityBox(2, 2, 5, scoops=True, fillet_interior=False)
@@ -118,7 +118,7 @@ def test_label_style_full_backward_compat():
     assert "_labels" in b_old.filename()
     r = b_old.render()
     assert r.val().isValid()
-    assert _almost_same(size_3d(r), (83.5, 83.5, 24.8))
+    assert _almost_same(size_3d(r), (83.5, 83.5, b_old.actual_height))
     # Label adds material (overhang shelf) — labeled bin should have more volume
     b_plain = GridfinityBox(2, 2, 3, fillet_interior=False)
     r_plain = b_plain.render()
@@ -309,7 +309,7 @@ def test_compartment_depth_with_scoops():
     r = b.render()
     assert r is not None
     assert r.val().isValid()
-    assert _almost_same(size_3d(r), (83.5, 83.5, 38.8))
+    assert _almost_same(size_3d(r), (83.5, 83.5, b.actual_height))
 
 
 # ---------------------------------------------------------------------------
@@ -326,7 +326,7 @@ def test_cylindrical_basic():
     r = b.render()
     assert r is not None
     assert r.val().isValid()
-    assert _almost_same(size_3d(r), (83.5, 83.5, 38.8))
+    assert _almost_same(size_3d(r), (83.5, 83.5, b.actual_height))
     assert "_cyl20" in b.filename()
 
 
@@ -520,7 +520,7 @@ def test_height_mode0_is_default():
     """Mode 0 (7mm units) is the default and matches the existing formula."""
     b = GridfinityBox(2, 2, 5)
     assert b.gridz_define == 0
-    assert abs(b.height - (3.8 + 7 * 5)) < 1e-6
+    assert abs(b.height - (GR_STACKING_LIP_H + 7 * 5)) < 1e-6
 
 
 def test_height_mode1_internal_mm():
@@ -533,30 +533,33 @@ def test_height_mode1_internal_mm():
 
 def test_height_mode2_external_mm():
     """Mode 2: height_u is total external mm; height = height_u directly."""
+    # Mode 2 takes the EXTERNAL height, i.e. actual_height. Feed it the
+    # finished height of a mode-0 bin and it must reproduce that same part.
     b0 = GridfinityBox(2, 2, 5)
-    total_h = b0.height  # 38.8mm
+    total_h = b0.actual_height
     b2 = GridfinityBox(2, 2, total_h, gridz_define=2)
-    assert abs(b2.height - total_h) < 1e-6
+    assert abs(b2.actual_height - total_h) < 1e-6
 
 
 def test_height_mode3_total_mm():
     """Mode 3: height_u includes stacking lip protrusion; height = height_u - GR_STACKING_LIP_H."""
     b0 = GridfinityBox(2, 2, 5)
-    total_with_lip = b0.height + GR_STACKING_LIP_H
+    total_with_lip = b0.actual_height + GR_STACKING_LIP_H
     b3 = GridfinityBox(2, 2, total_with_lip, gridz_define=3)
-    assert abs(b3.height - b0.height) < 1e-6
+    assert abs(b3.actual_height - b0.actual_height) < 1e-6
 
 
 def test_height_mode_equivalence():
     """All 4 modes expressing the same physical height produce the same bin."""
     b0 = GridfinityBox(2, 2, 5)
-    h = b0.height
+    h = b0.actual_height
     int_h = b0.int_height
     b1 = GridfinityBox(2, 2, int_h, gridz_define=1)
     b2 = GridfinityBox(2, 2, h, gridz_define=2)
     b3 = GridfinityBox(2, 2, h + GR_STACKING_LIP_H, gridz_define=3)
     for b in (b1, b2, b3):
-        assert abs(b.height - h) < 1e-6, f"mode {b.gridz_define}: {b.height} != {h}"
+        assert abs(b.actual_height - h) < 1e-6, \
+            f"mode {b.gridz_define}: {b.actual_height} != {h}"
 
 
 def test_height_mode_invalid():
@@ -587,7 +590,7 @@ def test_height_mode1_renders():
     r = b.render()
     assert r.val().isValid()
     bb = r.val().BoundingBox()
-    assert abs(bb.zlen - b.height) < 0.2
+    assert abs(bb.zlen - b.actual_height) < 0.2
 
 
 @pytest.mark.skipif(

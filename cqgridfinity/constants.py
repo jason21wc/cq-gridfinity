@@ -86,14 +86,28 @@ GR_BOX_PROFILE = (
 )
 
 # bin mating lip extrusion profile
+#
+# Conforms to the official Gridfinity drawing "Bin Sharp Stacking Lip Profile"
+# (Stu142/Gridfinity-Documentation, 2023-11-10):
+#     0.7 @45deg  ->  1.8 vertical  ->  1.9 @45deg
+#     total height 4.4mm, total width 2.6mm
+# Cross-checked against kennetek standard.scad STACKING_LIP_LINE, which cites
+# https://gridfinity.xyz/specification/ and gives the same figures.
+#
+# HISTORY: the final segment was 1.3mm from cq-gridfinity's initial commit
+# (64753d3, 2023-11-09) until 2026-08-12, making the lip 3.8mm tall instead of
+# 4.4mm -- a 0.6mm shallower recess than the spec. Upstream implemented one day
+# before the official drawings were published and it was never revisited. The
+# file already contradicted itself: GR_STACKING_LIP_H below has always carried
+# the spec value of 4.4. Corrected to spec by Jason's decision.
 GR_UNDER_H = 1.6
 GR_TOPSIDE_H = 1.2
 GR_LIP_PROFILE = (
-    (GR_UNDER_H * SQRT2, 45),
-    GR_TOPSIDE_H,
-    (0.7 * SQRT2, -45),
-    1.8,
-    (1.3 * SQRT2, -45),
+    (GR_UNDER_H * SQRT2, 45),  # transition from wall out to the lip
+    GR_TOPSIDE_H,  # support land (kennetek STACKING_LIP_SUPPORT_HEIGHT)
+    (0.7 * SQRT2, -45),  # spec segment 1
+    1.8,  # spec segment 2 (vertical)
+    (1.9 * SQRT2, -45),  # spec segment 3
 )
 GR_LIP_H = 0
 for h in GR_LIP_PROFILE:
@@ -106,12 +120,48 @@ GR_NO_PROFILE = (GR_LIP_H,)
 # Used for gridz_define Mode 3 (height_u includes the stacking lip protrusion).
 GR_STACKING_LIP_H = 4.4
 
+# Stacking lip tip fillet.
+# The spec publishes two lip variants: "Bin Sharp Stacking Lip Profile", where
+# the lip converges to a true point, and "Bin Round Stacking Lip Profile" with
+# R0.5. kennetek uses 0.6 and documents it as "Fillet so the stacking lip does
+# not come to a sharp point". A zero-thickness edge is not manufacturable, so
+# we build the rounded variant.
+#
+# Consequence: the apex sits slightly below the theoretical 7*u + 4.4, which is
+# normal for a filleted feature -- the nominal height is to the sharp apex.
+# Note that filleting R0.6 lands the part almost exactly where cq-gridfinity's
+# old truncated profile did, which suggests upstream was aiming at this apex and
+# reached it by shortening the profile instead of rounding it.
+GR_LIP_FILLET = 0.6
+
+# How far the fillet lowers the lip apex below its nominal (sharp) height.
+#
+# At the apex the outer wall (vertical) meets the lip's final 45 degree face,
+# so the included angle is 45 degrees and the half-angle is 22.5. The arc
+# centre sits r/sin(22.5) from the apex along the bisector, and the arc's
+# highest point is r above that, giving:
+#
+#     setback = r*cos(22.5)/sin(22.5) - r = r*(cot(22.5) - 1) = r*sqrt(2)
+#
+# Exact, not fitted: 0.6*sqrt(2) = 0.8485mm, which matches the measured drop
+# (46.400 -> 45.551) to three decimals.
+GR_LIP_APEX_SETBACK = GR_LIP_FILLET * SQRT2
+
+# ACTUAL stacking lip height, after the tip fillet. kennetek makes the same
+# distinction -- their stacking_lip_height() computes the height *from the
+# filleted profile* and its docstring says "The actual height, not nominal."
+# GR_STACKING_LIP_H (4.4) is the nominal figure the drawings dimension.
+GR_STACKING_LIP_H_ACTUAL = GR_STACKING_LIP_H - GR_LIP_APEX_SETBACK
+
 # Reduced lip profile: keeps underside chamfer for stacking compatibility
-# but replaces overhanging sections with straight wall for easier printing
+# but replaces overhanging sections with straight wall for easier printing.
+# The straight run must total the same height as the segments it replaces
+# (0.7 + 1.8 + 1.9 = 4.4), so a reduced-lip bin is the same overall height as
+# a normal one and still stacks with it.
 GR_REDUCED_LIP_PROFILE = (
     (GR_UNDER_H * SQRT2, 45),
     GR_TOPSIDE_H,
-    0.7 + 1.8 + 1.3,
+    0.7 + 1.8 + 1.9,
 )
 
 # bottom hole nominal dimensions

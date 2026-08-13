@@ -46,16 +46,16 @@ def test_zsnap_mode0_integer_various():
 # ---------------------------------------------------------------------------
 
 def test_zsnap_mode0_float_snaps_up():
-    """Mode 0 with float height_u=2.5 snaps to 3 units: 3.8 + 3*7 = 24.8mm."""
+    """Mode 0 with float height_u=2.5 snaps to 3 units: 4.4 + 3*7 = 25.4mm."""
     b = GridfinityBox(2, 2, 2.5, enable_zsnap=True)
-    expected = 3.8 + 3 * GRHU  # 24.8mm
+    expected = GR_STACKING_LIP_H + 3 * GRHU  # 25.4mm
     assert abs(b.height - expected) < 1e-6
 
 
 def test_zsnap_mode0_float_15_snaps_to_2():
-    """Mode 0 with height_u=1.5 snaps to 2 units: 3.8 + 2*7 = 17.8mm."""
+    """Mode 0 with height_u=1.5 snaps to 2 units: 4.4 + 2*7 = 18.4mm."""
     b = GridfinityBox(2, 2, 1.5, enable_zsnap=True)
-    expected = 3.8 + 2 * GRHU  # 17.8mm
+    expected = GR_STACKING_LIP_H + 2 * GRHU  # 18.4mm
     assert abs(b.height - expected) < 1e-6
 
 
@@ -96,18 +96,20 @@ def test_zsnap_mode1_30mm_snaps_to_35():
 # ---------------------------------------------------------------------------
 
 def test_zsnap_mode2_standard_height_noop():
-    """Mode 2 with a standard Gridfinity height (3.8 + k*7) is a no-op."""
-    standard = 3.8 + 5 * GRHU  # 38.8mm — same as mode 0, z=5
+    """Mode 2 with a standard Gridfinity height (4.4 + k*7) is a no-op."""
+    standard = GR_STACKING_LIP_H + 5 * GRHU  # 39.4mm — same as mode 0, z=5
     b_off = GridfinityBox(2, 2, standard, gridz_define=2)
     b_on  = GridfinityBox(2, 2, standard, gridz_define=2, enable_zsnap=True)
     assert abs(b_on.height - b_off.height) < 1e-6
 
 
 def test_zsnap_mode2_nonstandard_snaps_up():
-    """Mode 2 with 35mm external snaps to 38.8mm (next standard height = 3.8 + 5*7)."""
+    """Mode 2 with 35mm external snaps to 39.4mm (next standard height = 4.4 + 5*7)."""
     b = GridfinityBox(2, 2, 35.0, gridz_define=2, enable_zsnap=True)
-    expected = 3.8 + 5 * GRHU  # 38.8mm
-    assert abs(b.height - expected) < 1e-6
+    expected = GR_STACKING_LIP_H + 5 * GRHU  # 39.4mm
+    # Mode 2 promises an external height, which is actual_height; `height` is
+    # the construction value and carries the tip-fillet compensation.
+    assert abs(b.actual_height - expected) < 1e-6
 
 
 # ---------------------------------------------------------------------------
@@ -116,7 +118,7 @@ def test_zsnap_mode2_nonstandard_snaps_up():
 
 def test_zsnap_mode3_standard_noop():
     """Mode 3 with a standard height + stacking lip is a no-op."""
-    standard_raw = 3.8 + 5 * GRHU   # 38.8mm raw height
+    standard_raw = GR_STACKING_LIP_H + 5 * GRHU   # 39.4mm raw height
     height_u_m3 = standard_raw + GR_STACKING_LIP_H
     b_off = GridfinityBox(2, 2, height_u_m3, gridz_define=3)
     b_on  = GridfinityBox(2, 2, height_u_m3, gridz_define=3, enable_zsnap=True)
@@ -126,14 +128,14 @@ def test_zsnap_mode3_standard_noop():
 def test_zsnap_mode3_nonstandard_snaps():
     """Mode 3 with non-standard input snaps to next standard height.
 
-    height_u = 39.4mm (content_before_snap = 39.4 - 4.4 - 3.8 = 31.2mm).
-    z_snap(31.2) = 35mm. Snapped result = 35 + 3.8 = 38.8mm.
+    height_u = 39.4mm (content_before_snap = 39.4 - 4.4 - 4.4 = 30.6mm).
+    z_snap(30.6) = 35mm. Snapped result = 35 + 4.4 = 39.4mm.
     """
-    # height_u chosen so content = 31.2mm (not a multiple of 7):
-    # z = content + GR_STACKING_LIP_H + 3.8 = 31.2 + 4.4 + 3.8 = 39.4mm
+    # height_u chosen so content is not a multiple of 7:
+    # content = z - GR_STACKING_LIP_H - GR_STACKING_LIP_H = 39.4 - 4.4 - 4.4 = 30.6mm
     b = GridfinityBox(2, 2, 39.4, gridz_define=3, enable_zsnap=True)
-    expected = 3.8 + 5 * GRHU  # 38.8mm
-    assert abs(b.height - expected) < 1e-6
+    expected = GR_STACKING_LIP_H + 5 * GRHU  # 39.4mm
+    assert abs(b.actual_height - expected) < 1e-6
 
 
 # ---------------------------------------------------------------------------
@@ -193,7 +195,7 @@ def test_zsnap_renders_valid_solid():
     r = b.render()
     assert r.val().isValid()
     sx, sy, sz = size_3d(r)
-    expected_z = 28.0 + GR_LIP_H + GR_BOT_H
+    expected_z = b.actual_height
     assert _almost_same(sz, expected_z, tol=0.2)
 
 
@@ -204,5 +206,5 @@ def test_zsnap_mode0_float_renders():
     r = b.render()
     assert r.val().isValid()
     sx, sy, sz = size_3d(r)
-    expected_z = 3.8 + 3 * GRHU  # 24.8mm
+    expected_z = b.actual_height
     assert _almost_same(sz, expected_z, tol=0.2)

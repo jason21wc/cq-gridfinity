@@ -49,6 +49,8 @@ from cqgridfinity.constants import (
     GR_HOLE_SLICE,
     GR_LID_TH,
     GR_LID_TH_MIN,
+    GR_LIP_APEX_SETBACK,
+    GR_LIP_FILLET,
     GR_LIP_H,
     GR_LIP_PROFILE,
     GR_STACKING_LIP_H,
@@ -222,7 +224,9 @@ class GridfinityBox(GridfinityObject):
                 self.height_u,
                 self.length - GR_TOL,
                 self.width - GR_TOL,
-                self.height,
+                # Report the finished part, not the construction height: this
+                # is what a caller would measure with calipers.
+                self.actual_height,
             )
         )
         lip_desc = {
@@ -285,7 +289,7 @@ class GridfinityBox(GridfinityObject):
     def height(self):
         """Total bin height in mm, derived from height_u via gridz_define mode (1B.14).
 
-        Mode 0 (default): height_u in 7mm gridfinity units  → 3.8 + 7*height_u
+        Mode 0 (default): height_u in 7mm gridfinity units  → 4.4 + 7*height_u
         Mode 1: height_u in internal usable mm              → height_u + GR_LIP_H + GR_BOT_H
         Mode 2: height_u is total external mm               → height_u (used as-is)
         Mode 3: height_u in external mm incl stacking lip   → height_u - GR_STACKING_LIP_H
@@ -295,15 +299,47 @@ class GridfinityBox(GridfinityObject):
         z_snap(height(z, gridz_define)) applied after gridz_define conversion.
 
         Mode 0/1 content = the value z_snap operates on in Kennetek.
-        Mode 2/3 content = (external_height - 3.8) so the result stays in the
-        standard-height form 3.8 + k*7 that mode 0 produces.
+        Mode 2/3 content = (external_height - GR_STACKING_LIP_H) so the result stays
+        in the standard-height form 4.4 + k*7 that mode 0 produces.
         """
+        h = self._raw_height
+        # Modes 2/3 promise an exact EXTERNAL height, so compensate for the
+        # material the lip fillet removes -- otherwise asking for 8.00mm
+        # silently yields 7.15mm. Modes 0/1 need no compensation: their nominal
+        # height is to the theoretical sharp apex (what the drawings dimension),
+        # and the finished part is reported by `actual_height`.
+        if self.gridz_define in (2, 3):
+            h += self._lip_setback
+        return h
+
+    @property
+    def _lip_nominal(self):
+        """Nominal lip contribution to external height, by style.
+
+        The official "Bin Total Height" drawing gives two equations:
+            with a lip:    Grid Z Unit * Height Units + Stacking Lip
+            without a lip: Grid Z Unit * Height Units
+        so lip_style="none" adds nothing at all -- a 6U no-lip bin is 42.0mm,
+        not 46.4mm.
+        """
+        if self.lip_style == "none":
+            return 0.0
+        if self.lip_style == "reduced":
+            # No sharp apex to fillet, so this IS the finished height. Match
+            # what the normal lip ends up at, so the two stack interchangeably
+            # rather than the "reduced" variant sitting 0.85mm proud.
+            return GR_STACKING_LIP_H - GR_LIP_APEX_SETBACK
+        return GR_STACKING_LIP_H
+
+    @property
+    def _raw_height(self):
+        """Height before any fillet compensation. See `height`."""
         z = self.height_u
         if self.gridz_define == 0:
             content = GRHU * z
             if self.enable_zsnap:
                 content = self._z_snap(content)
-            return content + 3.8
+            return content + self._lip_nominal
         elif self.gridz_define == 1:
             content = float(z)
             if self.enable_zsnap:
@@ -311,17 +347,49 @@ class GridfinityBox(GridfinityObject):
             return content + GR_LIP_H + GR_BOT_H
         elif self.gridz_define == 2:
             if self.enable_zsnap:
-                content = float(z) - 3.8
+                content = float(z) - GR_STACKING_LIP_H
                 content = self._z_snap(content)
-                return content + 3.8
+                return content + GR_STACKING_LIP_H
             return float(z)
         else:  # 3
             raw = float(z) - GR_STACKING_LIP_H
             if self.enable_zsnap:
-                content = raw - 3.8
+                content = raw - GR_STACKING_LIP_H
                 content = self._z_snap(content)
-                return content + 3.8
+                return content + GR_STACKING_LIP_H
             return raw
+
+    @property
+    def has_lip_profile(self):
+        """True if this bin actually grows a contoured stacking lip.
+
+        Two ways to end up without one: a non-normal lip_style, or a bin so
+        short that int_height goes negative -- render_interior() then falls
+        back to a plain straight profile with no lip contour at all. Computed
+        from _raw_height rather than height, since height depends on this.
+        """
+        if self.lip_style != "normal":
+            return False
+        return (self._raw_height - GR_LIP_H - GR_BOT_H) >= 0
+
+    @property
+    def _lip_setback(self):
+        """How much the tip fillet lowers the apex, 0 if there is no fillet."""
+        return GR_LIP_APEX_SETBACK if self.has_lip_profile else 0.0
+
+    @property
+    def actual_height(self):
+        """Height of the finished part, after the lip tip fillet.
+
+        `height` is the CONSTRUCTION height -- to the theoretical sharp apex,
+        which is what the Gridfinity drawings dimension (7*u + 4.4). Rounding
+        that apex removes material, so the part you measure is shorter.
+
+        kennetek draws the same distinction: their stacking_lip_height()
+        computes from the filleted profile and is documented as returning
+        "The actual height, not nominal."
+        """
+        return self.height - self._lip_setback
 
     @property
     def int_height(self):
@@ -622,6 +690,7 @@ class GridfinityBox(GridfinityObject):
                     ) & HasZCoordinateSelector(GRHU * self.height_u - GR_BASE_HEIGHT)
                     r = self.safe_fillet(r, bs, GR_TOPSIDE_H - EPS)
 
+            r = self._fillet_lip_tip(r)
             if self.holes:
                 r = self.render_holes(r)
             r = r.translate((-self.half_l, -self.half_w, GR_BASE_HEIGHT))
@@ -1059,6 +1128,37 @@ class GridfinityBox(GridfinityObject):
                 tab_x = comp_start
             positions.append((tab_x, tab_w))
         return positions
+
+    def _fillet_lip_tip(self, obj):
+        """Round the stacking lip tip so it is not a zero-thickness edge.
+
+        The spec's full-height lip converges to a true point ("Bin Sharp
+        Stacking Lip Profile"). That is not manufacturable, so the spec also
+        publishes a rounded variant and kennetek fillets it by 0.6mm. Only
+        lip_style="normal" produces the sharp tip -- "reduced" and "none"
+        already terminate in a flat rim, so they are left alone.
+        """
+        # Applies to solid boxes too: a solid bin still carries a stacking lip,
+        # so it has the same sharp tip. Bins too short to grow a lip contour
+        # have a flat rim already and need no fillet.
+        if not self.has_lip_profile:
+            return obj
+        top = obj.val().BoundingBox().zmax
+        edges = obj.edges(HasZCoordinateSelector(top))
+        if not edges.vals():
+            return obj
+        try:
+            return edges.fillet(GR_LIP_FILLET)
+        except Exception:
+            # Visible, not swallowed: the bin is still valid, it just keeps a
+            # sharp lip tip. Silent no-ops on edge treatment have bitten this
+            # codebase twice already (see LEARNING-LOG).
+            warnings.warn(
+                "%s: could not fillet the stacking lip tip; it stays sharp. "
+                "Geometry is otherwise valid." % (self.__class__.__name__,),
+                stacklevel=2,
+            )
+            return obj
 
     def render_holes(self, obj):
         """Cut magnet/screw holes from the bottom face of the bin.

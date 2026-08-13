@@ -35,7 +35,13 @@ import warnings
 import cadquery as cq
 from cqkit.cq_helpers import rounded_rect_sketch
 
-from cqgridfinity.constants import EPS, GRU, GRHU
+from cqgridfinity.constants import (
+    EPS,
+    GRU,
+    GRHU,
+    GR_LIP_APEX_SETBACK,
+    GR_STACKING_LIP_H,
+)
 from cqgridfinity.gf_obj import GridfinityObject
 
 __all__ = ["GridfinityRuggedBoxSmkent"]
@@ -173,7 +179,22 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
 
     @property
     def int_height(self):
-        return self.height_u * GRHU
+        """Interior height, including room for the bins' stacking lips.
+
+        smkent computes lid clearance as
+            top_height = Top_Height * gridfinity_height_increment + h_lip
+        i.e. N*7 plus the ACTUAL (post-fillet) lip height, taken from
+        kennetek's h_lip = 3.548. We derive the same quantity from our own
+        geometry rather than hardcoding it, so it stays correct if the lip
+        fillet is ever retuned. The two agree to 0.0035mm -- see
+        tests/test_spec_conformance.py.
+        """
+        return self.height_u * GRHU + self.bin_lip_clearance
+
+    @property
+    def bin_lip_clearance(self):
+        """Extra headroom a stacked bin's lip needs, above N*7."""
+        return GR_STACKING_LIP_H - GR_LIP_APEX_SETBACK
 
     @property
     def box_length(self):

@@ -410,5 +410,7 @@ def test_bin_standard_holes_unchanged():
     b = GridfinityBox(2, 2, 3, holes=True)
     r = b.render()
     assert r.val().isValid()
-    # Golden baseline captured pre-refactor: 49186.950685 mm³
-    assert _almost_same(r.val().Volume(), 49186.950685, tol=1.0)
+    # Golden baseline re-captured 2026-08-13 after the stacking lip was
+    # corrected to spec (4.4mm nominal, R0.6 tip fillet). The bin is ~0.25mm
+    # shorter than under the old 3.8mm lip, so the volume moved with it.
+    assert _almost_same(r.val().Volume(), 49100.665410, tol=1.0)

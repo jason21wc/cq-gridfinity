@@ -10,7 +10,7 @@ import pytest
 from cqgridfinity import GridfinityBox
 from cqkit.cq_helpers import size_3d
 from common_test import _almost_same, SKIP_TEST_BOX
-from cqgridfinity.constants import GRU, GR_TOL, GR_BASE_HEIGHT, GRHU
+from cqgridfinity.constants import GRU, GR_TOL, GR_BASE_HEIGHT, GRHU, GR_STACKING_LIP_H
 
 
 # ---------------------------------------------------------------------------
@@ -27,7 +27,8 @@ def _expected_outer_w(width_u):
 
 
 def _expected_height(height_u):
-    return 3.8 + GRHU * height_u
+    # Finished height of the part, after the stacking lip tip fillet.
+    return GridfinityBox(1, 1, height_u).actual_height
 
 
 # ---------------------------------------------------------------------------

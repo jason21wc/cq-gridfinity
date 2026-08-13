@@ -25,7 +25,8 @@ def test_basic_box():
     b1 = GridfinityBox(2, 3, 5, no_lip=True)
     r = b1.render()
     assert r.val().isValid()
-    assert _almost_same(size_3d(r), (83.5, 125.5, 38.8))
+    assert _almost_same(size_3d(r), (83.5, 125.5, b1.actual_height))
+    # no_lip has no contoured lip, so no tip fillet: a flat rim, as before.
     assert _faces_match(r, ">Z", 1)
     assert _faces_match(r, "<Z", 6)
     assert _edges_match(r, ">Z", 16)
@@ -71,8 +72,8 @@ def test_lite_box():
     assert r.val().isValid()
     if _export_files("box"):
         b1.save_step_file(path=EXPORT_STEP_FILE_PATH)
-    assert _almost_same(size_3d(r), (83.5, 125.5, 38.8))
-    assert _faces_match(r, ">Z", 1)
+    assert _almost_same(size_3d(r), (83.5, 125.5, b1.actual_height))
+    assert _faces_match(r, ">Z", 4)  # filleted lip tip, not a flat rim
     assert _faces_match(r, "<Z", 6)
     assert _edges_match(r, ">Z", 16)
     assert _edges_match(r, "<Z", 48)
@@ -88,14 +89,14 @@ def test_lite_box():
     assert r.val().isValid()
     if _export_files("box"):
         b1.save_step_file(path=EXPORT_STEP_FILE_PATH)
-    assert _almost_same(size_3d(r), (41.5, 41.5, 10.8))
+    assert _almost_same(size_3d(r), (41.5, 41.5, b1.actual_height))
 
     b1 = GridfinityBox(1, 1, 2, lite_style=True)
     r = b1.render()
     assert r.val().isValid()
     if _export_files("box"):
         b1.save_step_file(path=EXPORT_STEP_FILE_PATH)
-    assert _almost_same(size_3d(r), (41.5, 41.5, 17.8))
+    assert _almost_same(size_3d(r), (41.5, 41.5, b1.actual_height))
 
 
 @pytest.mark.slow
@@ -108,8 +109,8 @@ def test_empty_box():
     assert r.val().isValid()
     if _export_files("box"):
         b1.save_step_file(path=EXPORT_STEP_FILE_PATH)
-    assert _almost_same(size_3d(r), (83.5, 125.5, 38.8))
-    assert _faces_match(r, ">Z", 1)
+    assert _almost_same(size_3d(r), (83.5, 125.5, b1.actual_height))
+    assert _faces_match(r, ">Z", 4)  # filleted lip tip, not a flat rim
     assert _faces_match(r, "<Z", 6)
     assert _edges_match(r, ">Z", 16)
     assert _edges_match(r, "<Z", 72)
@@ -126,14 +127,14 @@ def test_empty_box():
     assert r.val().isValid()
     if _export_files("box"):
         b1.save_step_file(path=EXPORT_STEP_FILE_PATH)
-    assert _almost_same(size_3d(r), (41.5, 41.5, 10.8))
+    assert _almost_same(size_3d(r), (41.5, 41.5, b1.actual_height))
 
     b1 = GridfinityBox(1, 1, 2)
     r = b1.render()
     assert r.val().isValid()
     if _export_files("box"):
         b1.save_step_file(path=EXPORT_STEP_FILE_PATH)
-    assert _almost_same(size_3d(r), (41.5, 41.5, 17.8))
+    assert _almost_same(size_3d(r), (41.5, 41.5, b1.actual_height))
 
 
 @pytest.mark.slow
@@ -146,8 +147,8 @@ def test_solid_box():
     assert r.val().isValid()
     if _export_files("box"):
         b1.save_step_file(path=EXPORT_STEP_FILE_PATH)
-    assert _almost_same(size_3d(r), (167.5, 83.5, 24.8))
-    assert _faces_match(r, ">Z", 1)
+    assert _almost_same(size_3d(r), (167.5, 83.5, b1.actual_height))
+    assert _faces_match(r, ">Z", 4)  # filleted lip tip, not a flat rim
     assert _faces_match(r, "<Z", 8)
     assert _edges_match(r, ">Z", 16)
     assert _edges_match(r, "<Z", 64)
@@ -175,10 +176,10 @@ def test_solid_box_1u_lid(length_u, width_u):
     assert r.val().isValid()
     assert len(r.solids().vals()) == 1
     assert _almost_same(
-        size_3d(r), (length_u * 42 - 0.5, width_u * 42 - 0.5, 10.8)
+        size_3d(r), (length_u * 42 - 0.5, width_u * 42 - 0.5, 11.4)
     )
     # Fully solid: the top reference is the full external height.
-    assert _almost_same(b.top_ref_height, 10.8)
+    assert _almost_same(b.top_ref_height, 11.4)
 
 
 def test_solid_box_zero_ratio_does_not_crash():
@@ -272,8 +273,8 @@ def test_divided_box():
     assert r.val().isValid()
     if _export_files("box"):
         b1.save_step_file(path=EXPORT_STEP_FILE_PATH)
-    assert _almost_same(size_3d(r), (125.5, 125.5, 24.8))
-    assert _faces_match(r, ">Z", 1)
+    assert _almost_same(size_3d(r), (125.5, 125.5, b1.actual_height))
+    assert _faces_match(r, ">Z", 4)  # filleted lip tip, not a flat rim
     assert _faces_match(r, "<Z", 9)
     assert _edges_match(r, ">Z", 16)
     assert _edges_match(r, "<Z", 108)
@@ -295,10 +296,10 @@ def test_all_features_box():
     b1.scoop_rad = 20
     r = b1.render()
     assert r.val().isValid()
-    assert _almost_same(size_3d(r), (167.5, 83.5, 38.8))
+    assert _almost_same(size_3d(r), (167.5, 83.5, b1.actual_height))
     s1 = str(b1)
     assert len(s1.splitlines()) == 9
-    assert "167.50 x 83.50 x 38.80 mm" in s1
+    assert "167.50 x 83.50 x 38.55 mm" in s1  # actual, post lip-fillet
     assert "thickness: 1.00 mm" in s1
     assert "20.00 mm radius" in s1
     assert "label shelf 12.00 mm wide" in s1
@@ -309,7 +310,7 @@ def test_all_features_box():
     if _export_files("box"):
         b1.save_step_file(path=EXPORT_STEP_FILE_PATH)
         b1.save_stl_file(path=EXPORT_STEP_FILE_PATH)
-    assert _faces_match(r, ">Z", 1)
+    assert _faces_match(r, ">Z", 4)  # filleted lip tip, not a flat rim
     assert _faces_match(r, "<Z", 8)
     assert _edges_match(r, ">Z", 16)
     assert _edges_match(r, "<Z", 96)
@@ -321,7 +322,7 @@ def test_all_features_box():
     )
     r = b1.render()
     assert r.val().isValid()
-    assert _almost_same(size_3d(r), (83.5, 83.5, 24.8))
+    assert _almost_same(size_3d(r), (83.5, 83.5, b1.actual_height))
     if _export_files("box"):
         b1.save_step_file(path=EXPORT_STEP_FILE_PATH)
         b1 = GridfinityBox(
@@ -370,7 +371,7 @@ def test_no_lip_backward_compat():
     assert b1.filename() == "gf_bin_2x2x3_nolip"
     r = b1.render()
     assert r.val().isValid()
-    assert _almost_same(size_3d(r), (83.5, 83.5, 24.8))
+    assert _almost_same(size_3d(r), (83.5, 83.5, b1.actual_height))
 
 
 @pytest.mark.skipif(
@@ -400,7 +401,7 @@ def test_reduced_lip_with_scoops():
                        fillet_interior=False)
     r = b1.render()
     assert r.val().isValid()
-    assert _almost_same(size_3d(r), (83.5, 83.5, 24.8))
+    assert _almost_same(size_3d(r), (83.5, 83.5, b1.actual_height))
     if _export_files("box"):
         b1.save_step_file(path=EXPORT_STEP_FILE_PATH)
 
@@ -427,7 +428,7 @@ def test_fillet_rad_default():
     assert b1.safe_fillet_rad > 0
     r = b1.render()
     assert r.val().isValid()
-    assert _almost_same(size_3d(r), (41.5, 41.5, 24.8))
+    assert _almost_same(size_3d(r), (41.5, 41.5, b1.actual_height))
 
 
 @pytest.mark.slow
@@ -442,10 +443,10 @@ def test_fillet_rad_custom():
     assert _almost_same(b1.safe_fillet_rad, 2.5)
     r = b1.render()
     assert r.val().isValid()
-    assert _almost_same(size_3d(r), (41.5, 41.5, 24.8))
+    assert _almost_same(size_3d(r), (41.5, 41.5, b1.actual_height))
     # Larger fillet should be clamped if it exceeds inner_rad
     b2 = GridfinityBox(1, 1, 3, wall_th=1.0, fillet_rad=5.0)
     assert b2.safe_fillet_rad <= b2.inner_rad - 0.05
     r2 = b2.render()
     assert r2.val().isValid()
-    assert _almost_same(size_3d(r2), (41.5, 41.5, 24.8))
+    assert _almost_same(size_3d(r2), (41.5, 41.5, b2.actual_height))
