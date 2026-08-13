@@ -318,6 +318,22 @@ load and loses grip. PETG, ABS, ASA, or nylon.
 
 ---
 
+### Known Remedies — surface these when the matching symptom appears
+
+Deliberately **not built**. Each is a solution held in reserve for a problem we
+may never hit. If the symptom shows up, present the remedy; do not implement
+speculatively.
+
+| Symptom | Remedy | Why it is not built |
+|---------|--------|---------------------|
+| A **lip seal groove** does not grip the filament gasket — too loose or too tight to seat | Expose a groove-specific clearance offset, adjustable in 0.05mm steps | Only matters at this one tight-tolerance interface. May well be moot once built |
+| A **hinge pin** binds in its hole, or is sloppy | Expose a pin/hole fit offset (Pred's hinge is a 4.0mm printed pin in a 4.5mm hole; `GR_HINGE_TOL` = 0.4mm) | Same — one interface, and the existing constant may already be right |
+
+**Not a general feature.** A global offset parameter was considered and rejected:
+latch dimensions already adjust at 0.1mm (D7), and everything else inherits
+battle-tested upstream offsets. Jason: *"I see maybe 1 or 2 things and those may
+be moot, so I don't want to incorporate them now."*
+
 ### Backlog — after the foundation is working
 
 Deferred by decision, not by oversight. Revisit once the phase that unblocks each

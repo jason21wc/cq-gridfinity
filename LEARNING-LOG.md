@@ -176,6 +176,37 @@ not a valid body at all, which pointed straight at the defect above.
 reason out. Guessing wrong sends the investigation away from the real defect. A
 labelled hypothesis is still a wrong answer if the truth was one search away.
 
+#### Every Significant Bug This Session Was a Silent Success (2026-08-12)
+Reviewed together, the failures share one shape: **the thing reported healthy while
+being wrong.**
+
+| Bug | What it reported |
+|-----|------------------|
+| Divider roof cut nothing (cutter landed 100mm off) | `isValid() == True` |
+| Sub-7mm lid worked via a negative-height extrude | `isValid() == True` |
+| Rugged lid mislabelled "non-watertight" for ~6 months | quarantined as `xfail`, never re-examined |
+| Edge chamfer silently skipped by `except: pass` | no error at all |
+
+None were caught by a validity check. **Every one was caught by asserting a
+quantity** — volume removed, tangent position, dimension, surface-type count.
+
+**Rule:** `isValid()` proves a solid is well-formed, not that it is *correct*. For
+any feature whose job is to add or remove material, assert **how much** and **where**,
+ideally against a hand-computed figure. Validity is a floor, not a test.
+
+**Second-order lesson:** a defect parked as `xfail` stops being investigated. The
+rugged lid carried a wrong diagnosis for six months and had a real user-visible
+consequence nobody connected to it. Quarantine hides the symptom *and* the clue.
+
+#### Verifying Against Your Own Transcription Proves Nothing (2026-08-12)
+Planned to test generated geometry against `GRIDFINITY-SPEC.md` — until noticing that
+document is *our* transcription of the community spec. Testing our code against our
+own notes only proves we are **consistently** wrong. Verify the notes against the
+canonical source first, then test code against the notes.
+
+Generalises: whenever a test's oracle was produced by the same process as the thing
+under test, the test is circular. Find an independent oracle.
+
 ### Debugging
 
 #### Safe Fillet Pattern (2026-02-27)
