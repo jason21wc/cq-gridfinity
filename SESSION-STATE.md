@@ -1,6 +1,6 @@
 # Session State
 
-**Last Updated:** 2026-08-09 (Architecture review + full feature triage + re-sequenced roadmap)
+**Last Updated:** 2026-08-13 (Spec conformance: stacking lip corrected)
 **Memory Type:** Working (transient)
 **Lifecycle:** Prune at session start per §7.0.4
 
@@ -10,35 +10,39 @@
 ---
 
 ## Current Position
-- **Phase:** P1 substantially complete — **DoD-3 VERIFIED**. Next: choose P2 or P3
-- **Plan:** `documents/ROADMAP.md` (supersedes the old 1C–1F parity sequence)
+- **Phase:** P3 (smkent rugged box) — steps 1–2 of 8 done. Interrupted by a
+  spec-conformance detour that turned out to be load-bearing
+- **Plan:** `documents/ROADMAP.md`
 - **Blocker:** None
 
-### 🎯 The premise is proven (2026-08-10)
+### 🔴 Stacking lip was 0.6mm off spec for two years — corrected 2026-08-13
 
-Jason opened the ship set in Shapr3D and Fusion 360. **Base profile holes, magnet
-holes, scoops, labels — all import and read as editable CAD geometry.** The founding
-claim of the project had never been tested; it now holds as a measured result.
+Upstream's final 45° lip segment was **1.3mm**; the official drawings
+(Stu142/Gridfinity-Documentation) specify **1.9mm**. Present since
+cq-gridfinity's first commit (2023-11-09), one day *before* the drawings were
+published, never revisited.
 
-`tools/step_audit.py` is therefore *calibrated*: its clean verdict on these models
-corresponds to a human confirming them in real CAD. That is what makes it valid as a
-CI gate rather than a self-referential check.
+It survived 341 tests, `isValid()`, the B-Rep audit and a human CAD inspection
+because the code was **internally consistent** — profile said 3.8, height
+formula said 3.8. `constants.py` even contradicted itself in plain sight
+(`GR_STACKING_LIP_H = 4.4` beside a profile summing to 3.8) with nothing
+comparing them.
 
-### P1 status
+| | Nominal (drawings) | Actual (finished part) |
+|---|---|---|
+| Lip height | 4.4 | **3.5515** |
+| Bin height | `7u + 4.4` | `7u + 3.5515` |
+| kennetek `h_lip` | — | 3.548 → **agrees to 0.0035mm** |
 
-| Item | Status |
-|------|--------|
-| `tools/step_audit.py` | ✅ surface-type census; exits non-zero on flags (CI-ready) |
-| `examples/scripts/generate_shipset.py` | ✅ 32 models, `--out` configurable |
-| DoD-1 one command | ✅ |
-| DoD-2 watertight | ✅ 32/32 |
-| **DoD-3 opens in CAD** | ✅ **VERIFIED** |
-| DoD-4 B-Rep quality | ✅ 32/32 clean, 0 flagged |
-| DoD-5 / DoD-6 | Outstanding — parameter purpose pass, granularity audit |
+`height` = construction (to the theoretical sharp apex, what drawings
+dimension). `actual_height` = the finished part. Fillet lowers the apex by
+exactly `r·√2`. Modes 2/3 compensate, so an explicit external height is
+delivered exactly — this matters most for `as_lid()`.
 
-> The audit reports the rugged box *valid* despite the known non-watertight lid
-> `xfail`. The assembly export likely does not surface the defect the way the unit
-> test does. **Do not read that as clearing the xfail.**
+**Found by asking what the rugged box uses for clearance** — an independent
+consumer, corroborating from a different direction. Measuring the bin alone
+never would have.
+
 
 ## What Changed This Session
 
