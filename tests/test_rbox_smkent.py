@@ -240,6 +240,57 @@ def test_draw_latch_not_yet_implemented():
         _box(latch_type="draw").render_latch()
 
 
+# --- Draw latch (1E.2) ------------------------------------------------------
+
+
+def test_draw_latch_constants_follow_upstream_formulas():
+    """From smkent's "Internal constants" block."""
+    from cqgridfinity.gf_ruggedbox_smkent import (
+        SK_DRAW_HANDLE_LENGTH, SK_DRAW_PIN_HANDLE_R, SK_DRAW_PIN_R,
+        SK_DRAW_SCREW_EYELET_R, SK_DRAW_THICKNESS,
+    )
+
+    assert SK_DRAW_THICKNESS == pytest.approx(2.25)      # latch_base_size / 2
+    assert SK_DRAW_HANDLE_LENGTH == pytest.approx(14.625)  # base_size * 3.25
+    assert SK_DRAW_SCREW_EYELET_R == pytest.approx(3.3)  # screw_d * 1.1
+    assert SK_DRAW_PIN_HANDLE_R == pytest.approx(4.8)    # screw_d * 1.6
+    assert SK_DRAW_PIN_R == pytest.approx(2.6)           # pin_handle_r - 2.2
+
+
+def test_draw_latch_catch_body_is_an_exact_stadium():
+    """Two equal circles hulled -> pi*r^2 + 2*r*span, times the latch width.
+
+    Checks the volume analytically rather than just isValid: an approximated
+    hull would be close but not exact, and that is the failure mode worth
+    catching.
+    """
+    import math as _m
+
+    b = _box()
+    circles = b._draw_latch_catch_body_circles()
+    span = abs(circles[1][1] - circles[0][1])
+    t = circles[0][2]
+    vol = b.render_draw_latch_catch_body().val().Volume()
+    expected = (_m.pi * t * t + 2 * t * span) * b.latch_width
+    assert vol == pytest.approx(expected, rel=1e-6)
+
+
+def test_draw_latch_catch_body_keeps_analytic_end_caps():
+    """The hull's arcs must survive as cylinders, not become facets."""
+    from OCP.BRepAdaptor import BRepAdaptor_Surface
+
+    faces = _box().render_draw_latch_catch_body().val().Faces()
+    kinds = [str(BRepAdaptor_Surface(f.wrapped).GetType()).rsplit("_", 1)[-1]
+             for f in faces]
+    assert kinds.count("Cylinder") == 2, "stadium end caps must stay cylindrical"
+
+
+def test_draw_latch_catch_body_renders_valid():
+    r = _box().render_draw_latch_catch_body()
+    assert r.val().isValid()
+    assert len(r.solids().vals()) == 1
+
+
 # --- Naming -----------------------------------------------------------------
 
 

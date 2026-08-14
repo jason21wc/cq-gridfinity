@@ -59,6 +59,24 @@ SK_LATCH_BODY_PROPORTION = 3.0  # latch body size relative to screw diameter
 SK_LATCH_EDGE_RADIUS = 0.8
 SK_SCREW_HOLE_TOL = -0.1  # undersize so the screw forms its own thread
 
+# -- Draw latch (1E.2) ---------------------------------------------------
+# Two-piece over-center toggle: a handle and a catch joined by a pin. Unlike
+# the clip latch it actively CLAMPS the lid, which is why the lip seal depends
+# on it -- a seal only seals under compression.
+# Values from smkent rugged-box-library.scad "Internal constants".
+SK_DRAW_THICKNESS = SK_M3 * (SK_LATCH_BODY_PROPORTION / 2) / 2  # latch_base_size/2
+SK_DRAW_HANDLE_LENGTH = SK_M3 * (SK_LATCH_BODY_PROPORTION / 2) * 3.25
+SK_DRAW_SCREW_EYELET_R = SK_M3 * 1.1
+SK_DRAW_PIN_HANDLE_R = SK_M3 * 1.6
+SK_DRAW_PIN_R = SK_DRAW_PIN_HANDLE_R - 2.2
+SK_DRAW_SEP = 0.4  # clearance between the two pieces
+SK_DRAW_VSEP = 0.6  # vertical separation between interlocking segments
+SK_DRAW_BODY_ANGLE = 25
+SK_DRAW_BODY_CURVE_R = 10
+SK_DRAW_GRIP_ANGLE = 45
+SK_DRAW_GRIP_CURVE_R = 16
+SK_DRAW_SEGMENTS = 5  # alternating interlocking bands across the latch width
+
 
 def _tangent_point(radius, point, prefer_right=True):
     """Where a line from `point` touches a circle of `radius` at the origin.
@@ -476,6 +494,43 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
                     stacklevel=2,
                 )
         return obj
+
+    # -- draw latch (1E.2) ------------------------------------------------
+
+    @property
+    def _draw_pin_offset(self):
+        """Pin joint centre, relative to the handle origin."""
+        return (
+            SK_DRAW_SCREW_EYELET_R - SK_DRAW_PIN_HANDLE_R - SK_M3 * 0.1,
+            -SK_DRAW_HANDLE_LENGTH,
+        )
+
+    def _draw_latch_catch_body_circles(self):
+        """The catch body is a hull of two equal circles -- a stadium.
+
+        smkent:
+            translate([eyelet_r + thickness + sep, 0])
+            hull() { circle(thickness) at y = -handle_length + offset - delta;
+                     circle(thickness) at y = -base_size + screw_d/2 + sep; }
+        """
+        t = SK_DRAW_THICKNESS
+        pin_diameter = SK_DRAW_PIN_R - SK_DRAW_SEP / 2
+        offset_from_pin = SK_DRAW_SEP + t + SK_DRAW_PIN_HANDLE_R
+        size_delta = pin_diameter - t
+        x = SK_DRAW_SCREW_EYELET_R + t + SK_DRAW_SEP
+        y_lo = -SK_DRAW_HANDLE_LENGTH + offset_from_pin - size_delta
+        y_hi = -self.latch_base_size + SK_M3 / 2 + self.latch_screw_separation
+        return [(x, y_lo, t), (x, y_hi, t)]
+
+    def render_draw_latch_catch_body(self):
+        """The catch's main body, before the hook is added.
+
+        Built with the exact hull-of-circles primitive rather than an
+        approximation, so the end caps stay true arcs.
+        """
+        circles = self._draw_latch_catch_body_circles()
+        wire = _wire_from_hull(_hull_of_circles(circles))
+        return wire.extrude(self.latch_width)
 
     def render_latch(self):
         """The clip latch: a single flexing part, no hardware but its screws."""
