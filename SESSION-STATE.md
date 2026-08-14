@@ -93,6 +93,10 @@ anylid dispositioned in 8 batches → **21 Keep, 21 Cut**. See
 
 ## Open Items
 
+- **Reduced lip has no rim taper** (found in double-check, pre-existing). Wall is
+  a constant 2.60mm from the rim; normal tapers from 1.45mm. They are now the same
+  height but do **not** stack interchangeably — recess openings differ ~1.15mm/side.
+  See ROADMAP Known Remedies
 - `isValid()` coverage audit (from the 1B gate)
 - **Repo is still a fork** — PRs default to targeting michaelgale/cq-gridfinity.
   Detaching is a one-time GitHub support request; Jason's call
