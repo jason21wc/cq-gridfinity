@@ -2,6 +2,9 @@
 
 Authoritative dimensional reference for the Gridfinity standard. Compiled from:
 - **Official spec:** https://gridfinity.xyz/specification/
+- **Dimensioned drawings (primary oracle):** https://github.com/Stu142/Gridfinity-Documentation
+  — `bin_stacking_lip_profile`, `bin_bottom_profile`, `bin_total_height`,
+  `bin_total_width`. These carry the actual numbers; the spec page is prose.
 - **kennetek/gridfinity-rebuilt-openscad** `src/core/standard.scad` (MIT) — commit `910e22d`
 - **cq-gridfinity** `cqgridfinity/constants.py` (MIT) — v0.5.7
 
@@ -78,7 +81,25 @@ STACKING_LIP_LINE = [
 | Parameter | Value | Notes |
 |-----------|-------|-------|
 | Lip width (X extent) | 2.6 mm | Total horizontal protrusion |
-| Lip height (Y extent) | 4.4 mm | Total vertical extent |
+| Lip height (Y extent) | 4.4 mm | **Nominal** — to the theoretical sharp apex |
+| Lip height, as built | ~3.5515 mm | **Actual** — after the R0.6 tip fillet |
+| Tip fillet radius | 0.6 mm | kennetek `STACKING_LIP_FILLET_RADIUS` |
+| Apex setback | 0.8485 mm | `r·√2` — exact, see derivation below |
+
+> **Nominal vs actual.** Drawings dimension the sharp apex (4.4mm); the tip is
+> then rounded R0.6 so it is not a zero-thickness edge, and the part measures
+> ~3.5515mm. Both numbers are correct and both are needed: the nominal is the
+> standard, the actual is what clearance must accommodate. kennetek draws the
+> same distinction — `stacking_lip_height()` is documented *"the actual height,
+> not nominal"* and publishes `h_lip = 3.548`, agreeing with ours to 0.0035mm.
+>
+> **Setback derivation:** at the apex the outer wall (vertical) meets the final
+> 45° face, so the included angle is 45° and the half-angle 22.5°. The arc
+> centre sits `r/sin(22.5°)` along the bisector and the arc's top is `r` above
+> it, giving `r·(cot(22.5°) − 1) = r·√2`. Predicts 0.8485mm; measured 0.849mm.
+>
+> **Total bin height:** `7×u + 4.4` nominal, `7×u + 3.5515` as built. With no
+> stacking lip the drawing gives `7×u` exactly — no lip allowance at all.
 | Fillet radius | 0.6 mm | Applied at top of lip |
 | Support height | 1.2 mm | Inner support ledge below lip |
 | First segment | 0.7mm at 45° | |
@@ -90,12 +111,16 @@ STACKING_LIP_LINE = [
 ```python
 GR_LIP_PROFILE = (
     (GR_UNDER_H * sqrt(2), 45),    # 1.6mm underside (reversed direction)
-    GR_TOPSIDE_H,                   # 1.2mm vertical
-    (0.7 * sqrt(2), -45),           # 0.7mm at -45°
-    1.8,                            # 1.8mm vertical
-    (1.3 * sqrt(2), -45),           # 1.3mm at -45°
+    GR_TOPSIDE_H,                   # 1.2mm support land
+    (0.7 * sqrt(2), -45),           # 0.7mm at -45°   ] spec lip
+    1.8,                            # 1.8mm vertical  ] = 4.4mm
+    (1.9 * sqrt(2), -45),           # 1.9mm at -45°   ]
 )
-# Total lip height ≈ 6.6mm (includes underside)
+# Total profile 7.2mm; the lip contour itself is 0.7+1.8+1.9 = 4.4mm.
+
+# CORRECTED 2026-08-13. The final segment was 1.3mm (a 3.8mm lip) from
+# cq-gridfinity's initial commit until then -- 0.6mm short of the published
+# spec. See the nominal/actual note below.
 ```
 
 ## 4. Magnet & Screw Holes
