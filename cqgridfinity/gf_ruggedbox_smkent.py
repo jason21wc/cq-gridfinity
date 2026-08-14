@@ -81,6 +81,107 @@ def _tangent_point(radius, point, prefer_right=True):
     return radius * math.cos(ang), radius * math.sin(ang)
 
 
+def _hull_of_circles(circles):
+    """Exact 2D convex hull of circles, as a list of (kind, ...) wire segments.
+
+    OpenSCAD leans on hull() constantly; CadQuery has none. For circles of
+    EQUAL radius the hull is just `polygon(centres).offset2D(r)`, which the clip
+    latch uses. The draw latch hulls circles of DIFFERENT radii, where that
+    shortcut does not apply.
+
+    The true boundary alternates arcs and external tangent lines. For two
+    circles at distance d, the outward normal n satisfies n . u = (r1 - r2) / d
+    with u the unit vector between centres, so the tangent points are
+    c1 + r1*n and c2 + r2*n. Computing them keeps the arcs analytic instead of
+    faceting the circles into polygons -- the degradation this project exists
+    to avoid.
+
+    Returns [("arc", centre, radius, start_ang, end_ang) |
+             ("line", p0, p1)] in counter-clockwise order.
+    """
+    pts = [(c[0], c[1]) for c in circles]
+    # Order by the hull of the centres. Adequate here: no circle in these
+    # shapes swallows another, which is the case that would break it.
+    hull = _convex_hull_2d(pts)
+    if len(hull) < 2:
+        raise ValueError("need at least two distinct circles")
+    idx = [pts.index(h) for h in hull]
+    segs, tangents = [], []
+    for i in range(len(idx)):
+        a, b = circles[idx[i]], circles[idx[(i + 1) % len(idx)]]
+        d = math.hypot(b[0] - a[0], b[1] - a[1])
+        if d <= abs(a[2] - b[2]) or d == 0:
+            raise ValueError("one circle contains another; hull undefined here")
+        ux, uy = (b[0] - a[0]) / d, (b[1] - a[1]) / d
+        phi = math.acos(max(-1.0, min(1.0, (a[2] - b[2]) / d)))
+        # Rotate u by -phi for the outward (counter-clockwise) normal.
+        nx = ux * math.cos(-phi) - uy * math.sin(-phi)
+        ny = ux * math.sin(-phi) + uy * math.cos(-phi)
+        tangents.append((
+            (a[0] + a[2] * nx, a[1] + a[2] * ny),
+            (b[0] + b[2] * nx, b[1] + b[2] * ny),
+            math.atan2(ny, nx),
+        ))
+    for i in range(len(idx)):
+        c = circles[idx[i]]
+        prev_ang = tangents[i - 1][2]
+        this_ang = tangents[i][2]
+        segs.append(("arc", (c[0], c[1]), c[2], prev_ang, this_ang))
+        segs.append(("line", tangents[i][0], tangents[i][1]))
+    return segs
+
+
+def _convex_hull_2d(points):
+    """Monotone chain hull. Plain geometry, no CAD kernel involved."""
+    pts = sorted(set(points))
+    if len(pts) <= 2:
+        return pts
+
+    def cross(o, a, b):
+        return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+
+    lower = []
+    for p in pts:
+        while len(lower) >= 2 and cross(lower[-2], lower[-1], p) <= 0:
+            lower.pop()
+        lower.append(p)
+    upper = []
+    for p in reversed(pts):
+        while len(upper) >= 2 and cross(upper[-2], upper[-1], p) <= 0:
+            upper.pop()
+        upper.append(p)
+    return lower[:-1] + upper[:-1]
+
+
+def _wire_from_hull(segs):
+    """Build a closed CadQuery wire from _hull_of_circles output."""
+    wp = cq.Workplane("XY")
+    start = None
+    for kind, *rest in segs:
+        if kind == "line":
+            p0, p1 = rest
+            if start is None:
+                wp = wp.moveTo(*p0)
+                start = p0
+            wp = wp.lineTo(*p1)
+        else:
+            centre, radius, a0, a1 = rest
+            while a1 < a0:
+                a1 += 2 * math.pi
+            mid = (a0 + a1) / 2
+            pm = (centre[0] + radius * math.cos(mid),
+                  centre[1] + radius * math.sin(mid))
+            pe = (centre[0] + radius * math.cos(a1),
+                  centre[1] + radius * math.sin(a1))
+            if start is None:
+                p0 = (centre[0] + radius * math.cos(a0),
+                      centre[1] + radius * math.sin(a0))
+                wp = wp.moveTo(*p0)
+                start = p0
+            wp = wp.threePointArc(pm, pe)
+    return wp.close()
+
+
 class GridfinityRuggedBoxSmkent(GridfinityObject):
     """Rugged box (smkent design) sized in Gridfinity units.
 

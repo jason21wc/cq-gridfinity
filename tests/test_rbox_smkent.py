@@ -148,6 +148,63 @@ def test_tangent_point_rejects_interior_point():
         _tangent_point(4.5, (1.0, 1.0))
 
 
+# --- Exact hull of circles (draw latch prerequisite) ------------------------
+
+
+def test_hull_of_equal_circles_is_a_stadium():
+    """Analytic check: two equal circles hull to pi*r^2 + 2*r*d."""
+    import math as _m
+
+    from cqgridfinity.gf_ruggedbox_smkent import _hull_of_circles, _wire_from_hull
+
+    r, d = 3.0, 10.0
+    area = _wire_from_hull(
+        _hull_of_circles([(0, 0, r), (d, 0, r)])
+    ).extrude(1).val().Volume()
+    assert area == pytest.approx(_m.pi * r * r + 2 * r * d, abs=0.01)
+
+
+@pytest.mark.parametrize(
+    "circles",
+    [
+        [(0, 0, 3.0), (10, 0, 3.0)],
+        [(0, 0, 4.0), (12, 0, 1.5)],          # unequal radii
+        [(0, 0, 3.0), (10, 0, 2.0), (5, 9, 1.5)],
+    ],
+)
+def test_hull_contains_every_circle(circles):
+    """The hull must enclose all input circles.
+
+    Equal radii can be done with offset2D; unequal radii cannot, and that is
+    the case the draw latch needs. Sampling each circle's rim is the check that
+    the tangent-line construction is right rather than merely plausible.
+    """
+    import math as _m
+
+    import cadquery as _cq
+
+    from cqgridfinity.gf_ruggedbox_smkent import _hull_of_circles, _wire_from_hull
+
+    face = _wire_from_hull(_hull_of_circles(circles)).extrude(1).val()
+    for cx, cy, r in circles:
+        for k in range(36):
+            a = 2 * _m.pi * k / 36
+            probe = _cq.Workplane("XY").box(0.02, 0.02, 0.02).translate(
+                (cx + r * _m.cos(a), cy + r * _m.sin(a), 0.5)
+            )
+            assert face.intersect(probe.val()).Volume() > 1e-9, (
+                "circle rim falls outside the hull"
+            )
+
+
+def test_hull_rejects_contained_circle():
+    """One circle swallowing another is the case the ordering cannot handle."""
+    from cqgridfinity.gf_ruggedbox_smkent import _hull_of_circles
+
+    with pytest.raises(ValueError, match="contains another"):
+        _hull_of_circles([(0, 0, 10.0), (1, 0, 2.0)])
+
+
 # --- Clip latch (1E.1) ------------------------------------------------------
 
 
