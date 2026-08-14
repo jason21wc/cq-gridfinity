@@ -153,15 +153,27 @@ GR_LIP_APEX_SETBACK = GR_LIP_FILLET * SQRT2
 # GR_STACKING_LIP_H (4.4) is the nominal figure the drawings dimension.
 GR_STACKING_LIP_H_ACTUAL = GR_STACKING_LIP_H - GR_LIP_APEX_SETBACK
 
-# Reduced lip profile: keeps underside chamfer for stacking compatibility
-# but replaces overhanging sections with straight wall for easier printing.
-# The straight run must total the same height as the segments it replaces
-# (0.7 + 1.8 + 1.9 = 4.4), so a reduced-lip bin is the same overall height as
-# a normal one and still stacks with it.
+# Reduced lip profile: keeps the underside chamfer for stacking compatibility
+# but simplifies the overhanging middle into a single straight run, for easier
+# printing.
+#
+# The RIM TAPER IS RETAINED (the final 1.9mm @45 segment). It was previously a
+# straight run all the way to the rim, which left a constant 2.60mm wall for
+# 5.6mm below the top -- so the recess never opened up and a bin's base could
+# not seat in it. A reduced-lip bin was the same height as a normal one but
+# would not actually stack with it. Corrected 2026-08-13.
+#
+# Segments total 7.2mm (= GR_LIP_H) and the lip contour is 2.5 + 1.9 = 4.4mm,
+# matching the spec, so both lip styles are dimensionally interchangeable.
+# The profile's NET horizontal travel must match the normal lip, or the recess
+# ends up a different shape: normal is +1.6 - 0.7 - 1.9 = -1.0. Collapsing the
+# two inward segments into one 2.6mm taper preserves that (+1.6 - 2.6 = -1.0)
+# while removing the intermediate step, which is the printability win.
 GR_REDUCED_LIP_PROFILE = (
-    (GR_UNDER_H * SQRT2, 45),
-    GR_TOPSIDE_H,
-    0.7 + 1.8 + 1.9,
+    (GR_UNDER_H * SQRT2, 45),  # underside chamfer, kept for stacking
+    GR_TOPSIDE_H,  # support land
+    1.8,  # simplified middle (was 0.7@-45 + 1.8 straight)
+    (2.6 * SQRT2, -45),  # single rim taper, net travel matches normal
 )
 
 # bottom hole nominal dimensions

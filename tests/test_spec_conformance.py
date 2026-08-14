@@ -192,11 +192,61 @@ def test_no_lip_1u_has_no_interior():
 
 
 def test_reduced_lip_stacks_with_normal_lip():
-    """A "reduced" lip is a printability variant, not a different size -- it
-    must finish at the same height as the normal lip it substitutes for."""
+    """A "reduced" lip is a printability variant, not a different size."""
     a = GridfinityBox(2, 2, 6)
     b = GridfinityBox(2, 2, 6, lip_style="reduced")
     assert b.actual_height == pytest.approx(a.actual_height, abs=0.01)
+
+
+def test_reduced_lip_recess_opens_at_the_rim():
+    """Equal height is not enough -- the RECESS has to accept a bin's base.
+
+    Regression: the reduced profile ran straight to the rim, leaving a constant
+    2.60mm wall for 5.6mm below the top. The recess never opened, so a
+    reduced-lip bin could not actually be stacked on despite matching heights.
+    The rim opening must track the normal lip's.
+    """
+    def rim_wall(solid, dz=0.3):
+        # Local probe: inside the tip fillet the cross-section is narrower than
+        # the bin's full width, so _wall_thickness_at's strict width filter
+        # rejects it. Take the largest ring instead of demanding full width.
+        bb = solid.BoundingBox()
+        pl = (cq.Workplane("XY").rect(500, 500).extrude(0.02)
+              .translate((0, 0, bb.zmax - dz)))
+        rings = [f for f in solid.intersect(pl.val()).Faces()
+                 if len(f.Wires()) == 2]
+        if not rings:
+            return None
+        f = max(rings, key=lambda x: x.BoundingBox().xlen)
+        inner = sorted(f.Wires(), key=lambda w: w.BoundingBox().xlen)[0]
+        return (f.BoundingBox().xlen - inner.BoundingBox().xlen) / 2
+
+    a = GridfinityBox(2, 2, 6).render().val()
+    b = GridfinityBox(2, 2, 6, lip_style="reduced").render().val()
+    rim_a = rim_wall(a)
+    rim_b = rim_wall(b)
+    assert rim_a is not None and rim_b is not None
+    # Thin at the rim, nowhere near the 2.6mm maximum.
+    assert rim_b < 1.8, "reduced lip does not taper at the rim"
+    # And within a fraction of a mm of the normal lip it substitutes for.
+    assert rim_b == pytest.approx(rim_a, abs=0.15)
+
+
+def test_reduced_lip_net_travel_matches_normal():
+    """The profile's net horizontal travel sets the recess shape. Normal is
+    +1.6 - 0.7 - 1.9 = -1.0; reduced collapses the two inward segments into one
+    2.6mm taper for the same -1.0. Mismatching it produced an invalid solid."""
+    from cqgridfinity.constants import (
+        GR_LIP_PROFILE, GR_REDUCED_LIP_PROFILE, SQRT2,
+    )
+
+    def net(profile):
+        return sum(
+            (seg[0] / SQRT2) * (1 if seg[1] > 0 else -1)
+            for seg in profile if isinstance(seg, tuple)
+        )
+
+    assert net(GR_REDUCED_LIP_PROFILE) == pytest.approx(net(GR_LIP_PROFILE))
 
 
 # --- Base profile -----------------------------------------------------------

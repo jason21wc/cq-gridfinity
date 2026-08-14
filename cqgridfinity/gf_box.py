@@ -322,14 +322,9 @@ class GridfinityBox(GridfinityObject):
         so lip_style="none" adds nothing at all -- a 6U no-lip bin is 42.0mm,
         not 46.4mm.
         """
-        if self.lip_style == "none":
-            return 0.0
-        if self.lip_style == "reduced":
-            # No sharp apex to fillet, so this IS the finished height. Match
-            # what the normal lip ends up at, so the two stack interchangeably
-            # rather than the "reduced" variant sitting 0.85mm proud.
-            return GR_STACKING_LIP_H - GR_LIP_APEX_SETBACK
-        return GR_STACKING_LIP_H
+        # "reduced" now carries the same rim taper as "normal", so it has the
+        # same sharp apex and takes the same fillet -- no special case.
+        return 0.0 if self.lip_style == "none" else GR_STACKING_LIP_H
 
     @property
     def _raw_height(self):
@@ -368,7 +363,7 @@ class GridfinityBox(GridfinityObject):
         back to a plain straight profile with no lip contour at all. Computed
         from _raw_height rather than height, since height depends on this.
         """
-        if self.lip_style != "normal":
+        if self.lip_style not in ("normal", "reduced"):
             return False
         return (self._raw_height - GR_LIP_H - GR_BOT_H) >= 0
 
