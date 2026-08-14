@@ -291,6 +291,86 @@ def test_draw_latch_catch_body_renders_valid():
     assert len(r.solids().vals()) == 1
 
 
+def test_draw_latch_hook_renders_valid():
+    b = _box()
+    r = b._draw_latch_hook_solid(b.latch_width)
+    assert r.val().isValid()
+    assert len(r.solids().vals()) == 1
+
+
+def test_draw_latch_hook_dimensions_follow_source():
+    """outr = eyelet_r + 2*thickness = 7.8; claw spans -outr*0.65 .. +outr."""
+    from cqgridfinity.gf_ruggedbox_smkent import (
+        SK_DRAW_SCREW_EYELET_R, SK_DRAW_THICKNESS,
+    )
+
+    b = _box()
+    outr = SK_DRAW_SCREW_EYELET_R + SK_DRAW_THICKNESS * 2
+    assert outr == pytest.approx(7.8)
+    bb = b._draw_latch_hook_solid(b.latch_width).val().BoundingBox()
+    assert bb.ylen == pytest.approx(outr, abs=0.01)
+    assert bb.xlen == pytest.approx(outr + outr * 0.65, abs=0.01)
+
+
+def test_draw_latch_throat_is_asymmetric():
+    """The throat is the mechanism, not decoration.
+
+    smkent cuts it with two ellipse quarters scaled (1+cr) and (1-cr), so the
+    mouth is wider where the keeper enters and tighter where it is retained. A
+    symmetric circular throat would either not close by hand or not hold.
+    Approximating the ellipses with circles loses exactly this.
+    """
+    import cadquery as _cq
+
+    b = _box()
+    h = b.latch_width
+    hook = b._draw_latch_hook_solid(h).val()
+    er, cr = 3.3, 0.52
+    cx = -er * cr
+
+    def is_void(x, y):
+        probe = _cq.Workplane("XY").box(0.15, 0.15, 0.15).translate((x, y, h / 2))
+        return hook.intersect(probe.val()).Volume() < 1e-9
+
+    y = 2.5
+    # Analytic reach of each lobe at this height.
+    scale = (1 - (y / er) ** 2) ** 0.5
+    tight_reach = er * (1 - cr) * scale
+    wide_reach = er * (1 + cr) * scale
+    assert wide_reach / tight_reach == pytest.approx((1 + cr) / (1 - cr))
+
+    # Inside each lobe is void; comfortably outside is material.
+    assert is_void(cx + wide_reach * 0.5, y), "entry side should be open"
+    assert not is_void(cx - tight_reach * 2.0, y), "retention side should be solid"
+    # And the entry side is open well past where the retention side is solid.
+    assert is_void(cx + tight_reach * 2.0, y), (
+        "throat is symmetric -- the ellipse scaling was lost"
+    )
+
+
+def test_draw_latch_hook_keeps_ellipses_analytic():
+    """Ellipse arcs must survive as analytic surfaces, not facets."""
+    from OCP.BRepAdaptor import BRepAdaptor_Surface
+
+    b = _box()
+    kinds = [
+        str(BRepAdaptor_Surface(f.wrapped).GetType()).rsplit("_", 1)[-1]
+        for f in b._draw_latch_hook_solid(b.latch_width).val().Faces()
+    ]
+    assert kinds.count("Cylinder") >= 3, "circular arcs must stay cylindrical"
+    assert "SurfaceOfExtrusion" in kinds, "ellipse arcs must stay analytic"
+
+
+def test_draw_latch_catch_combines_body_and_hook():
+    b = _box()
+    catch = b.render_draw_latch_catch()
+    assert catch.val().isValid()
+    assert len(catch.solids().vals()) == 1
+    # Taller than the body alone -- the hook sits above it.
+    assert (catch.val().BoundingBox().ylen
+            > b.render_draw_latch_catch_body().val().BoundingBox().ylen)
+
+
 # --- Naming -----------------------------------------------------------------
 
 

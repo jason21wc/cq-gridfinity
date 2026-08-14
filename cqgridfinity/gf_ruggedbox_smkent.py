@@ -522,6 +522,90 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
         y_hi = -self.latch_base_size + SK_M3 / 2 + self.latch_screw_separation
         return [(x, y_lo, t), (x, y_hi, t)]
 
+    def _quadrant(self, shape, h, xs, ys):
+        """Keep one quadrant of a 2D shape by intersecting with a half-space box.
+
+        OpenSCAD writes `intersection() { circle(r); square(r); }` to take a
+        quarter disc. Intersecting a full circle/ellipse with a box does the
+        same thing here and, importantly, leaves the arc analytic -- building
+        the quarter from sampled points would facet it.
+        """
+        big = 1000.0
+        box = (
+            cq.Workplane("XY")
+            .box(big, big, h * 3)
+            .translate((xs * big / 2, ys * big / 2, h / 2))
+        )
+        return shape.intersect(box)
+
+    def _draw_latch_hook_solid(self, h):
+        """The hook: the claw that swallows the lid's keeper bar.
+
+        Translated from smkent _draw_latch_catch_shape_hook(). The claw is
+        built up from a quarter disc (its spine), a shank and curl that wrap
+        under the keeper, and a thumb nub; then the THROAT is cut out.
+
+        The throat is cut with two **elliptical** quarters, not circular ones:
+        smkent scales the quarter disc by (1 + cr) on one side and (1 - cr) on
+        the other, which makes the mouth asymmetric -- wider where the keeper
+        enters, tighter where it is retained. Approximating those with circles
+        would give a latch that either will not close or will not hold, so the
+        scale factors are carried through exactly.
+        """
+        outr = SK_DRAW_SCREW_EYELET_R + SK_DRAW_THICKNESS * 2  # 7.8
+        compress = 0.65
+        cr = compress * 0.8  # 0.52
+
+        # -- spine: quarter disc, first quadrant ---------------------------
+        spine = self._quadrant(
+            cq.Workplane("XY").circle(outr).extrude(h), h, +1, +1
+        )
+        # -- shank: rectangle, mirrored to -x ------------------------------
+        shank_w, shank_h = outr * compress, outr * (1 - compress - 0.1)
+        shank = (
+            cq.Workplane("XY")
+            .rect(shank_w, shank_h)
+            .extrude(h)
+            .translate((-shank_w / 2, outr * 0.2 + shank_h / 2, 0))
+        )
+        # -- curl: quarter disc r = outr*compress, mirrored to -x ----------
+        curl = self._quadrant(
+            cq.Workplane("XY").circle(outr * compress).extrude(h), h, -1, +1
+        ).translate((0, outr * (1 - compress), 0))
+        # -- thumb nub ------------------------------------------------------
+        nub = (
+            cq.Workplane("XY")
+            .circle(SK_DRAW_THICKNESS * 1.5 / 2)
+            .extrude(h)
+            .translate((outr / 1.5, outr / 1.5, 0))
+        )
+        claw = spine.union(shank).union(curl).union(nub)
+
+        # -- throat: two elliptical quarters, asymmetric --------------------
+        er = SK_DRAW_SCREW_EYELET_R
+        wide = self._quadrant(
+            cq.Workplane("XY").ellipse(er * (1 + cr), er).extrude(h), h, +1, +1
+        )
+        tight = self._quadrant(
+            cq.Workplane("XY").ellipse(er * (1 - cr), er).extrude(h), h, -1, +1
+        )
+        throat = wide.union(tight).translate((-er * cr, 0, 0))
+        return claw.cut(throat)
+
+    def render_draw_latch_catch(self):
+        """Catch = stadium body + hook, positioned as smkent places it."""
+        h = self.latch_width
+        body = self.render_draw_latch_catch_body()
+        hook = self._draw_latch_hook_solid(h).translate(
+            (
+                SK_DRAW_SEP,
+                self.latch_screw_separation - self.latch_base_size + SK_M3 / 2,
+                0,
+            )
+        )
+        r = body.union(hook)
+        return self.repair_if_invalid(r)
+
     def render_draw_latch_catch_body(self):
         """The catch's main body, before the hook is added.
 
