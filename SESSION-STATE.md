@@ -1,6 +1,6 @@
 # Session State
 
-**Last Updated:** 2026-08-15 (P3: draw latch mechanism complete)
+**Last Updated:** 2026-08-15 (P3: lip land + lip seal complete)
 **Memory Type:** Working (transient)
 **Lifecycle:** Prune at session start per §7.0.4
 
@@ -10,22 +10,42 @@
 ---
 
 ## Current Position
-- **Phase:** P3 — smkent rugged box. Both latch types built; **1E.2 complete**
+- **Phase:** P3 — smkent rugged box. Shell, both latches and the seal built; **1E.3 complete**
 - **Plan:** `documents/ROADMAP.md`
 - **Blocker:** None
 
-### P3 progress — 4 of 8
+### P3 progress — 5 of 8
 
 | Item | Status |
 |------|--------|
-| Shell + parametric walls (1E.8) | ✅ 7 params, GF presets, computed values per upstream |
+| Shell + parametric walls (1E.8) | ✅ 7 params, GF presets, **lip land now actually built** |
 | Clip latch (1E.1) | ✅ exact hulls, analytic |
-| **Draw latch (1E.2)** | ✅ **complete — zero-interference mesh verified** |
-| Lip seal (1E.3) | Next. Unblocked: the seal needs the draw latch's clamping |
-| Integrated baseplate (1E.4) | Two booleans reusing `gf_baseplate` blocks |
+| Draw latch (1E.2) | ✅ zero-interference mesh verified |
+| **Lip seal (1E.3)** | ✅ **complete — 4 seal types, groove volume measured against material** |
+| Integrated baseplate (1E.4) | Next. Two booleans reusing `gf_baseplate` blocks |
 | Third hinge (1E.6) | Auto-activates at ≥5U width |
 | Hinge end stops (1E.7) | Prevents the common printed-hinge failure |
 | Per-part STEP export | Jason's request |
+
+**Lip seal + lip land (2026-08-15).** Building the seal exposed two *transcription*
+errors — the checkable kind, found by re-reading the source:
+
+1. `box_length`/`box_width` used `wall_thickness` where smkent uses
+   `total_lip_thickness`. The box was **6mm undersized** in each direction.
+2. **The lip land did not exist.** `total_lip_thickness` and `lip_height` were
+   computed and tested, but no geometry consumed them — so 1E.8 was marked done when
+   only the *parameters* were. The wall now holds 3.0mm, ramps over
+   `lip_thickness × 1.5`, then holds 6.0mm for the top `lip_height`, matching
+   smkent's `_box_wall_shape` cross-section. Built as a stepped interior void.
+
+Lid default went 1U → 2U: a 1U lid is shorter than the lip profile itself
+(ramp 4.5 + land 6.0 = 10.5mm), so its land never reached full thickness.
+
+**Seal correctness is measured, not asserted.** Before the land existed a moulded
+groove removed only a *quarter* of the ring — it would have leaked while looking
+correct in CAD. Now wedge/square remove the entire ring from the body
+(2320.7 of 2320.7) and the filament seal takes exactly half from each half
+(930.3 × 2 = 1860.6 = πr²L). Both are asserted.
 
 **Reusable primitive built:** `_hull_of_circles()` — exact 2D hull of circles
 with unequal radii, arcs plus external tangent lines. OpenSCAD leans on `hull()`
@@ -106,11 +126,17 @@ anylid dispositioned in 8 batches → **21 Keep, 21 Cut**. See
 
 ## Next Actions
 
-1. **Resume P3** at step 3 of 8 — draw latch (pairs with the lip seal, which
-   needs compression), then seal, hinges, integrated baseplate, per-part export
-2. **DoD-5 remainder** — purpose/use-case docs for the ~35 pre-existing box
+1. **Resume P3 at step 6 of 8 — integrated baseplate (1E.4).** Two booleans
+   reusing `gf_baseplate` building blocks (magnets × skeletonized). Then third
+   hinge (1E.6), hinge end stops (1E.7), per-part STEP export
+2. **Assemble the draw latch about its pin joint** — parts are built and mesh
+   with zero interference, but nothing yet poses them as a closed assembly
+3. **DoD-5 remainder** — purpose/use-case docs for the ~35 pre-existing box
    parameters (the P2 additions are already documented)
-3. **DoD-6** — clasp/latch granularity audit, 0.1mm steps, scoped to P3
+4. **DoD-6** — clasp/latch granularity audit, 0.1mm steps, scoped to P3
+
+**Before building 1E.4, re-read `_interior_void()` in `gf_ruggedbox_smkent.py`.**
+The baseplate boolean lands on the same stepped void the lip land introduced.
 
 
 ## Open Items
@@ -136,7 +162,7 @@ anylid dispositioned in 8 batches → **21 Keep, 21 Cut**. See
 
 | Metric | Value |
 |--------|-------|
-| Tests | **367 passed, 1 skipped, 0 xfailed** |
+| Tests | **420 passed, 1 skipped, 0 xfailed** (~3m04s) |
 | Quarantined failures | **None** — rugged box lid fixed 2026-08-11 |
 | Ship set | 32 models, 32 audit-clean, DoD-3 human-verified |
 | Local gate | `make check` (3m24s) via pre-push hook; `make check-full` |

@@ -39,6 +39,15 @@ Boolean ops already parallel via `SetRunParallel(True)` (CadQuery default since 
 Multiple OpenSCAD constructs have no direct CadQuery equivalent: `hull()`, `minkowski()`, `$fn`.
 **Rule:** `hull()` → `.loft()` / `.sweep()` / manual convex construction. `minkowski()` rounding → `.fillet()` / `.chamfer()`; offset → `.shell()`. `$fn` → not needed (CadQuery uses exact analytic geometry). `cube(center=true)` → CadQuery `.box()` is always centered.
 
+#### Chamfer Heights Are Hypotenuse in OpenSCAD, Vertical in CadQuery (2026-02-23)
+OpenSCAD specifies 45° chamfer heights as the **hypotenuse** (`h·√2`); CadQuery's
+`extrude(zlen, taper=45)` wants the **vertical** component. `extrude_profile()` in
+`gf_obj.py` handles this via `ZLEN_FIX`: on CadQuery < 2.4.0 pass the hypotenuse
+directly, on ≥ 2.4.0 divide by √2.
+**Rule:** any profile segment copied from OpenSCAD as `(x*sqrt(2), 45)` is already in
+hypotenuse form — do not convert it again. This is why `GR_LIP_APEX_SETBACK` is
+`GR_LIP_FILLET * SQRT2`: a fillet of radius r lowers a 45° apex by exactly r·√2.
+
 ### Gridfinity Geometry
 
 #### Skeleton Cutout — Subtract vs Direct Construction (2026-02-28)
@@ -225,6 +234,38 @@ standards document, another implementation — not against your own constants.
 clearance?" The answer (kennetek `h_lip = 3.548`, consumed by smkent) came from a
 completely different direction and corroborated the corrected value to 0.0035mm.
 Cross-checking an independent consumer beat any amount of staring at our own code.
+
+#### Parameters Computed Is Not Geometry Built (2026-08-15)
+`total_lip_thickness` and `lip_height` were derived correctly, exposed as properties
+and covered by tests — and **no geometry consumed either of them**. 1E.8 was marked
+complete on the strength of the parameters alone. The missing lip land only surfaced
+when the seal, a downstream consumer, cut a groove that removed a quarter of the ring.
+
+**Rule:** a computed-value test proves the arithmetic, not the part. For any parameter
+that is meant to change the shape, assert the *shape* — measure the wall at the height
+the parameter governs. Ask of every new property: what geometry reads this?
+
+#### Translation Errors Have an Oracle; Design Errors Do Not (2026-08-15)
+Both defects in the smkent shell were transcription slips: `wall_thickness` typed where
+the source says `total_lip_thickness`, and a profile step never built. Neither required
+judgement to catch — only re-reading the upstream expression side by side with ours.
+
+**Rule:** when porting, treat the upstream expression as the oracle and diff against it
+line by line. Reserve reasoning-from-scratch for the places where CadQuery genuinely
+forces a different construction (loft vs. stacked polyhedra), and mark those explicitly
+as divergence. This is why porting beats inventing: the answer key still exists.
+
+#### Coplanar Contact Will Not Fuse; Embed Past the Offset (2026-08-15)
+A moulded seal ridge sitting below the mating plane touches the lid on a coplanar face,
+which OpenCASCADE refuses to fuse — it came through as a second disconnected solid,
+with `isValid()` still passing. Embedding fixes it, but the first attempt embedded
+0.1mm *inside* a `offset2D(-0.2)` clearance shrink, so the ridge was pulled to -0.1 and
+never touched the lid at all.
+
+**Rule:** an embed must exceed the clearance offset applied to the same profile
+(`embed = clearance + embed_depth`). `offset2D` shrinks in *every* direction including
+the one you were relying on. Assert `len(shape.Solids()) == 1` — validity alone will
+not catch a disconnected solid.
 
 ### Debugging
 
