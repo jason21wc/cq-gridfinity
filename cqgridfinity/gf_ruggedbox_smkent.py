@@ -716,6 +716,85 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
             )
             return merged
 
+    def _grip_curve_radius(self, y):
+        """Grip curve radius at position y across the latch width.
+
+        smkent: deg = |y - lw/2| / lw / 2 * 360 * 0.8, radius = cos(deg) * R*0.9.
+        Flatter in the middle (14.4mm), tighter at the edges (4.45mm) -- the
+        saddle that makes the grip sit in a fingertip.
+        """
+        lw = self.latch_width
+        deg = abs(y - lw / 2) / lw / 2 * 360 * 0.8
+        return math.cos(math.radians(deg)) * (SK_DRAW_GRIP_CURVE_R * 0.9)
+
+    def _grip_section_wire(self, y):
+        """One grip cross-section: a 45 degree arc rib of constant thickness.
+
+        Built from true circular arcs rather than sampled points, so each
+        section stays analytic before lofting.
+        """
+        ler = SK_LATCH_EDGE_RADIUS / 2
+        thick = SK_DRAW_THICKNESS
+        ang = math.radians(SK_DRAW_GRIP_ANGLE)
+        crad = self._grip_curve_radius(y)
+        dx = (SK_DRAW_GRIP_CURVE_R - crad) / 2  # smkent _curve_offset_inverse
+        dy = -crad
+
+        def arc_pt(radius, a):
+            return (radius * math.sin(a) + dx, radius * math.cos(a) + dy)
+
+        r_in, r_out = crad + ler, crad + thick - ler
+        return (
+            cq.Workplane("XY")
+            .moveTo(ler, thick - ler)
+            .lineTo(ler, ler)
+            .lineTo(*arc_pt(r_in, 0))
+            .threePointArc(arc_pt(r_in, ang / 2), arc_pt(r_in, ang))
+            .lineTo(*arc_pt(r_out, ang))
+            .threePointArc(arc_pt(r_out, ang / 2), arc_pt(r_out, 0))
+            .close()
+        )
+
+    def _draw_latch_grip_solid(self, sections=15):
+        """The grip, lofted through varying cross-sections.
+
+        DELIBERATE DIVERGENCE FROM UPSTREAM, agreed with Jason.
+
+        smkent stacks `draw_latch_poly_div` = 10 polyhedra because OpenSCAD has
+        no lofting -- the facets are a workaround, not the design intent. A loft
+        produces the smooth surface those facets approximate, which is both
+        closer to the intent and better B-Rep for STEP output. Per the project
+        rule that upstream is a starting point rather than gospel.
+        """
+        lw = self.latch_width
+        wires = []
+        for i in range(sections):
+            y = lw * i / (sections - 1)
+            w = self._grip_section_wire(y).wires().val()
+            wires.append(w.moved(cq.Location(cq.Vector(0, 0, y))))
+        return cq.Workplane("XY").newObject(
+            [cq.Solid.makeLoft(wires, ruled=False)]
+        )
+
+    def _placed_grip(self):
+        """Grip positioned on the handle, replaying smkent's transform chain.
+
+            translate([eyelet_r, -handle_length - thickness])
+            translate([body_curve_r, 0]) rotate(body_angle)
+            translate([-body_curve_r, 0]) mirror([1, 0, 0])
+
+        Applied innermost-first, as OpenSCAD does.
+        """
+        g = self._draw_latch_grip_solid()
+        g = g.mirror("YZ")                                   # mirror([1,0,0])
+        g = g.translate((-SK_DRAW_BODY_CURVE_R, 0, 0))
+        g = g.rotate((0, 0, 0), (0, 0, 1), SK_DRAW_BODY_ANGLE)
+        g = g.translate((SK_DRAW_BODY_CURVE_R, 0, 0))
+        return g.translate(
+            (SK_DRAW_SCREW_EYELET_R,
+             -SK_DRAW_HANDLE_LENGTH - SK_DRAW_THICKNESS, 0)
+        )
+
     def render_draw_latch_handle(self):
         """Full handle: lever arm unioned with the elbow, then holes cut.
 
@@ -729,7 +808,7 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
         curve = self._draw_latch_curve_solid(h).translate(
             (0, -SK_DRAW_HANDLE_LENGTH, 0)
         )
-        body = arm.union(curve)
+        body = arm.union(curve).union(self._placed_grip())
         pin_hole = (
             cq.Workplane("XY").circle(SK_DRAW_PIN_R + SK_DRAW_SEP).extrude(h)
             .translate((*self._draw_pin_offset, 0))

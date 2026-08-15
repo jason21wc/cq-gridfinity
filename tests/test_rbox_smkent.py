@@ -496,6 +496,14 @@ def test_draw_latch_curve_closing_fills_concave_junctions():
 
 
 def test_draw_latch_handle_keeps_geometry_analytic():
+    """Arcs stay cylindrical and the face count stays low.
+
+    NOTE: B-splines are NOT a failure here. An earlier version of this test
+    asserted their absence and called them a "fallback", which conflates them
+    with facets. A B-spline is exact analytic geometry -- it is what a lofted
+    surface correctly produces, and the grip is lofted on purpose. The thing
+    worth catching is FACETING: an arc degraded into dozens of tiny planes.
+    """
     from OCP.BRepAdaptor import BRepAdaptor_Surface
 
     kinds = [
@@ -503,7 +511,10 @@ def test_draw_latch_handle_keeps_geometry_analytic():
         for f in _box().render_draw_latch_handle().val().Faces()
     ]
     assert kinds.count("Cylinder") >= 5, "arcs must survive as cylinders"
-    assert "BSplineSurface" not in kinds, "no facet/spline fallback expected here"
+    # A faceted arc would show up as a pile of planes; the handle has a
+    # handful of genuinely flat faces and nothing like a tessellation.
+    assert kinds.count("Plane") <= 12, "planar face count suggests faceting"
+    assert len(kinds) < 40, "face count suggests tessellation, not B-Rep"
 
 
 def test_draw_latch_handle_holes_survive_the_union():
@@ -525,6 +536,69 @@ def test_draw_latch_handle_holes_survive_the_union():
     # And the screw hole at the origin.
     probe2 = _cq.Workplane("XY").box(0.3, 0.3, 0.3).translate((0, 0, h / 2))
     assert handle.intersect(probe2.val()).Volume() < 1e-9, "screw hole backfilled"
+
+
+# --- Grip (lofted, deliberate divergence from upstream) ---------------------
+
+
+def test_grip_curve_radius_is_a_symmetric_saddle():
+    """smkent varies the curve radius across the width with cos():
+    flatter in the middle, tighter at the edges. That is what makes the grip
+    sit in a fingertip rather than being a plain extruded rib."""
+    b = _box()
+    lw = b.latch_width
+    mid = b._grip_curve_radius(lw / 2)
+    edge = b._grip_curve_radius(0.0)
+    assert mid == pytest.approx(14.4, abs=0.05)
+    assert edge == pytest.approx(4.45, abs=0.05)
+    assert mid > edge, "grip should be flatter at the centre"
+    # Symmetric about the centreline.
+    for d in (2.0, 5.0, 11.0):
+        assert b._grip_curve_radius(lw / 2 - d) == pytest.approx(
+            b._grip_curve_radius(lw / 2 + d)
+        )
+
+
+def test_grip_lofts_to_a_valid_solid():
+    r = _box()._draw_latch_grip_solid()
+    assert r.val().isValid()
+    assert len(r.solids().vals()) == 1
+
+
+def test_grip_spans_the_full_latch_width():
+    b = _box()
+    bb = b._draw_latch_grip_solid().val().BoundingBox()
+    assert bb.zlen == pytest.approx(b.latch_width, abs=0.01)
+
+
+def test_grip_is_lofted_not_faceted():
+    """The point of the divergence: smkent stacks 10 polyhedra because
+    OpenSCAD cannot loft. We loft, so the surface must come through as
+    B-splines rather than a pile of planes."""
+    from OCP.BRepAdaptor import BRepAdaptor_Surface
+
+    kinds = [
+        str(BRepAdaptor_Surface(f.wrapped).GetType()).rsplit("_", 1)[-1]
+        for f in _box()._draw_latch_grip_solid().val().Faces()
+    ]
+    assert kinds.count("BSplineSurface") >= 4, "grip should be a lofted surface"
+    assert kinds.count("Plane") <= 2, "only the two end caps should be planar"
+
+
+def test_grip_section_count_does_not_change_the_form():
+    """More loft sections must refine the same surface, not alter it."""
+    b = _box()
+    coarse = b._draw_latch_grip_solid(sections=9).val()
+    fine = b._draw_latch_grip_solid(sections=25).val()
+    assert fine.Volume() == pytest.approx(coarse.Volume(), rel=0.02)
+
+
+def test_handle_includes_the_grip():
+    b = _box()
+    without = b.render_draw_latch_handle_arm().val().BoundingBox()
+    full = b.render_draw_latch_handle().val().BoundingBox()
+    assert full.ylen > without.ylen + 5, "grip should extend the handle"
+    assert b.render_draw_latch_handle().val().isValid()
 
 
 # --- Naming -----------------------------------------------------------------
