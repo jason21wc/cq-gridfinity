@@ -601,6 +601,74 @@ def test_handle_includes_the_grip():
     assert b.render_draw_latch_handle().val().isValid()
 
 
+# --- Interlocking segments --------------------------------------------------
+
+
+def test_segment_bands_interleave_with_clearance():
+    """5 bands, odd ones used. The catch KEEPS them, the handle SUBTRACTS
+    them widened by vsep -- that difference is the running clearance."""
+    from cqgridfinity.gf_ruggedbox_smkent import SK_DRAW_VSEP
+
+    b = _box()
+    catch = b.segment_bands(False)
+    handle = b.segment_bands(True)
+    assert len(catch) == 2 and len(handle) == 2
+    seg = b.latch_width / 5
+    assert catch[0] == pytest.approx((seg, 2 * seg))
+    for (c0, c1), (h0, h1) in zip(catch, handle):
+        assert h0 == pytest.approx(c0 - SK_DRAW_VSEP)
+        assert h1 == pytest.approx(c1 + SK_DRAW_VSEP)
+
+
+def test_catch_segments_into_separate_fingers():
+    cs = _box().render_draw_latch_catch_segmented().val()
+    assert cs.isValid()
+    assert len(cs.Solids()) == 2, "catch should reduce to two fingers"
+
+
+def test_handle_slots_do_not_sever_it():
+    """The bands are SLOTS, not through-cuts. Cutting full-width slabs would
+    leave three disconnected pieces, so the cut is confined to the catch's
+    footprint."""
+    b = _box()
+    hs = b.render_draw_latch_handle_segmented().val()
+    assert hs.isValid()
+    assert len(hs.Solids()) == 1, "handle must remain one piece"
+    assert hs.Volume() < b.render_draw_latch_handle().val().Volume(), (
+        "no material removed -- the slots were not cut"
+    )
+
+
+def test_segmented_parts_mesh_without_interference():
+    """The whole point of the segmentation.
+
+    Un-segmented the two halves occupy the same space at the pin. Segmented,
+    they must interleave with zero overlap -- otherwise the printed parts bind
+    and the joint will not turn.
+    """
+    b = _box()
+    solid_overlap = (
+        b.render_draw_latch_handle().val()
+        .intersect(b.render_draw_latch_catch().val()).Volume()
+    )
+    assert solid_overlap > 100, "expected the halves to collide before segmenting"
+
+    meshed = (
+        b.render_draw_latch_handle_segmented().val()
+        .intersect(b.render_draw_latch_catch_segmented().val()).Volume()
+    )
+    assert meshed == pytest.approx(0.0, abs=1e-6), "meshed parts interfere"
+
+
+def test_catch_pin_boss_reaches_the_handle():
+    """Without the pin boss the two parts barely overlap and there is nothing
+    to interlock -- which is exactly how a missing boss shows up."""
+    b = _box()
+    cb = b.render_draw_latch_catch().val().BoundingBox()
+    hb = b.render_draw_latch_handle().val().BoundingBox()
+    assert cb.xmin < hb.xmax and cb.ymin < hb.ymax, "catch does not reach the handle"
+
+
 # --- Naming -----------------------------------------------------------------
 
 

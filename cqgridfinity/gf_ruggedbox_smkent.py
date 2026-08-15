@@ -818,8 +818,83 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
         r = body.cut(pin_hole).cut(screw_hole)
         return self.repair_if_invalid(r)
 
+    def segment_bands(self, for_handle=False):
+        """Z-ranges of the interlocking bands across the latch width.
+
+        smkent splits the width into 5 and keeps the ODD ones (1 and 3). The
+        catch KEEPS those bands; the handle SUBTRACTS them, so the two mesh.
+        The handle's cut is widened by draw_latch_vsep on each side, which is
+        the running clearance between the meshed fingers.
+        """
+        lw = self.latch_width
+        seg = lw / SK_DRAW_SEGMENTS
+        vsep = SK_DRAW_VSEP if for_handle else 0.0
+        return [
+            (seg * i - vsep, seg * i + seg + vsep)
+            for i in range(SK_DRAW_SEGMENTS)
+            if i % 2 == 1
+        ]
+
+    def _band_solid(self, bands, size=200.0):
+        """Union of slabs spanning the given Z-ranges."""
+        out = None
+        for z0, z1 in bands:
+            slab = (
+                cq.Workplane("XY")
+                .box(size, size, z1 - z0)
+                .translate((0, 0, (z0 + z1) / 2))
+            )
+            out = slab if out is None else out.union(slab)
+        return out
+
+    def render_draw_latch_catch_segmented(self):
+        """Catch reduced to its interlocking fingers."""
+        catch = self.render_draw_latch_catch()
+        return catch.intersect(self._band_solid(self.segment_bands(False)))
+
+    def render_draw_latch_handle_segmented(self):
+        """Handle with slots cut for the catch's fingers.
+
+        The cut is confined to the catch's own footprint, expanded by
+        draw_latch_sep in XY. Cutting full-width slabs instead would sever the
+        handle into three disconnected pieces -- the bands are slots, not
+        through-cuts.
+        """
+        handle = self.render_draw_latch_handle()
+        catch = self.render_draw_latch_catch()
+        # Both parts are prismatic in Z, so an XY offset of the cross-section
+        # gives the running clearance without needing a true 3D offset.
+        section = catch.faces("<Z").wires().toPending().offset2D(SK_DRAW_SEP)
+        region = section.extrude(self.latch_width)
+        cutter = region.intersect(self._band_solid(self.segment_bands(True)))
+        r = handle.cut(cutter)
+        return self.repair_if_invalid(r)
+
+    def _draw_latch_pin_attach_circles(self, sep=SK_DRAW_SEP):
+        """The catch's pin boss: a hull of three circles at the pin offset.
+
+        This is the part of the catch that reaches across to the handle's
+        pivot. Without it the two parts barely overlap, so there is nothing
+        for the interlocking slots to be cut from.
+        """
+        t = SK_DRAW_THICKNESS
+        pin_diameter = SK_DRAW_PIN_R - sep / 2
+        offset_from_pin = sep + t + SK_DRAW_PIN_HANDLE_R
+        size_delta = pin_diameter - t
+        px, py = self._draw_pin_offset
+        return [
+            (px, py, SK_DRAW_PIN_R),
+            (px + offset_from_pin, py + offset_from_pin + size_delta, t),
+            (px + offset_from_pin, py + offset_from_pin - size_delta, t),
+        ]
+
+    def render_draw_latch_pin_attach(self):
+        """The catch's pin boss as a solid."""
+        circles = self._draw_latch_pin_attach_circles()
+        return _wire_from_hull(_hull_of_circles(circles)).extrude(self.latch_width)
+
     def render_draw_latch_catch(self):
-        """Catch = stadium body + hook, positioned as smkent places it."""
+        """Catch = stadium body + hook + pin boss, as smkent assembles it."""
         h = self.latch_width
         body = self.render_draw_latch_catch_body()
         hook = self._draw_latch_hook_solid(h).translate(
@@ -829,8 +904,16 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
                 0,
             )
         )
-        r = body.union(hook)
-        return self.repair_if_invalid(r)
+        r = body.union(hook).union(self.render_draw_latch_pin_attach())
+        # Pin centre hole: smkent drills (pin_r + sep) / 5 through the joint.
+        px, py = self._draw_pin_offset
+        centre_hole = (
+            cq.Workplane("XY")
+            .circle((SK_DRAW_PIN_R + SK_DRAW_SEP) / 5)
+            .extrude(h)
+            .translate((px, py, 0))
+        )
+        return self.repair_if_invalid(r.cut(centre_hole))
 
     def render_draw_latch_catch_body(self):
         """The catch's main body, before the hook is added.
