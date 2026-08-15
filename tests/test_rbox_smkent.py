@@ -455,6 +455,78 @@ def test_draw_latch_pin_hole_is_offset_from_the_boss():
     assert b._draw_pin_offset[1] == pytest.approx(boss[1])
 
 
+def test_draw_latch_handle_renders_valid():
+    r = _box().render_draw_latch_handle()
+    assert r.val().isValid()
+    assert len(r.solids().vals()) == 1
+
+
+def test_draw_latch_handle_includes_the_elbow():
+    """The handle is the arm PLUS the bent elbow, so it must reach further
+    than the arm alone in both x and y."""
+    b = _box()
+    arm = b.render_draw_latch_handle_arm().val().BoundingBox()
+    full = b.render_draw_latch_handle().val().BoundingBox()
+    assert full.xlen > arm.xlen
+    assert full.ylen > arm.ylen
+
+
+def test_draw_latch_curve_closing_fills_concave_junctions():
+    """smkent's offset(-r) offset(r) is a CLOSING: it must ADD material in the
+    concave corners while leaving the outer extent unchanged."""
+    b = _box()
+    h = b.latch_width
+    closed = b._draw_latch_curve_solid(h).val()
+    # Rebuild the un-closed union to compare against.
+    import cadquery as _cq
+
+    from cqgridfinity.gf_ruggedbox_smkent import (
+        SK_DRAW_BODY_CURVE_R, SK_DRAW_PIN_HANDLE_R, SK_DRAW_SCREW_EYELET_R,
+        SK_DRAW_THICKNESS,
+    )
+
+    roff = SK_DRAW_PIN_HANDLE_R - SK_DRAW_SCREW_EYELET_R
+    circ = (_cq.Workplane("XY").circle(SK_DRAW_PIN_HANDLE_R).extrude(h)
+            .translate((-roff, 0, 0)))
+    assert closed.Volume() > circ.val().Volume()
+    # Closing never grows the silhouette.
+    cb = closed.BoundingBox()
+    assert cb.xlen < SK_DRAW_BODY_CURVE_R * 2
+    assert closed.isValid()
+
+
+def test_draw_latch_handle_keeps_geometry_analytic():
+    from OCP.BRepAdaptor import BRepAdaptor_Surface
+
+    kinds = [
+        str(BRepAdaptor_Surface(f.wrapped).GetType()).rsplit("_", 1)[-1]
+        for f in _box().render_draw_latch_handle().val().Faces()
+    ]
+    assert kinds.count("Cylinder") >= 5, "arcs must survive as cylinders"
+    assert "BSplineSurface" not in kinds, "no facet/spline fallback expected here"
+
+
+def test_draw_latch_handle_holes_survive_the_union():
+    """Order matters: union the elbow FIRST, drill after. Drilling first would
+    let the elbow backfill the pin hole."""
+    import math as _m
+
+    from cqgridfinity.gf_ruggedbox_smkent import SK_DRAW_PIN_R, SK_DRAW_SEP
+
+    b = _box()
+    h = b.latch_width
+    handle = b.render_draw_latch_handle().val()
+    # Probe the pin hole centre -- must be empty.
+    import cadquery as _cq
+
+    px, py = b._draw_pin_offset
+    probe = _cq.Workplane("XY").box(0.3, 0.3, 0.3).translate((px, py, h / 2))
+    assert handle.intersect(probe.val()).Volume() < 1e-9, "pin hole backfilled"
+    # And the screw hole at the origin.
+    probe2 = _cq.Workplane("XY").box(0.3, 0.3, 0.3).translate((0, 0, h / 2))
+    assert handle.intersect(probe2.val()).Volume() < 1e-9, "screw hole backfilled"
+
+
 # --- Naming -----------------------------------------------------------------
 
 

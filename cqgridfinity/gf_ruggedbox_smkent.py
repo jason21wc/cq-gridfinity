@@ -149,6 +149,24 @@ def _hull_of_circles(circles):
     return segs
 
 
+def _xf(pts, ang=None, tr=None):
+    """Apply OpenSCAD-style rotate/translate to a list of 2D points.
+
+    smkent composes several rotate/translate steps onto a square; replaying the
+    same chain is clearer -- and less error-prone -- than pre-multiplying it by
+    hand into final coordinates.
+    """
+    out = []
+    for x, y in pts:
+        if ang is not None:
+            a = math.radians(ang)
+            x, y = x * math.cos(a) - y * math.sin(a), x * math.sin(a) + y * math.cos(a)
+        if tr is not None:
+            x, y = x + tr[0], y + tr[1]
+        out.append((x, y))
+    return out
+
+
 def _convex_hull_2d(points):
     """Monotone chain hull. Plain geometry, no CAD kernel involved."""
     pts = sorted(set(points))
@@ -630,6 +648,96 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
         screw_d = SK_M3 + SK_SCREW_HOLE_TOL + SK_M3 * 0.2
         screw_hole = cq.Workplane("XY").circle(screw_d / 2).extrude(h)
         return arm.cut(pin_hole).cut(screw_hole)
+
+    def _draw_latch_curve_solid(self, h):
+        """The handle's bent elbow, between the pin boss and the grip.
+
+        smkent builds it as a union of a circle, two rectangles and a 25 degree
+        annular sector, then applies `offset(-r) offset(r)` -- a CLOSING
+        operation that rounds the concave junctions between those pieces.
+        CadQuery spells that offset2D(+r).offset2D(-r).
+        """
+        thick = SK_DRAW_THICKNESS
+        roff = SK_DRAW_PIN_HANDLE_R - SK_DRAW_SCREW_EYELET_R
+        ox = -roff + SK_DRAW_PIN_HANDLE_R - thick  # inner frame origin x
+
+        circ = (
+            cq.Workplane("XY").circle(SK_DRAW_PIN_HANDLE_R).extrude(h)
+            .translate((-roff, 0, 0))
+        )
+        sq = (
+            cq.Workplane("XY").rect(thick, thick).extrude(h)
+            .translate((ox + thick / 2, -thick / 2, 0))
+        )
+        # 25 degree annular sector: the outside of the elbow.
+        cx = ox + SK_DRAW_BODY_CURVE_R + thick
+        cy = -thick
+        ring = (
+            cq.Workplane("XY")
+            .circle(SK_DRAW_BODY_CURVE_R + thick)
+            .circle(SK_DRAW_BODY_CURVE_R)
+            .extrude(h)
+            .translate((cx, cy, 0))
+        )
+        a0 = math.radians(180)
+        a1 = math.radians(180 + SK_DRAW_BODY_ANGLE)
+        big = SK_DRAW_BODY_CURVE_R * 4
+        wedge = (
+            cq.Workplane("XY").moveTo(cx, cy)
+            .lineTo(cx + big * math.cos(a0), cy + big * math.sin(a0))
+            .lineTo(cx + big * math.cos((a0 + a1) / 2),
+                    cy + big * math.sin((a0 + a1) / 2))
+            .lineTo(cx + big * math.cos(a1), cy + big * math.sin(a1))
+            .close().extrude(h)
+        )
+        sector = ring.intersect(wedge)
+        # Cap at the far end of the elbow, carried through the same transform
+        # chain smkent uses (rot180 -> translate -> rotate by the body angle).
+        pts = [(0, 0), (thick, 0), (thick, SK_LATCH_EDGE_RADIUS * 1.5),
+               (0, SK_LATCH_EDGE_RADIUS * 1.5)]
+        pts = _xf(pts, ang=180)
+        pts = _xf(pts, tr=(-SK_DRAW_BODY_CURVE_R, 0))
+        pts = _xf(pts, ang=SK_DRAW_BODY_ANGLE)
+        pts = _xf(pts, tr=(SK_DRAW_BODY_CURVE_R + thick, -thick))
+        pts = _xf(pts, tr=(ox, 0))
+        cap = cq.Workplane("XY").polyline(pts).close().extrude(h)
+
+        merged = circ.union(sq).union(sector).union(cap)
+        # Closing: dilate then erode, rounding the concave junctions.
+        r = SK_DRAW_PIN_HANDLE_R * 1.25
+        try:
+            wires = cq.Workplane("XY").add(merged.faces("<Z").val()).wires()
+            return wires.toPending().offset2D(r).offset2D(-r).extrude(h)
+        except Exception:
+            warnings.warn(
+                "%s: could not close the handle curve; junctions stay sharp. "
+                "Geometry is otherwise valid." % (self.__class__.__name__,),
+                stacklevel=2,
+            )
+            return merged
+
+    def render_draw_latch_handle(self):
+        """Full handle: lever arm unioned with the elbow, then holes cut.
+
+        Order matters and follows smkent: union first, drill after, so the
+        holes are not partly filled by the elbow.
+        """
+        h = self.latch_width
+        arm = _wire_from_hull(
+            _hull_of_circles(self._draw_latch_handle_hull_circles())
+        ).extrude(h)
+        curve = self._draw_latch_curve_solid(h).translate(
+            (0, -SK_DRAW_HANDLE_LENGTH, 0)
+        )
+        body = arm.union(curve)
+        pin_hole = (
+            cq.Workplane("XY").circle(SK_DRAW_PIN_R + SK_DRAW_SEP).extrude(h)
+            .translate((*self._draw_pin_offset, 0))
+        )
+        screw_d = SK_M3 + SK_SCREW_HOLE_TOL + SK_M3 * 0.2
+        screw_hole = cq.Workplane("XY").circle(screw_d / 2).extrude(h)
+        r = body.cut(pin_hole).cut(screw_hole)
+        return self.repair_if_invalid(r)
 
     def render_draw_latch_catch(self):
         """Catch = stadium body + hook, positioned as smkent places it."""
