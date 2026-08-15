@@ -267,6 +267,20 @@ never touched the lid at all.
 the one you were relying on. Assert `len(shape.Solids()) == 1` — validity alone will
 not catch a disconnected solid.
 
+#### A Missing Term Hides Until Something Has To Fit Inside It (2026-08-15)
+The smkent interior was built as `n * 42`; upstream is `n * 42 + border` with
+`border = 5`. Nothing caught it — the box rendered, was watertight, passed every
+dimensional test — because no part of the model had an opinion about the interior
+until the integrated baseplate had to sit in it with its 4.0mm corners against a
+3.75mm cavity. This is the third omission found the same way, and the second found
+by a *consumer* rather than by inspecting the thing itself (the 0.6mm stacking lip
+was the first).
+
+**Rule:** a dimension with no consumer is untested no matter how many assertions
+name it. When adding a part that fits inside an existing one, re-derive the host's
+dimension from the source before trusting it — the new part is the first real
+measurement that dimension has ever had.
+
 ### Debugging
 
 #### Safe Fillet Pattern (2026-02-27)

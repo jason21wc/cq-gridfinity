@@ -1,6 +1,6 @@
 # Session State
 
-**Last Updated:** 2026-08-15 (P3: lip land + lip seal complete)
+**Last Updated:** 2026-08-15 (P3: integrated baseplate complete, 1E.4)
 **Memory Type:** Working (transient)
 **Lifecycle:** Prune at session start per §7.0.4
 
@@ -10,22 +10,53 @@
 ---
 
 ## Current Position
-- **Phase:** P3 — smkent rugged box. Shell, both latches and the seal built; **1E.3 complete**
+- **Phase:** P3 — smkent rugged box. Shell, both latches, seal and baseplate built; **1E.4 complete**
 - **Plan:** `documents/ROADMAP.md`
 - **Blocker:** None
 
-### P3 progress — 5 of 8
+### P3 progress — 6 of 8
 
 | Item | Status |
 |------|--------|
-| Shell + parametric walls (1E.8) | ✅ 7 params, GF presets, **lip land now actually built** |
+| Shell + parametric walls (1E.8) | ✅ 7 params, GF presets, lip land built, **border now included** |
 | Clip latch (1E.1) | ✅ exact hulls, analytic |
 | Draw latch (1E.2) | ✅ zero-interference mesh verified |
-| **Lip seal (1E.3)** | ✅ **complete — 4 seal types, groove volume measured against material** |
-| Integrated baseplate (1E.4) | Next. Two booleans reusing `gf_baseplate` blocks |
-| Third hinge (1E.6) | Auto-activates at ≥5U width |
+| Lip seal (1E.3) | ✅ 4 seal types, groove volume measured against material |
+| **Integrated baseplate (1E.4)** | ✅ **complete — two booleans, `GridfinityBaseplate` reused, 3 STEPs audit-clean** |
+| Third hinge (1E.6) | Next. Auto-activates at ≥5U width |
 | Hinge end stops (1E.7) | Prevents the common printed-hinge failure |
 | Per-part STEP export | Jason's request |
+
+**Integrated baseplate (2026-08-15).** Four upstream styles ship as two booleans,
+`baseplate_magnets` × `baseplate_skeletonized`, per the triage decision. Upstream's
+fourth style — "thick", a full slab with no magnet holes — is deliberately
+unreachable: pure ballast in a box whose point is being carried. `GridfinityBaseplate`
+is reused rather than re-derived, exactly as upstream reuses kennetek's.
+
+Two things are measured rather than asserted: the body gains **exactly** the plate's
+volume (a coplanar union that fails to fuse leaves two solids `isValid()` still
+passes), and the skeletonized plate is genuinely lighter than a full slab of the same
+depth. The plate's pockets vent **upward** into the receptacle, so nothing becomes a
+sealed void — `Shells() == 1`, checked against a control solid that does have one.
+
+### 🔴 The interior was missing smkent's 5mm border — corrected 2026-08-15
+
+`int_length` was `length_u * 42`. Upstream is:
+
+```openscad
+border = 5;
+width  = Width  * l_grid + border;
+```
+
+Zero clearance for bins, and the baseplate — 4.0mm corner radius against the
+cavity's 3.75mm — would have fouled all four corners. **Found only because the
+baseplate had to fit inside it**, which is the same way the 0.6mm lip error
+surfaced: an independent consumer asking what it may occupy.
+
+This is the **third** transcription omission in the same module (`wall_thickness`
+for `total_lip_thickness`, the absent lip land, now the absent border). All three
+were in `rbox_size_adjustments()`-adjacent sizing, all three passed every test,
+and all three were found by re-reading the source rather than the code.
 
 **Lip seal + lip land (2026-08-15).** Building the seal exposed two *transcription*
 errors — the checkable kind, found by re-reading the source:
@@ -126,9 +157,8 @@ anylid dispositioned in 8 batches → **21 Keep, 21 Cut**. See
 
 ## Next Actions
 
-1. **Resume P3 at step 6 of 8 — integrated baseplate (1E.4).** Two booleans
-   reusing `gf_baseplate` building blocks (magnets × skeletonized). Then third
-   hinge (1E.6), hinge end stops (1E.7), per-part STEP export
+1. **Resume P3 at step 7 of 8 — third hinge (1E.6)**, then hinge end stops
+   (1E.7) and per-part STEP export
 2. **Assemble the draw latch about its pin joint** — parts are built and mesh
    with zero interference, but nothing yet poses them as a closed assembly
 3. **DoD-5 remainder** — purpose/use-case docs for the ~35 pre-existing box
@@ -141,6 +171,16 @@ The baseplate boolean lands on the same stepped void the lip land introduced.
 
 ## Open Items
 
+- **Corner radius is the next thing to check in the same family — unverified.**
+  Upstream passes `corner_radius = r_base` (kennetek's 4.0) to `rbox()`; ours
+  hardcodes 3.75 inside and computes the outer as `3.75 + wall_thickness`, while
+  every other outer dimension offsets by `total_lip_thickness`. That makes the
+  corner ~7.2mm thick where the flats are 6.0mm. Whether `rbox()`'s
+  `corner_radius` is the inner or outer radius was **not** confirmed — it needs
+  `rugged-box-library.scad` read directly, which this session did not do
+- **`documents/FEATURE-SPEC.md` 1E rows are stale.** 1E.1/1E.2/1E.3/1E.8 are built
+  and tested but still read "Not Started". Only 1E.4 was updated, since marking
+  work I did not verify this session would be guessing. Jason's call
 - **Reduced lip has no rim taper** (found in double-check, pre-existing). Wall is
   a constant 2.60mm from the rim; normal tapers from 1.45mm. They are now the same
   height but do **not** stack interchangeably — recess openings differ ~1.15mm/side.
@@ -162,7 +202,7 @@ The baseplate boolean lands on the same stepped void the lip land introduced.
 
 | Metric | Value |
 |--------|-------|
-| Tests | **420 passed, 1 skipped, 0 xfailed** (~3m04s) |
+| Tests | **430 passed, 1 skipped, 0 xfailed** (~3m16s) |
 | Quarantined failures | **None** — rugged box lid fixed 2026-08-11 |
 | Ship set | 32 models, 32 audit-clean, DoD-3 human-verified |
 | Local gate | `make check` (3m24s) via pre-push hook; `make check-full` |

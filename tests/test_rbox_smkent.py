@@ -9,7 +9,7 @@ import math
 import pytest
 
 from cqgridfinity import GridfinityRuggedBoxSmkent as SK
-from cqgridfinity.gf_ruggedbox_smkent import SK_M3
+from cqgridfinity.gf_ruggedbox_smkent import SK_GF_BORDER, SK_M3
 from cqgridfinity.gf_ruggedbox_smkent import _tangent_point
 
 
@@ -75,9 +75,15 @@ def test_size_tolerance_accepts_sub_millimetre_steps():
 
 
 def test_interior_holds_the_gridfinity_footprint():
+    """smkent: width = Width * l_grid + border, with border = 5.
+
+    Regression: the border was dropped, leaving the cavity exactly n*42 --
+    zero clearance for the bins and a corner interference against the
+    integrated baseplate, whose radius is 4.0mm to the cavity's 3.75mm.
+    """
     b = _box()
-    assert b.int_length == pytest.approx(5 * 42)
-    assert b.int_width == pytest.approx(4 * 42)
+    assert b.int_length == pytest.approx(5 * 42 + SK_GF_BORDER)
+    assert b.int_width == pytest.approx(4 * 42 + SK_GF_BORDER)
     # Interior height is N*7 PLUS room for the bins' stacking lips, matching
     # smkent's top_height = N*7 + h_lip.
     assert b.int_height == pytest.approx(6 * 7 + b.bin_lip_clearance)
@@ -105,8 +111,9 @@ def test_outer_size_adds_two_total_lip_thicknesses():
     thickest part of the wall -- not by the plain wall.
     """
     b = _box()
-    assert b.box_length == pytest.approx(5 * 42 + 2 * b.total_lip_thickness)
-    assert b.box_width == pytest.approx(4 * 42 + 2 * b.total_lip_thickness)
+    inner_l, inner_w = 5 * 42 + SK_GF_BORDER, 4 * 42 + SK_GF_BORDER
+    assert b.box_length == pytest.approx(inner_l + 2 * b.total_lip_thickness)
+    assert b.box_width == pytest.approx(inner_w + 2 * b.total_lip_thickness)
 
 
 def test_body_and_lid_heights_sum_to_interior():
@@ -790,7 +797,129 @@ def test_catch_pin_boss_reaches_the_handle():
     assert cb.xmin < hb.xmax and cb.ymin < hb.ymax, "catch does not reach the handle"
 
 
+# --- Integrated baseplate (1E.4) --------------------------------------------
+#
+# smkent exposes four named styles; the two axes underneath them are all that
+# vary, so the API is two booleans (FEATURE-TRIAGE 1E.4). Upstream's fourth,
+# "thick" -- a full slab with no magnet holes -- is deliberately unreachable.
+
+
+def _small(**kw):
+    """A 2x2x4 box: big enough for a real baseplate, cheap enough to render."""
+    return SK(2, 2, 4, **kw)
+
+
+def test_baseplate_footprint_is_the_bare_grid():
+    """The plate is n*42 exactly; the border is what makes it fit."""
+    bb = _small().render_baseplate().val().BoundingBox()
+    assert bb.xlen == pytest.approx(2 * 42, abs=0.01)
+    assert bb.ylen == pytest.approx(2 * 42, abs=0.01)
+
+
+def test_baseplate_clears_the_cavity_by_half_the_border():
+    b = _small()
+    bb = b.render_baseplate().val().BoundingBox()
+    assert (b.int_length - bb.xlen) / 2 == pytest.approx(SK_GF_BORDER / 2)
+    assert (b.int_width - bb.ylen) / 2 == pytest.approx(SK_GF_BORDER / 2)
+
+
+def test_baseplate_sits_on_the_interior_floor():
+    """Bottom flush with the floor, top one base-profile above it."""
+    from cqgridfinity.constants import GR_BASE_HEIGHT
+
+    b = _small()
+    bb = b.render_baseplate().val().BoundingBox()
+    assert bb.zmin == pytest.approx(b.wall_thickness, abs=0.01)
+    assert bb.zmax == pytest.approx(b.wall_thickness + GR_BASE_HEIGHT, abs=0.01)
+
+
+def test_minimal_baseplate_costs_no_interior_height():
+    """Upstream's default style: a thin plate with no slab under it."""
+    b = _small()
+    assert b.baseplate_extra_depth == 0
+    assert b.int_height == pytest.approx(4 * 7 + b.bin_lip_clearance)
+
+
+def test_magnet_baseplate_grows_the_interior_by_kenneteks_hole_depth():
+    """smkent's gridfinity_base_extra_height() is a hardcoded h_hole = 2.4.
+
+    We derive it from the plate we actually build; this is the cross-check
+    that the derivation lands on upstream's number.
+    """
+    from cqgridfinity.constants import GR_HOLE_H
+
+    b = _small(baseplate_magnets=True)
+    assert b.baseplate_extra_depth == pytest.approx(GR_HOLE_H)
+    assert b.int_height == pytest.approx(
+        4 * 7 + b.bin_lip_clearance + GR_HOLE_H
+    )
+    # The extra depth lands in the body, not the lid -- upstream puts it in
+    # bottom_height. A bin still gets its full 4U above the plate.
+    assert b.lid_height == pytest.approx(_small().lid_height)
+    assert b.body_height == pytest.approx(_small().body_height + GR_HOLE_H)
+
+
+def test_baseplate_is_fused_into_the_body_not_merely_touching():
+    """A coplanar union that fails to fuse leaves two solids that isValid()
+    still passes -- the failure mode the seal ridge hit."""
+    b = _small()
+    r = b.render_body()
+    assert r.val().isValid()
+    assert len(r.solids().vals()) == 1
+    assert len(r.val().Shells()) == 1, "a sealed internal void was created"
+
+
+def test_baseplate_actually_adds_its_own_volume():
+    """Guards 'parameters computed, geometry never built': the body must gain
+    exactly the plate, with no overlap double-counted."""
+    b = _small()
+    h = b.body_height
+    bare = b._outer_block(h).cut(
+        b._interior_void(h - b.wall_thickness, b.wall_thickness)
+    )
+    groove = b.render_seal_ring()
+    if groove is not None:
+        bare = bare.cut(groove)
+    plate_vol = b.render_baseplate().val().Volume()
+    assert plate_vol > 1000
+    assert b.render_body().val().Volume() == pytest.approx(
+        bare.val().Volume() + plate_vol, rel=1e-6
+    )
+
+
+def test_skeletonizing_removes_material_from_the_plate():
+    """The whole point is weight off something you carry."""
+    from cqgridfinity import GridfinityBaseplate
+
+    skel = SK(2, 2, 4, baseplate_magnets=True, baseplate_skeletonized=True)
+    solid = GridfinityBaseplate(
+        2, 2, magnet_holes=True, ext_depth=skel.baseplate_extra_depth
+    )
+    lighter = skel.render_baseplate().val().Volume()
+    assert lighter < solid.render().val().Volume() - 1000
+
+
+def test_magnet_pockets_do_not_perforate_the_box_floor():
+    """Magnet recesses are blind from above, so the box still holds liquid --
+    and the magnets drop in from inside rather than needing a print pause."""
+    for kw in ({}, {"baseplate_magnets": True}):
+        b = _small(**kw)
+        r = b.render_body()
+        faces = r.faces("<Z").vals()
+        assert len(faces) == 1, "the underside broke into pieces"
+        # Full outer footprint less only the corner fillets.
+        area = faces[0].Area()
+        assert area == pytest.approx(b.box_length * b.box_width, rel=0.01)
+
+
 # --- Naming -----------------------------------------------------------------
+
+
+def test_filename_records_the_baseplate_style():
+    assert "bp-mag" in SK(2, 2, 4, baseplate_magnets=True).filename()
+    assert "bp-mag-skel" in SK(
+        2, 2, 4, baseplate_magnets=True, baseplate_skeletonized=True
+    ).filename()
 
 
 def test_filename_distinguishes_from_pred_box():

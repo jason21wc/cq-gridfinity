@@ -42,6 +42,7 @@ from cqgridfinity.constants import (
     GR_LIP_APEX_SETBACK,
     GR_STACKING_LIP_H,
 )
+from cqgridfinity.gf_baseplate import GridfinityBaseplate
 from cqgridfinity.gf_obj import GridfinityObject
 
 __all__ = ["GridfinityRuggedBoxSmkent"]
@@ -90,6 +91,18 @@ SK_SEAL_CLEARANCE = 0.2
 # must exceed the clearance or the ridge ends up entirely below the mating
 # plane and never touches the lid at all.
 SK_SEAL_EMBED = 0.2
+
+# -- Integrated baseplate (1E.4) -----------------------------------------
+# smkent rugged-box-gridfinity.scad:
+#     border = 5;
+#     width  = Width  * l_grid + border;
+#     length = Length * l_grid + border;
+# The interior is FIVE millimetres larger than the Gridfinity footprint it
+# holds -- 2.5mm of clearance per side. It is not decorative: the baseplate
+# inside is exactly n*42 with a 4.0mm outer corner radius, sitting in a cavity
+# radiused 3.75mm, so without the border the plate would foul all four corners
+# and bins would be an interference fit into a printed box.
+SK_GF_BORDER = 5.0
 
 
 def _tangent_point(radius, point, prefer_right=True):
@@ -284,6 +297,17 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
         # halves so a loop of 1.75mm filament serves as the gasket -- stock you
         # already own, in whatever durometer you like if you use TPU.
         self.lip_seal_type = "wedge"
+        # Integrated baseplate (1E.4). smkent ships four named styles; the
+        # two axes underneath them are all that vary, so they are exposed as
+        # two booleans instead:
+        #     minimal      -> False, False   (upstream default, and ours)
+        #     enabled_full -> True,  False
+        #     enabled      -> True,  True
+        # Upstream's fourth style, "thick" (a full-depth slab with no magnet
+        # holes), is deliberately not reachable: it is pure ballast in a box
+        # whose whole point is being carried.
+        self.baseplate_magnets = False
+        self.baseplate_skeletonized = False
         for k, v in kwargs.items():
             if k in self.__dict__:
                 self.__dict__[k] = v
@@ -350,12 +374,17 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
 
     @property
     def int_length(self):
-        """Interior length: the Gridfinity footprint it must hold."""
-        return self.length_u * GRU
+        """Interior length: the Gridfinity footprint, plus smkent's border.
+
+        Upstream is `width = Width * l_grid + border` with `border = 5`, so
+        the cavity carries 2.5mm of clearance per side around the baseplate
+        and the bins standing in it. See SK_GF_BORDER.
+        """
+        return self.length_u * GRU + SK_GF_BORDER
 
     @property
     def int_width(self):
-        return self.width_u * GRU
+        return self.width_u * GRU + SK_GF_BORDER
 
     @property
     def int_height(self):
@@ -368,8 +397,53 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
         geometry rather than hardcoding it, so it stays correct if the lip
         fillet is ever retuned. The two agree to 0.0035mm -- see
         tests/test_spec_conformance.py.
+
+        The integrated baseplate then pushes the floor up by its own slab
+        depth, so the bins keep their full N*7 regardless of base style --
+        upstream's `bottom_height = Bottom_Height * 7 + base_extra_height()`.
         """
-        return self.height_u * GRHU + self.bin_lip_clearance
+        return (
+            self.height_u * GRHU
+            + self.bin_lip_clearance
+            + self.baseplate_extra_depth
+        )
+
+    # -- integrated baseplate (1E.4) --------------------------------------
+
+    def _baseplate(self):
+        """The Gridfinity baseplate that lines the box floor.
+
+        `GridfinityBaseplate` is reused rather than re-derived: upstream does
+        the same thing, calling kennetek's `gridfinityBaseplate()` from the
+        rugged box wrapper instead of drawing its own receptacles. It is also
+        where the magnet, skeleton and hole geometry is already tested.
+        """
+        return GridfinityBaseplate(
+            self.length_u,
+            self.width_u,
+            magnet_holes=self.baseplate_magnets,
+            skeleton=self.baseplate_skeletonized,
+        )
+
+    @property
+    def baseplate_extra_depth(self):
+        """Solid slab below the plate's receptacles, in mm.
+
+        Upstream hardcodes this as kennetek's `h_hole` (2.4mm) whenever the
+        base style is not "minimal". We take it from the plate we actually
+        build, so a skeletonized plate -- which needs more depth than a bare
+        magnet pocket -- is accounted for rather than assumed. For the
+        magnets-only case the two agree exactly; that is asserted in
+        tests/test_rbox_smkent.py.
+        """
+        return self._baseplate().ext_depth
+
+    def render_baseplate(self):
+        """The integrated baseplate, sitting on the box's interior floor."""
+        r = self._baseplate().render().translate((0, 0, self.wall_thickness))
+        self._cq_obj = r
+        self._obj_label = "baseplate"
+        return r
 
     @property
     def bin_lip_clearance(self):
@@ -549,7 +623,7 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
         return void.translate((0, 0, z0))
 
     def render_body(self):
-        """Lower half of the box: floor, walls, and the lip's lower land.
+        """Lower half of the box: floor, walls, baseplate, and lower lip land.
 
         The body always receives the GROOVE, whichever seal type is chosen.
         """
@@ -560,6 +634,10 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
         # above the box entirely and the wall never reached total_lip_thickness.
         void = self._interior_void(h - self.wall_thickness, self.wall_thickness)
         r = r.cut(void)
+        # Baseplate goes in AFTER the cavity is cut, or it would be removed
+        # with it. Its underside is coplanar with the interior floor, so the
+        # union fuses on a shared face rather than leaving a second solid.
+        r = r.union(self.render_baseplate())
         groove = self.render_seal_ring()
         if groove is not None:
             r = r.cut(groove)
@@ -1148,6 +1226,16 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
     def _filename_suffix(self) -> str:
         fn = "x%s" % self._fmt_unit(self.height_u)
         fn += "_%s" % self.latch_type
+        bp = "-".join(
+            n
+            for n, on in (
+                ("mag", self.baseplate_magnets),
+                ("skel", self.baseplate_skeletonized),
+            )
+            if on
+        )
+        if bp:
+            fn += "_bp-%s" % bp
         if abs(self.size_tolerance - SK_SIZE_TOL) > 1e-6:
             fn += "_tol%.2f" % self.size_tolerance
         return fn
