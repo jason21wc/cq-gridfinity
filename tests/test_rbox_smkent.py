@@ -97,10 +97,16 @@ def test_a_full_height_bin_actually_fits():
     assert GridfinityBox(2, 2, 6).actual_height <= b.int_height + 1e-6
 
 
-def test_outer_size_adds_two_walls():
+def test_outer_size_adds_two_total_lip_thicknesses():
+    """smkent: outer = inner + total_lip_thickness * 2.
+
+    Regression: this used wall_thickness, making the box 6mm undersized in
+    each direction. The outer dimension is set by the LIP land, which is the
+    thickest part of the wall -- not by the plain wall.
+    """
     b = _box()
-    assert b.box_length == pytest.approx(5 * 42 + 2 * b.wall_thickness)
-    assert b.box_width == pytest.approx(4 * 42 + 2 * b.wall_thickness)
+    assert b.box_length == pytest.approx(5 * 42 + 2 * b.total_lip_thickness)
+    assert b.box_width == pytest.approx(4 * 42 + 2 * b.total_lip_thickness)
 
 
 def test_body_and_lid_heights_sum_to_interior():
@@ -147,6 +153,121 @@ def test_tangent_point_is_on_the_circle_and_perpendicular():
 def test_tangent_point_rejects_interior_point():
     with pytest.raises(ValueError, match="inside the circle"):
         _tangent_point(4.5, (1.0, 1.0))
+
+
+# --- Lip land and lip seal (1E.3) -------------------------------------------
+
+
+def _wall_at(solid, z):
+    """Wall thickness at height z, or None if there is no ring there."""
+    import cadquery as _cq
+
+    plate = _cq.Workplane("XY").rect(500, 500).extrude(0.02).translate((0, 0, z))
+    rings = [f for f in solid.intersect(plate.val()).Faces() if len(f.Wires()) == 2]
+    if not rings:
+        return None
+    f = max(rings, key=lambda x: x.BoundingBox().xlen)
+    inner = sorted(f.Wires(), key=lambda w: w.BoundingBox().xlen)[0]
+    return (f.BoundingBox().xlen - inner.BoundingBox().xlen) / 2
+
+
+def test_wall_thickens_into_a_lip_land():
+    """smkent's wall is wall_thickness for most of its height and thickens to
+    total_lip_thickness over the top lip_height. That land is where the seal
+    lives -- without it the groove falls half outside the material."""
+    b = SK(5, 4, 6, lip_seal_type="none")
+    body = b.render_body().val()
+    h = body.BoundingBox().zlen
+    assert _wall_at(body, h * 0.4) == pytest.approx(b.wall_thickness, abs=0.05)
+    assert _wall_at(body, h - 1.0) == pytest.approx(
+        b.total_lip_thickness, abs=0.05
+    )
+
+
+def test_lid_lip_land_is_at_the_bottom():
+    """The lid is the mirror image: its land meets the body.
+
+    Probe inside the cavity region only -- the lid's roof is solid above the
+    void, so there is no ring to measure up there.
+    """
+    b = SK(5, 4, 6, lip_seal_type="none")
+    lid = b.render_lid().val()
+    assert _wall_at(lid, 1.0) == pytest.approx(b.total_lip_thickness, abs=0.05)
+    # Higher up, well inside the cavity, the wall has thinned back down.
+    upper = _wall_at(lid, b.lid_height - b.wall_thickness - 1.0)
+    assert upper is not None, "probe fell outside the cavity"
+    assert upper < b.total_lip_thickness - 1.0, "wall never thins above the land"
+
+
+def test_lid_is_tall_enough_for_the_full_lip_profile():
+    """A 1U lid is shorter than ramp + land (10.5mm), so its land never reaches
+    full thickness. smkent's Top_Height default is 2."""
+    b = SK(5, 4, 6)
+    assert b.lid_height >= b.lip_height + b.lip_thickness * 1.5
+
+
+def test_body_and_lid_still_sum_to_the_interior():
+    b = SK(5, 4, 6)
+    assert b.body_height + b.lid_height == pytest.approx(b.int_height)
+
+
+@pytest.mark.parametrize("seal", ["none", "wedge", "square", "filament-1.75mm"])
+def test_every_seal_type_yields_one_solid(seal):
+    """A moulded ridge sits below the mating plane and touches the lid on a
+    coplanar face, which OpenCASCADE will not fuse -- it came through as a
+    second disconnected solid until the ridge was embedded past the clearance
+    offset."""
+    b = SK(5, 4, 6, lip_seal_type=seal)
+    for part in (b.render_body(), b.render_lid()):
+        assert part.val().isValid()
+        assert len(part.val().Solids()) == 1
+
+
+def test_seal_groove_lands_fully_in_material():
+    """The check that caught the missing lip land.
+
+    A moulded groove must remove the WHOLE ring from the body. When the wall
+    was a constant 3mm the ring was only a quarter buried, so the seal would
+    have leaked while looking correct in CAD.
+    """
+    for seal in ("wedge", "square"):
+        plain = SK(5, 4, 6, lip_seal_type="none").render_body().val().Volume()
+        b = SK(5, 4, 6, lip_seal_type=seal)
+        removed = plain - b.render_body().val().Volume()
+        assert removed == pytest.approx(
+            b.render_seal_ring().val().Volume(), rel=1e-3
+        )
+
+
+def test_filament_seal_grooves_both_halves_equally():
+    """The filament gasket needs a matching half-round channel in each half."""
+    b = SK(5, 4, 6, lip_seal_type="filament-1.75mm")
+    plain = SK(5, 4, 6, lip_seal_type="none")
+    d_body = plain.render_body().val().Volume() - b.render_body().val().Volume()
+    d_lid = plain.render_lid().val().Volume() - b.render_lid().val().Volume()
+    assert d_body == pytest.approx(d_lid, rel=1e-3), "grooves are asymmetric"
+    # Each half takes half the ring.
+    assert d_body + d_lid == pytest.approx(
+        b.render_seal_ring().val().Volume(), rel=1e-2
+    )
+
+
+def test_seal_ring_matches_its_analytic_volume():
+    """Filament seal is a circular sweep: pi*r^2 * path length."""
+    import math as _m
+
+    b = SK(5, 4, 6, lip_seal_type="filament-1.75mm")
+    path = b._seal_path()
+    length = path.Length() if callable(path.Length) else path.Length
+    r = 1.75 / 2
+    assert b.render_seal_ring().val().Volume() == pytest.approx(
+        _m.pi * r * r * length, rel=1e-3
+    )
+
+
+def test_unknown_seal_type_rejected():
+    with pytest.raises(ValueError, match="lip_seal_type"):
+        SK(5, 4, 6, lip_seal_type="rubber-band")
 
 
 # --- Exact hull of circles (draw latch prerequisite) ------------------------

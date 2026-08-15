@@ -77,6 +77,20 @@ SK_DRAW_GRIP_ANGLE = 45
 SK_DRAW_GRIP_CURVE_R = 16
 SK_DRAW_SEGMENTS = 5  # alternating interlocking bands across the latch width
 
+# -- Lip seal (1E.3) -----------------------------------------------------
+SK_SEAL_TYPES = ("none", "wedge", "square", "filament-1.75mm")
+SK_SEAL_FILAMENT_D = 1.75  # standard filament, used as gasket stock
+# Clearance between the ridge and its groove, for the moulded seal types.
+# Not used by the filament seal, where both halves are simply grooved.
+SK_SEAL_CLEARANCE = 0.2
+# Net depth a moulded ridge is buried in the lid, so the union actually fuses
+# rather than leaving it as a separate solid touching on a coplanar face.
+# NOTE this is the depth AFTER the clearance offset: offset2D(-clearance)
+# shrinks the profile in every direction, so the embed passed to the profile
+# must exceed the clearance or the ridge ends up entirely below the mating
+# plane and never touches the lid at all.
+SK_SEAL_EMBED = 0.2
+
 
 def _tangent_point(radius, point, prefer_right=True):
     """Where a line from `point` touches a circle of `radius` at the origin.
@@ -147,6 +161,23 @@ def _hull_of_circles(circles):
         segs.append(("arc", (c[0], c[1]), c[2], prev_ang, this_ang))
         segs.append(("line", tangents[i][0], tangents[i][1]))
     return segs
+
+
+def _rounded_rect_wire(length, width, radius, z=0.0):
+    """Closed rounded-rectangle wire at height z.
+
+    `placeSketch(...).wires().val()` does not return a Wire, so build the face
+    by extruding and take its outer boundary instead.
+    """
+    slab = (
+        cq.Workplane("XY")
+        .placeSketch(rounded_rect_sketch(length, width, radius))
+        .extrude(1)
+    )
+    wires = slab.faces("<Z").val().Wires()
+    length_of = lambda w: w.Length() if callable(w.Length) else w.Length
+    outer = max(wires, key=length_of)
+    return outer.moved(cq.Location(cq.Vector(0, 0, z)))
 
 
 def _xf(pts, ang=None, tr=None):
@@ -244,8 +275,15 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
         self.latch_amount_on_top = 0  # 0 = auto
         self.size_tolerance = SK_SIZE_TOL
         # -- assembly -----------------------------------------------------
-        self.lid_height_u = 1  # lid depth in Gridfinity height units
+        # smkent's Top_Height default is 2. A 1U lid is shorter than the lip
+        # profile itself (ramp 4.5 + land 6.0 = 10.5mm), so its lip land gets
+        # compressed and never reaches full thickness.
+        self.lid_height_u = 2  # lid depth in Gridfinity height units
         self.latch_type = "clip"  # "clip" | "draw"
+        # Lip seal (1E.3). "filament-1.75mm" cuts a half-round groove in BOTH
+        # halves so a loop of 1.75mm filament serves as the gasket -- stock you
+        # already own, in whatever durometer you like if you use TPU.
+        self.lip_seal_type = "wedge"
         for k, v in kwargs.items():
             if k in self.__dict__:
                 self.__dict__[k] = v
@@ -282,6 +320,11 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
         if not 0 <= self.size_tolerance <= 1:
             raise ValueError(
                 "size_tolerance must be 0-1 mm, got %r" % (self.size_tolerance,)
+            )
+        if self.lip_seal_type not in SK_SEAL_TYPES:
+            raise ValueError(
+                "lip_seal_type must be one of %s, got %r"
+                % (SK_SEAL_TYPES, self.lip_seal_type)
             )
         if self.latch_type not in ("clip", "draw"):
             raise ValueError(
@@ -335,11 +378,17 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
 
     @property
     def box_length(self):
-        return self.int_length + 2 * self.wall_thickness
+        """smkent: outer = inner + total_lip_thickness * 2.
+
+        NOT wall_thickness. The outer dimension is set by the LIP land, which
+        is the thickest part of the wall -- using wall_thickness made the box
+        6mm undersized in each direction.
+        """
+        return self.int_length + 2 * self.total_lip_thickness
 
     @property
     def box_width(self):
-        return self.int_width + 2 * self.wall_thickness
+        return self.int_width + 2 * self.total_lip_thickness
 
     @property
     def lid_height(self):
@@ -360,6 +409,82 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
         """smkent latch_base_size = screw_diameter * (proportion / 2)."""
         return SK_M3 * (SK_LATCH_BODY_PROPORTION / 2)
 
+    # -- lip seal (1E.3) ---------------------------------------------------
+
+    @property
+    def seal_thickness(self):
+        """smkent: 1.75 for the filament seal, else total_lip_thickness / 3."""
+        if self.lip_seal_type == SK_SEAL_TYPES[3]:
+            return SK_SEAL_FILAMENT_D
+        return self.total_lip_thickness / 3
+
+    @property
+    def seal_is_inset(self):
+        """True when BOTH halves are grooved rather than ridge-and-groove.
+
+        The filament seal works that way: each half gets a half-round channel
+        and a loop of filament sits between them. The moulded types instead put
+        a ridge on the lid and a matching groove in the body.
+        """
+        return self.lip_seal_type == SK_SEAL_TYPES[3]
+
+    def _seal_profile_points(self, embed=0.0):
+        """Seal cross-section. Local x is radial, local y is vertical.
+
+        `embed` extends the profile ABOVE the mating plane. A ridge otherwise
+        sits entirely below z=0 and meets the lid only on that plane -- a
+        coplanar contact, which OpenCASCADE will not fuse, leaving the ridge as
+        a second disconnected solid. See LEARNING-LOG: coplanar boolean faces.
+        The protruding height is unchanged; only the buried part grows.
+        """
+        t = self.seal_thickness
+        if self.lip_seal_type == "square":
+            return [(-t / 2, -t), (t / 2, -t), (t / 2, embed), (-t / 2, embed)]
+        if self.lip_seal_type == "wedge":
+            # smkent's trapezoid: narrow at the root, wide at the tip.
+            return [(-t / 4, -t), (t / 4, -t), (t / 2, embed), (-t / 2, embed)]
+        return None  # circle, handled separately
+
+    def _seal_path(self):
+        """Closed rounded-rect path the seal follows, inset into the lip."""
+        inset = self.total_lip_thickness / 2
+        pl = self.box_length - 2 * inset
+        pw = self.box_width - 2 * inset
+        pr = max(self.corner_radius - inset, 0.5)
+        slab = (
+            cq.Workplane("XY")
+            .placeSketch(rounded_rect_sketch(pl, pw, pr))
+            .extrude(1)
+        )
+        wires = slab.faces("<Z").val().Wires()
+        length_of = lambda w: w.Length() if callable(w.Length) else w.Length
+        return max(wires, key=length_of)
+
+    def render_seal_ring(self, delta=0.0, z=None, embed=0.0):
+        """The seal as a swept ring, ready to add to the lid or cut from the body.
+
+        `delta` shrinks the profile (negative) so the lid's ridge is smaller
+        than the groove it seats into -- that difference is the seal clearance.
+        """
+        if self.lip_seal_type == "none":
+            return None
+        path = self._seal_path()
+        sp = path.startPoint()
+        tangent = path.tangentAt(0)
+        # Local x radial, local y vertical, normal along the path.
+        plane = cq.Plane(origin=sp, normal=tangent, xDir=cq.Vector(-1, 0, 0))
+        wp = cq.Workplane(plane)
+        if self.seal_is_inset:
+            prof = wp.circle(self.seal_thickness / 2 + delta)
+        else:
+            pts = self._seal_profile_points(embed=embed)
+            prof = wp.polyline(pts).close()
+            if abs(delta) > 1e-9:
+                prof = prof.offset2D(delta)
+        ring = prof.sweep(cq.Workplane(obj=path), isFrenet=True)
+        zz = self.body_height if z is None else z
+        return ring.translate((0, 0, zz))
+
     # -- geometry ---------------------------------------------------------
 
     def _outer_block(self, height, z0=0.0):
@@ -371,29 +496,100 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
             cq.Workplane("XY").placeSketch(sketch).extrude(height).translate((0, 0, z0))
         )
 
-    def _interior_void(self, height, z0):
-        """The cavity that holds Gridfinity bins."""
-        sketch = rounded_rect_sketch(self.int_length, self.int_width, 3.75)
-        return (
-            cq.Workplane("XY").placeSketch(sketch).extrude(height).translate((0, 0, z0))
-        )
+    def _interior_void(self, height, z0, lip_at_top=True):
+        """The cavity, stepped so the wall thickens into a lip land.
+
+        smkent's `_box_wall_shape` leaves the wall at wall_thickness for most
+        of its height, ramps over lip_thickness * 1.5, then holds
+        total_lip_thickness for the top lip_height. Measured from the source
+        cross-section at the Gridfinity defaults:
+
+            wall 3.00mm  ->  ramp  ->  lip land 6.00mm over the top 6.0mm
+
+        Expressed here as the void rather than the wall: the cavity is WIDER
+        below the lip (inner + 2 * lip_thickness) and narrows to `inner` at the
+        lip land. Same solid, fewer booleans.
+        """
+        lt = self.lip_thickness
+        lip_h = self.lip_height          # full-thickness land
+        ramp_h = lt * 1.5                # transition, per the source polygon
+        wide_l = self.int_length + 2 * lt
+        wide_w = self.int_width + 2 * lt
+
+        plain_h = max(height - lip_h - ramp_h, 0.0)
+        parts = []
+        if plain_h > EPS:
+            parts.append(
+                cq.Workplane("XY")
+                .placeSketch(rounded_rect_sketch(wide_l, wide_w, 3.75 + lt))
+                .extrude(plain_h)
+            )
+        # Ramp: loft from the wide section down to the lip section.
+        if ramp_h > EPS:
+            lo = _rounded_rect_wire(wide_l, wide_w, 3.75 + lt, plain_h)
+            hi = _rounded_rect_wire(
+                self.int_length, self.int_width, 3.75, plain_h + ramp_h
+            )
+            parts.append(
+                cq.Workplane("XY").newObject([cq.Solid.makeLoft([lo, hi], ruled=True)])
+            )
+        top_h = height - plain_h - ramp_h
+        if top_h > EPS:
+            parts.append(
+                cq.Workplane("XY")
+                .placeSketch(rounded_rect_sketch(self.int_length, self.int_width, 3.75))
+                .extrude(top_h)
+                .translate((0, 0, plain_h + ramp_h))
+            )
+        void = parts[0]
+        for extra in parts[1:]:
+            void = void.union(extra)
+        if not lip_at_top:
+            void = void.mirror("XY").translate((0, 0, height))
+        return void.translate((0, 0, z0))
 
     def render_body(self):
-        """Lower half of the box: floor, walls, and the lip's lower land."""
+        """Lower half of the box: floor, walls, and the lip's lower land.
+
+        The body always receives the GROOVE, whichever seal type is chosen.
+        """
         h = self.body_height
         r = self._outer_block(h)
-        void = self._interior_void(h, self.wall_thickness)
+        # The cavity runs from the floor to the rim, so its height is the box
+        # height LESS the floor. Passing the full height pushed the lip land
+        # above the box entirely and the wall never reached total_lip_thickness.
+        void = self._interior_void(h - self.wall_thickness, self.wall_thickness)
         r = r.cut(void)
+        groove = self.render_seal_ring()
+        if groove is not None:
+            r = r.cut(groove)
         self._cq_obj = r
         self._obj_label = "body"
         return r
 
     def render_lid(self):
-        """Upper half. Rendered at the origin, not in assembled position."""
+        """Upper half. Rendered at the origin, not in assembled position.
+
+        Moulded seals put a RIDGE here, undersized by SK_SEAL_CLEARANCE so it
+        seats into the body's groove. The filament seal instead grooves this
+        half too, so the gasket sits between two channels.
+        """
         h = self.lid_height
         r = self._outer_block(h)
-        void = self._interior_void(h - self.wall_thickness, 0)
+        # Lid is the mirror image: its lip land sits at the BOTTOM, where it
+        # meets the body.
+        void = self._interior_void(h - self.wall_thickness, 0, lip_at_top=False)
         r = r.cut(void)
+        if self.lip_seal_type != "none":
+            if self.seal_is_inset:
+                r = r.cut(self.render_seal_ring(z=0.0))
+            else:
+                ridge = self.render_seal_ring(
+                    delta=-SK_SEAL_CLEARANCE,
+                    z=0.0,
+                    embed=SK_SEAL_CLEARANCE + SK_SEAL_EMBED,
+                )
+                r = r.union(ridge)
         self._cq_obj = r
         self._obj_label = "lid"
         return r
