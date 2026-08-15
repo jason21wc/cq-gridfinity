@@ -1,6 +1,6 @@
 # Session State
 
-**Last Updated:** 2026-08-13 (Spec conformance: stacking lip corrected)
+**Last Updated:** 2026-08-15 (P3: draw latch mechanism complete)
 **Memory Type:** Working (transient)
 **Lifecycle:** Prune at session start per §7.0.4
 
@@ -10,10 +10,32 @@
 ---
 
 ## Current Position
-- **Phase:** P3 (smkent rugged box) — steps 1–2 of 8 done. Interrupted by a
-  spec-conformance detour that turned out to be load-bearing
+- **Phase:** P3 — smkent rugged box. Both latch types built; **1E.2 complete**
 - **Plan:** `documents/ROADMAP.md`
 - **Blocker:** None
+
+### P3 progress — 4 of 8
+
+| Item | Status |
+|------|--------|
+| Shell + parametric walls (1E.8) | ✅ 7 params, GF presets, computed values per upstream |
+| Clip latch (1E.1) | ✅ exact hulls, analytic |
+| **Draw latch (1E.2)** | ✅ **complete — zero-interference mesh verified** |
+| Lip seal (1E.3) | Next. Unblocked: the seal needs the draw latch's clamping |
+| Integrated baseplate (1E.4) | Two booleans reusing `gf_baseplate` blocks |
+| Third hinge (1E.6) | Auto-activates at ≥5U width |
+| Hinge end stops (1E.7) | Prevents the common printed-hinge failure |
+| Per-part STEP export | Jason's request |
+
+**Reusable primitive built:** `_hull_of_circles()` — exact 2D hull of circles
+with unequal radii, arcs plus external tangent lines. OpenSCAD leans on `hull()`
+constantly and CadQuery has none; `polygon().offset2D(r)` only covers the
+equal-radius case. Verified tight, not merely containing.
+
+**Deliberate divergence (agreed):** the grip is **lofted**, not the 10 stacked
+polyhedra upstream uses. OpenSCAD cannot loft; the facets are a workaround, not
+the design intent.
+
 
 ### 🔴 Stacking lip was 0.6mm off spec for two years — corrected 2026-08-13
 
