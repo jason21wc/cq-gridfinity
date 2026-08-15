@@ -212,6 +212,48 @@ def test_solid_box_ignores_dividers():
                          dividers=[Divider("x", 0.5)]).render_dividers() is None
 
 
+# --- Fillet radius clamping -------------------------------------------------
+
+
+def test_explicit_dividers_get_the_same_fillet_clamp_as_counts():
+    """Regression from the P2 refactor.
+
+    safe_fillet_rad tested the raw length_div/width_div integers, so a bin
+    built from explicit Divider objects skipped the divider-aware clamp and
+    asked for a radius larger than the wall it had to blend into. Latent at the
+    default wall thickness; only visible once the clamp actually binds.
+    """
+    counts = GridfinityBox(3, 2, 6, length_div=1, wall_th=1.6)
+    objects = GridfinityBox(3, 2, 6, dividers=[Divider("x", 0.5)], wall_th=1.6)
+    assert objects.safe_fillet_rad == pytest.approx(counts.safe_fillet_rad)
+
+
+def test_notched_divider_clamps_the_fillet_radius():
+    """A notch leaves topology the kernel cannot blend at 1.1mm. Clamping keeps
+    the blend instead of dropping it -- measured: 0.8 fails, 0.5 succeeds."""
+    from cqgridfinity.constants import GR_NOTCH_FILLET_MAX
+
+    plain = GridfinityBox(3, 2, 6, dividers=[Divider("x", 0.5)])
+    notched = GridfinityBox(3, 2, 6, dividers=[Divider("x", 0.5, notch_depth=8)])
+    assert notched.safe_fillet_rad <= GR_NOTCH_FILLET_MAX
+    assert notched.safe_fillet_rad < plain.safe_fillet_rad
+
+
+def test_notched_divider_fillet_actually_applies():
+    """The clamp is only worth having if the fillet then succeeds."""
+    import warnings as _w
+
+    with _w.catch_warnings(record=True) as caught:
+        _w.simplefilter("always")
+        r = GridfinityBox(
+            3, 2, 6, dividers=[Divider("x", 0.5, notch_depth=8)]
+        ).render()
+        assert not [c for c in caught if "fillet" in str(c.message)], (
+            "fillet still failing on a notched divider"
+        )
+    assert r.val().isValid()
+
+
 # --- Filenames --------------------------------------------------------------
 
 

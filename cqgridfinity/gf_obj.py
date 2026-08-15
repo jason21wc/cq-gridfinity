@@ -37,6 +37,7 @@ from cadquery import exporters
 from cqgridfinity.constants import (
     EPS,
     GR_HOLE_DIST,
+    GR_STACKING_LIP_H,
     GR_RAD,
     GR_TOL,
     GRU,
@@ -106,10 +107,19 @@ class GridfinityObject:
 
     @property
     def height(self):
-        # 3.8 = GR_BASE_HEIGHT (4.75) - GR_WALL (1.0) + GR_BASE_CLR (0.05)
-        # This is the offset from the base profile top to where stacking units begin.
-        # Inherited from upstream cq-gridfinity; produces correct total heights.
-        return 3.8 + GRHU * self.height_u
+        """Nominal total height: Grid Z Unit * height units + stacking lip.
+
+        Matches the official "Bin Total Height" drawing. Was hardcoded 3.8 --
+        upstream's incorrect lip height -- until 2026-08-15. No subclass
+        currently uses this (every one defines its own height), so correcting
+        it changes no geometry; it is fixed so a future subclass cannot inherit
+        the wrong figure.
+
+        Subclasses whose height is not lip-based (baseplates, rugged boxes)
+        override this. GridfinityBox additionally distinguishes nominal from
+        `actual_height`, which accounts for the lip tip fillet.
+        """
+        return GR_STACKING_LIP_H + GRHU * self.height_u
 
     @property
     def outer_l(self):
@@ -163,14 +173,35 @@ class GridfinityObject:
         ]
 
     def safe_fillet(self, obj, selector, rad):
-        if len(obj.edges(selector).vals()) > 0:
-            try:
-                return obj.edges(selector).fillet(rad)
-            except Exception:
-                # Fillet may fail on complex geometry (raised floors,
-                # positioned labels, etc.); skip gracefully
-                return obj
-        return obj
+        """Fillet the selected edges, degrading gracefully if that is not possible.
+
+        Two very different things used to look identical from outside:
+        a selector matching NO edges (a conditional fillet that simply does not
+        apply -- routine, e.g. lite_style bins) and the fillet KERNEL FAILING on
+        edges that do exist (a real loss of geometry). Only the second warrants
+        attention, so only the second warns.
+        """
+        n_edges = len(obj.edges(selector).vals())
+        if n_edges == 0:
+            return obj  # nothing to fillet; not a failure
+        if rad < 0.05:
+            # Below roughly one extrusion width the blend is meaningless, and
+            # a near-zero radius cannot succeed anyway. Clamping upstream can
+            # legitimately produce this on very short bins.
+            return obj
+        try:
+            return obj.edges(selector).fillet(rad)
+        except Exception:
+            # Complex geometry (raised floors, positioned labels) can defeat
+            # the fillet kernel. The object stays valid but loses this blend,
+            # so say so rather than silently shipping a sharper part.
+            warnings.warn(
+                "%s: fillet r=%.2f failed on %d edge(s); those edges stay "
+                "sharp. Geometry is otherwise valid."
+                % (self.__class__.__name__, rad, n_edges),
+                stacklevel=2,
+            )
+            return obj
 
     def repair_if_invalid(self, obj):
         """Repair a solid with OCC's ShapeFix, but only if it is actually invalid.

@@ -182,6 +182,17 @@ def test_solid_box_1u_lid(length_u, width_u):
     assert _almost_same(b.top_ref_height, 11.4)
 
 
+def test_fillet_radius_never_exceeds_the_cavity():
+    """A 7.01mm bin has 0.01mm of interior; a 1.1mm fillet cannot fit in it.
+
+    Unclamped, the kernel was asked for a radius 100x the available space and
+    silently dropped the blend.
+    """
+    for h in (7.01, 8.0, 12.0, 25.4):
+        b = GridfinityBox(2, 2, h, gridz_define=2)
+        assert b.safe_fillet_rad <= b.cavity_height / 2 + 1e-9
+
+
 def test_solid_box_zero_ratio_does_not_crash():
     """solid_ratio=0 means nothing to fill -- must not reach extrude(0)."""
     b = GridfinityBox(2, 2, 1, solid=True, solid_ratio=0.0)

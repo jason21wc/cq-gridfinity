@@ -47,6 +47,7 @@ from cqgridfinity.constants import (
     GR_HOLE_DIST,
     GR_HOLE_H,
     GR_HOLE_SLICE,
+    GR_NOTCH_FILLET_MAX,
     GR_LID_TH,
     GR_LID_TH_MIN,
     GR_LIP_APEX_SETBACK,
@@ -459,8 +460,22 @@ class GridfinityBox(GridfinityObject):
         rad = self.fillet_rad or GR_FILLET
         # Always clamp to inner corner radius to prevent CAD kernel crash
         rad = min(rad, self.inner_rad - 0.05)
-        if any([self.scoops, self.labels, self.length_div, self.width_div]):
+        # has_dividers, not the raw length_div/width_div integers: a bin built
+        # from explicit Divider objects has dividers too, and skipping this
+        # clamp for it let the radius exceed the wall it has to blend into.
+        if any([self.scoops, self.labels, self.has_dividers]):
             rad = min(rad, (GR_UNDER_H + GR_WALL) - self.wall_th - 0.05)
+        # A fillet cannot be larger than the cavity it sits in. Very short bins
+        # (a 7.01mm shell has 0.01mm of interior) would otherwise ask the
+        # kernel for a radius 100x the available space and fail.
+        if self.cavity_height > 0:
+            rad = min(rad, self.cavity_height / 2)
+        # A notched divider leaves tight topology around the U-cut that defeats
+        # the fillet kernel at the default radius. Determined empirically:
+        # 0.8mm fails, 0.5mm succeeds. Clamping keeps the blend rather than
+        # dropping it entirely.
+        if any(d.has_notch for d in self.divider_list):
+            rad = min(rad, GR_NOTCH_FILLET_MAX)
         return max(rad, 0)
 
     @property

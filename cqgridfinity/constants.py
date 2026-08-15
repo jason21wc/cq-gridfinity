@@ -41,6 +41,10 @@ GRHU = 7
 GRU_CUT = 42.2  # base extrusion width
 GR_WALL = 1.0  # nominal exterior wall thickness
 GR_DIV_WALL = 1.2  # width of dividing walls
+# Largest interior fillet that still succeeds beside a notched divider. The
+# U-cut leaves tight topology the kernel cannot blend at the default 1.1mm --
+# measured: 0.8 fails, 0.5 succeeds.
+GR_NOTCH_FILLET_MAX = 0.5
 
 # Lid geometry. A Gridfinity lid is a solid box: its feet drop into the
 # stacking lip of the bin below. "Thickness" always means material ABOVE the
