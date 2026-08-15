@@ -9,6 +9,7 @@ import math
 import pytest
 
 from cqgridfinity import GridfinityRuggedBoxSmkent as SK
+from cqgridfinity.gf_ruggedbox_smkent import SK_M3
 from cqgridfinity.gf_ruggedbox_smkent import _tangent_point
 
 
@@ -369,6 +370,89 @@ def test_draw_latch_catch_combines_body_and_hook():
     # Taller than the body alone -- the hook sits above it.
     assert (catch.val().BoundingBox().ylen
             > b.render_draw_latch_catch_body().val().BoundingBox().ylen)
+
+
+def test_draw_latch_handle_arm_renders_valid():
+    r = _box().render_draw_latch_handle_arm()
+    assert r.val().isValid()
+    assert len(r.solids().vals()) == 1
+
+
+def test_draw_latch_handle_arm_dimensions():
+    """Hull of the eyelet (r=3.3 at origin) and pin boss (r=4.8 at
+    (-1.5, -14.625)), so x spans -6.3..3.3 and y spans -19.425..3.3."""
+    b = _box()
+    bb = b.render_draw_latch_handle_arm().val().BoundingBox()
+    assert bb.xlen == pytest.approx(9.6, abs=0.01)
+    assert bb.ylen == pytest.approx(22.725, abs=0.01)
+    assert bb.zlen == pytest.approx(b.latch_width, abs=0.01)
+
+
+def test_draw_latch_handle_arm_hull_area_matches_sampled_hull():
+    """Independent cross-check of the UNEQUAL-radius hull.
+
+    Polygon hulls of densely sampled rims inscribe the arcs, so they approach
+    the true area from below. Convergence to our value confirms the tangent-line
+    construction rather than merely that it produced a solid.
+    """
+    import math as _m
+
+    from cqgridfinity.gf_ruggedbox_smkent import (
+        _convex_hull_2d, _hull_of_circles, _wire_from_hull,
+    )
+
+    b = _box()
+    circles = b._draw_latch_handle_hull_circles()
+    ours = _wire_from_hull(_hull_of_circles(circles)).extrude(1).val().Volume()
+    areas = []
+    for n in (48, 384):
+        pts = [
+            (round(cx + r * _m.cos(2 * _m.pi * k / n), 9),
+             round(cy + r * _m.sin(2 * _m.pi * k / n), 9))
+            for cx, cy, r in circles for k in range(n)
+        ]
+        h = _convex_hull_2d(pts)
+        areas.append(abs(sum(
+            h[i][0] * h[(i + 1) % len(h)][1] - h[(i + 1) % len(h)][0] * h[i][1]
+            for i in range(len(h))
+        )) / 2)
+    assert all(a <= ours + 1e-6 for a in areas), "sampled hull exceeds ours"
+    assert areas[-1] == pytest.approx(ours, rel=1e-3), "not converging to ours"
+
+
+def test_draw_latch_handle_arm_has_both_holes():
+    """Pin hole and screw hole must actually be cut."""
+    import cadquery as _cq
+
+    from cqgridfinity.gf_ruggedbox_smkent import (
+        _hull_of_circles, _wire_from_hull,
+    )
+
+    b = _box()
+    solid_hull = _wire_from_hull(
+        _hull_of_circles(b._draw_latch_handle_hull_circles())
+    ).extrude(b.latch_width).val().Volume()
+    drilled = b.render_draw_latch_handle_arm().val().Volume()
+    assert drilled < solid_hull, "no material removed"
+    # Two through-holes of known radius.
+    from cqgridfinity.gf_ruggedbox_smkent import (
+        SK_DRAW_PIN_R, SK_DRAW_SEP, SK_M3, SK_SCREW_HOLE_TOL,
+    )
+    import math as _m
+
+    pin_a = _m.pi * (SK_DRAW_PIN_R + SK_DRAW_SEP) ** 2
+    screw_a = _m.pi * ((SK_M3 + SK_SCREW_HOLE_TOL + SK_M3 * 0.2) / 2) ** 2
+    assert solid_hull - drilled == pytest.approx(
+        (pin_a + screw_a) * b.latch_width, rel=1e-6
+    )
+
+
+def test_draw_latch_pin_hole_is_offset_from_the_boss():
+    """Not a centring error: smkent biases the pivot by screw_diameter * 0.1."""
+    b = _box()
+    boss = b._draw_latch_handle_hull_circles()[1]
+    assert b._draw_pin_offset[0] == pytest.approx(boss[0] - SK_M3 * 0.1)
+    assert b._draw_pin_offset[1] == pytest.approx(boss[1])
 
 
 # --- Naming -----------------------------------------------------------------

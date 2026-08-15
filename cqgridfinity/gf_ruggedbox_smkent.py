@@ -592,6 +592,45 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
         throat = wide.union(tight).translate((-er * cr, 0, 0))
         return claw.cut(throat)
 
+    def _draw_latch_handle_hull_circles(self):
+        """The lever arm: a hull of the screw eyelet and the pin boss.
+
+        Unequal radii (3.3 and 4.8), which is precisely the case
+        polygon().offset2D(r) cannot express -- it is why the exact
+        hull-of-circles primitive exists.
+        """
+        return [
+            (0.0, 0.0, SK_DRAW_SCREW_EYELET_R),
+            (
+                SK_DRAW_SCREW_EYELET_R - SK_DRAW_PIN_HANDLE_R,
+                -SK_DRAW_HANDLE_LENGTH,
+                SK_DRAW_PIN_HANDLE_R,
+            ),
+        ]
+
+    def render_draw_latch_handle_arm(self):
+        """Lever arm with its pin and screw holes, before the grip is added.
+
+        The pin HOLE is offset 0.3mm from the pin BOSS centre (smkent's
+        draw_latch_pin_offset subtracts screw_diameter * 0.1), which biases the
+        pivot -- it is not a centring error.
+        """
+        h = self.latch_width
+        arm = _wire_from_hull(
+            _hull_of_circles(self._draw_latch_handle_hull_circles())
+        ).extrude(h)
+        pin_hole = (
+            cq.Workplane("XY")
+            .circle(SK_DRAW_PIN_R + SK_DRAW_SEP)
+            .extrude(h)
+            .translate((*self._draw_pin_offset, 0))
+        )
+        # Screw hole: nominal, less the thread-forming tolerance, plus the
+        # running-fit allowance -- smkent's screw_hole_diameter_fit = d * 0.2.
+        screw_d = SK_M3 + SK_SCREW_HOLE_TOL + SK_M3 * 0.2
+        screw_hole = cq.Workplane("XY").circle(screw_d / 2).extrude(h)
+        return arm.cut(pin_hole).cut(screw_hole)
+
     def render_draw_latch_catch(self):
         """Catch = stadium body + hook, positioned as smkent places it."""
         h = self.latch_width
