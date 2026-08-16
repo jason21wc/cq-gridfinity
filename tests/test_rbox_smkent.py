@@ -225,6 +225,70 @@ def _wall_at(solid, z):
     return (f.BoundingBox().xlen - inner.BoundingBox().xlen) / 2
 
 
+def _extents_at(solid, z):
+    """(outer, inner) X extents of the ring at height z."""
+    import cadquery as _cq
+
+    plate = _cq.Workplane("XY").rect(500, 500).extrude(0.02).translate((0, 0, z))
+    rings = [f for f in solid.intersect(plate.val()).Faces() if len(f.Wires()) == 2]
+    assert rings, "no ring at z=%s" % z
+    f = max(rings, key=lambda x: x.BoundingBox().xlen)
+    inner = sorted(f.Wires(), key=lambda w: w.BoundingBox().xlen)[0]
+    return f.BoundingBox().xlen, inner.BoundingBox().xlen
+
+
+def test_the_wall_thickens_outward_not_inward():
+    """Which surface moves -- the defect thickness alone cannot see.
+
+    smkent's `_box_wall_shape` subtracts from the OUTER side below the lip:
+    the interior is a constant `inner` for the full height and the outside
+    steps out at the land. We had it inverted -- constant outer, interior
+    bulging 6mm below the lip -- and every thickness assertion in this file
+    passed either way, because the thickness was right in both.
+
+    See documents/SHELL-AUDIT-1E8.md.
+    """
+    b = SK(5, 4, 6, lip_seal_type="none")
+    body = b.render_body().val()
+    outer_low, inner_low = _extents_at(body, 8.0)
+    outer_high, inner_high = _extents_at(body, b.body_height - 1.0)
+
+    # The interior never moves.
+    assert inner_low == pytest.approx(b.int_length, abs=0.05)
+    assert inner_high == pytest.approx(b.int_length, abs=0.05)
+    # The outside steps out by exactly lip_thickness per side.
+    assert outer_low == pytest.approx(b.plain_outer_length, abs=0.05)
+    assert outer_high == pytest.approx(b.box_length, abs=0.05)
+    assert outer_high - outer_low == pytest.approx(2 * b.lip_thickness, abs=0.05)
+
+
+def test_outer_chamfer_at_the_outward_end():
+    """smkent chamfers the outward end of each half: horizontal
+    edge_chamfer_proportion * corner_radius, vertical 1.5x that."""
+    b = SK(5, 4, 6, lip_seal_type="none")
+    hc, vc = b.outer_chamfer_horizontal, b.outer_chamfer_vertical
+    assert hc == pytest.approx(0.95 * 3.75)
+    assert vc == pytest.approx(hc * 1.5)
+    import cadquery as cq
+
+    body = b.render_body().val()
+
+    def outer_at(z):
+        """Below the floor the section is solid, so measure the slice itself."""
+        slab = cq.Workplane("XY").box(500, 500, 0.02).translate((0, 0, z)).val()
+        return body.intersect(slab).BoundingBox().xlen
+
+    # Sample inside the chamfer's linear stretch, clear of the edge rounding
+    # at either end, and check its slope: 2 * horizontal over vertical.
+    lo, hi = 1.5, 3.5
+    slope = (outer_at(hi) - outer_at(lo)) / (hi - lo)
+    assert slope == pytest.approx(2 * hc / vc, rel=0.02)
+    # And by the top of the chamfer it has reached the plain wall.
+    assert outer_at(vc + 0.5) == pytest.approx(b.plain_outer_length, abs=0.05)
+    # The chamfer really removes material: the base is well inside the wall.
+    assert outer_at(0.3) < b.plain_outer_length - 2 * hc * 0.8
+
+
 def test_wall_thickens_into_a_lip_land():
     """smkent's wall is wall_thickness for most of its height and thickens to
     total_lip_thickness over the top lip_height. That land is where the seal
@@ -944,14 +1008,20 @@ def test_skeletonizing_removes_material_from_the_plate():
 def test_magnet_pockets_do_not_perforate_the_box_floor():
     """Magnet recesses are blind from above, so the box still holds liquid --
     and the magnets drop in from inside rather than needing a print pause."""
+    areas = []
     for kw in ({}, {"baseplate_magnets": True}):
         b = _small(**kw)
-        r = b.render_body()
-        faces = r.faces("<Z").vals()
+        faces = b.render_body().faces("<Z").vals()
         assert len(faces) == 1, "the underside broke into pieces"
-        # Full outer footprint less only the corner fillets.
-        area = faces[0].Area()
-        assert area == pytest.approx(b.box_length * b.box_width, rel=0.01)
+        areas.append(faces[0].Area())
+    # Differential: turning magnets on must not change the underside at all.
+    assert areas[0] == pytest.approx(areas[1], rel=1e-9), "magnets broke through"
+    # And the underside is the chamfered footprint, not the full one.
+    b = _small()
+    hc = b.outer_chamfer_horizontal
+    assert areas[0] == pytest.approx(
+        (b.plain_outer_length - 2 * hc) * (b.plain_outer_width - 2 * hc), rel=0.02
+    )
 
 
 # --- Naming -----------------------------------------------------------------

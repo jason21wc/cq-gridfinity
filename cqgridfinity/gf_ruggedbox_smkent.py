@@ -104,6 +104,15 @@ SK_SEAL_EMBED = 0.2
 # and bins would be an interference fit into a printed box.
 SK_GF_BORDER = 5.0
 
+# Gridfinity's own corner radius, which smkent passes as the box's INTERIOR
+# corner radius (`corner_radius = r_base`). kennetek renamed r_base to
+# BASE_TOP_RADIUS = 7.5 / 2 in src/core/standard.scad.
+GF_CORNER_RAD = 3.75
+
+# smkent `edge_chamfer_proportion`, Gridfinity preset. Chamfers the outward
+# end of each half: proportion of corner_radius horizontally, 1.5x vertically.
+SK_EDGE_CHAMFER_PROP = 0.95
+
 
 def _tangent_point(radius, point, prefer_right=True):
     """Where a line from `point` touches a circle of `radius` at the origin.
@@ -519,8 +528,23 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
 
     @property
     def corner_radius(self):
-        """Outer corner radius. Gridfinity's own 3.75mm plus the wall."""
-        return 3.75 + self.wall_thickness
+        """Outer corner radius at the lip land.
+
+        smkent line 544: `outer_radius = corner_radius + wall_thickness`,
+        where `corner_radius` is the INTERIOR radius (line 76). At the lip the
+        wall is total_lip_thickness, so the land's radius follows that.
+        """
+        return GF_CORNER_RAD + self.total_lip_thickness
+
+    @property
+    def outer_chamfer_horizontal(self):
+        """smkent `$b_outer_chamfer_horizontal`."""
+        return SK_EDGE_CHAMFER_PROP * GF_CORNER_RAD
+
+    @property
+    def outer_chamfer_vertical(self):
+        """smkent `$b_outer_chamfer_vertical` -- 1.5x the horizontal."""
+        return self.outer_chamfer_horizontal * 1.5
 
     @property
     def latch_base_size(self):
@@ -605,48 +629,55 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
 
     # -- geometry ---------------------------------------------------------
 
-    def _outer_block(self, height, z0=0.0):
-        """Rounded-rectangle prism forming the outer surface."""
-        sketch = rounded_rect_sketch(
-            self.box_length, self.box_width, self.corner_radius
-        )
-        return (
-            cq.Workplane("XY").placeSketch(sketch).extrude(height).translate((0, 0, z0))
-        )
+    @property
+    def plain_outer_length(self):
+        """Outer length below the lip: `inner + 2 * wall_thickness`."""
+        return self.int_length + 2 * self.wall_thickness
 
-    def _interior_void(self, height, z0, lip_at_top=True):
-        """The cavity, stepped so the wall thickens into a lip land.
+    @property
+    def plain_outer_width(self):
+        return self.int_width + 2 * self.wall_thickness
 
-        smkent's `_box_wall_shape` leaves the wall at wall_thickness for most
-        of its height, ramps over lip_thickness * 1.5, then holds
-        total_lip_thickness for the top lip_height. Measured from the source
-        cross-section at the Gridfinity defaults:
+    @property
+    def plain_corner_radius(self):
+        """Outer corner radius below the lip."""
+        return GF_CORNER_RAD + self.wall_thickness
 
-            wall 3.00mm  ->  ramp  ->  lip land 6.00mm over the top 6.0mm
+    def _outer_block(self, height, z0=0.0, lip_at_top=True):
+        """The outer surface: a thin wall that steps OUT into the lip land.
 
-        Expressed here as the void rather than the wall: the cavity is WIDER
-        below the lip (inner + 2 * lip_thickness) and narrows to `inner` at the
-        lip land. Same solid, fewer booleans.
+        smkent's `_box_wall_shape` subtracts from the OUTER side below the
+        lip. The interior is a constant `inner` for the full height; the
+        outside is `inner + 2*wall_thickness` for most of it, ramps over
+        `1.5 * lip_thickness`, then holds `inner + 2*total_lip_thickness`
+        for the top `lip_height`.
+
+        Regression: this used to be a plain prism at the full outer size with
+        the step taken out of the CAVITY instead -- a different solid, 6mm
+        oversized over most of its height, and with no thin wall for a support
+        rib to thicken. See documents/SHELL-AUDIT-1E8.md.
         """
-        lt = self.lip_thickness
-        lip_h = self.lip_height          # full-thickness land
-        ramp_h = lt * 1.5                # transition, per the source polygon
-        wide_l = self.int_length + 2 * lt
-        wide_w = self.int_width + 2 * lt
-
+        lip_h = self.lip_height
+        ramp_h = self.lip_thickness * 1.5
         plain_h = max(height - lip_h - ramp_h, 0.0)
+        pl, pw, pr = (
+            self.plain_outer_length,
+            self.plain_outer_width,
+            self.plain_corner_radius,
+        )
         parts = []
         if plain_h > EPS:
             parts.append(
                 cq.Workplane("XY")
-                .placeSketch(rounded_rect_sketch(wide_l, wide_w, 3.75 + lt))
+                .placeSketch(rounded_rect_sketch(pl, pw, pr))
                 .extrude(plain_h)
             )
-        # Ramp: loft from the wide section down to the lip section.
+        # Ramp: loft outward from the plain wall up to the lip land.
         if ramp_h > EPS:
-            lo = _rounded_rect_wire(wide_l, wide_w, 3.75 + lt, plain_h)
+            lo = _rounded_rect_wire(pl, pw, pr, plain_h)
             hi = _rounded_rect_wire(
-                self.int_length, self.int_width, 3.75, plain_h + ramp_h
+                self.box_length, self.box_width, self.corner_radius,
+                plain_h + ramp_h,
             )
             parts.append(
                 cq.Workplane("XY").newObject([cq.Solid.makeLoft([lo, hi], ruled=True)])
@@ -655,13 +686,98 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
         if top_h > EPS:
             parts.append(
                 cq.Workplane("XY")
-                .placeSketch(rounded_rect_sketch(self.int_length, self.int_width, 3.75))
+                .placeSketch(
+                    rounded_rect_sketch(
+                        self.box_length, self.box_width, self.corner_radius
+                    )
+                )
                 .extrude(top_h)
                 .translate((0, 0, plain_h + ramp_h))
             )
-        void = parts[0]
+        block = parts[0]
         for extra in parts[1:]:
-            void = void.union(extra)
+            block = block.union(extra)
+        block = self._cut_outer_chamfer(block, height)
+        block = self._round_outer_edges(block)
+        if not lip_at_top:
+            block = block.mirror("XY").translate((0, 0, height))
+        return block.translate((0, 0, z0))
+
+    def _round_outer_edges(self, block):
+        """smkent rounds the whole wall cross-section by `edge_radius`.
+
+        On the swept solid that lands on the horizontal loops where the
+        section changes: the base, both ends of the outer chamfer, both ends
+        of the lip ramp, and the top rim. Convex corners round over, concave
+        ones fill -- a CadQuery fillet does both.
+        """
+        edges = [e for e in block.edges().vals() if abs(e.BoundingBox().zlen) < EPS]
+        if not edges:
+            return block
+        try:
+            return block.newObject(edges).fillet(self.edge_radius)
+        except Exception:
+            # Never trade a valid solid for a cosmetic radius.
+            warnings.warn(
+                "%s: outer edge rounding failed, leaving edges sharp"
+                % self.__class__.__name__,
+                stacklevel=2,
+            )
+            return block
+
+    def _cut_outer_chamfer(self, block, height):
+        """Chamfer the bottom outer edge -- smkent `_box_wall_outer_chamfer_shape`.
+
+        Horizontal `edge_chamfer_proportion * corner_radius`, vertical 1.5x
+        that. It faces the part's outward end, so on the assembled box the
+        body chamfers at the base and the lid at the top.
+        """
+        hc = self.outer_chamfer_horizontal
+        vc = self.outer_chamfer_vertical
+        # Upstream clamps the chamfer so it cannot eat into the lip region.
+        vc = min(vc, max(height - self.lip_height - self.lip_thickness * 1.5, 0.0))
+        if vc <= EPS or hc <= EPS:
+            return block
+        hc = hc * (vc / self.outer_chamfer_vertical)
+        # Ring between the chamfered-in footprint and the full plain wall,
+        # lofted so it opens out to nothing at the top of the chamfer.
+        lo = _rounded_rect_wire(
+            self.plain_outer_length - 2 * hc,
+            self.plain_outer_width - 2 * hc,
+            max(self.plain_corner_radius - hc, 0.1),
+            0.0,
+        )
+        hi = _rounded_rect_wire(
+            self.plain_outer_length,
+            self.plain_outer_width,
+            self.plain_corner_radius,
+            vc,
+        )
+        keep = cq.Workplane("XY").newObject([cq.Solid.makeLoft([lo, hi], ruled=True)])
+        below = (
+            cq.Workplane("XY")
+            .placeSketch(
+                rounded_rect_sketch(
+                    self.box_length + 10, self.box_width + 10, self.corner_radius
+                )
+            )
+            .extrude(vc)
+        )
+        return block.cut(below.cut(keep))
+
+    def _interior_void(self, height, z0, lip_at_top=True):
+        """The cavity: a constant `inner` rounded rect, full height.
+
+        Upstream's interior does not change section -- `_box_wall_interior_shape`
+        removes one constant block. All the stepping lives on the outside.
+        """
+        void = (
+            cq.Workplane("XY")
+            .placeSketch(
+                rounded_rect_sketch(self.int_length, self.int_width, GF_CORNER_RAD)
+            )
+            .extrude(height)
+        )
         if not lip_at_top:
             void = void.mirror("XY").translate((0, 0, height))
         return void.translate((0, 0, z0))
@@ -697,9 +813,9 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
         half too, so the gasket sits between two channels.
         """
         h = self.lid_height
-        r = self._outer_block(h)
         # Lid is the mirror image: its lip land sits at the BOTTOM, where it
-        # meets the body.
+        # meets the body, and its outer chamfer at the top.
+        r = self._outer_block(h, lip_at_top=False)
         void = self._interior_void(h - self.wall_thickness, 0, lip_at_top=False)
         r = r.cut(void)
         if self.lip_seal_type != "none":
