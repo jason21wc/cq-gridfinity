@@ -1465,6 +1465,60 @@ def test_magnet_pockets_do_not_perforate_the_box_floor():
         assert faces[0].Area() < b.plain_outer_length * b.plain_outer_width
 
 
+# --- Does it actually go together? ------------------------------------------
+
+
+@pytest.mark.slow
+def test_the_latch_fits_between_its_own_ribs():
+    """Measured on BOTH sides of the interface: the gap the box leaves, and
+    the part built to drop into it. Everything else about the latch was
+    checked against upstream arithmetic; this is the first check that the two
+    halves of the design agree with each other.
+    """
+    import cadquery as cq
+
+    b = _box()
+    body = b.render_body().val()
+    px = b.attachment_positions()[1]
+    # Probe outboard of the plain wall, where the ribs stand proud, and clear
+    # of the screw axis -- which is drilled, so a probe there finds nothing.
+    yy = -(b.int_width / 2 + b.wall_thickness + b.lip_thickness / 2)
+    probe = cq.Workplane("XY").box(400, 1, 1).translate((0, yy, 15.0)).val()
+    spans = sorted(
+        (s.BoundingBox().xmin, s.BoundingBox().xmax)
+        for s in body.intersect(probe).Solids()
+    )
+    near = [s for s in spans if abs((s[0] + s[1]) / 2 - px) < 40]
+    assert len(near) == 2, "expected a rib either side of the latch"
+    gap = near[1][0] - near[0][1]
+    assert gap == pytest.approx(b.latch_width, abs=0.05)
+    clearance = (gap - b.latch_part_width) / 2
+    assert clearance == pytest.approx(b.size_tolerance, abs=0.02)
+    assert clearance > 0, "the latch cannot drop into its own mount"
+
+
+def test_latch_hole_spacing_matches_the_box_screws():
+    """The part's two holes and the box's two screws must be the same
+    distance apart, or the latch cannot span the joint."""
+    from OCP.BRepAdaptor import BRepAdaptor_Surface
+
+    b = _box()
+    axes = set()
+    for f in b.render_latch().val().Faces():
+        s = BRepAdaptor_Surface(f.wrapped)
+        if str(s.GetType()).rsplit("_", 1)[-1] == "Cylinder":
+            c = s.Cylinder()
+            if 1.35 <= c.Radius() <= 1.85:
+                axes.add((round(c.Radius(), 3), round(c.Location().Y(), 3)))
+    ys = sorted(y for _, y in axes)
+    assert len(ys) == 2, "expected exactly a hinge hole and a catch hole"
+    assert max(ys) - min(ys) == pytest.approx(b.latch_screw_separation, abs=0.01)
+    # And they are drilled differently: running fit at the hinge, thread
+    # forming at the catch.
+    radii = {y: r for r, y in axes}
+    assert radii[min(ys)] > radii[max(ys)]
+
+
 # --- Stacking latches (1E.5) ------------------------------------------------
 
 
