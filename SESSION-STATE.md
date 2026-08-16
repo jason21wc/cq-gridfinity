@@ -14,18 +14,37 @@
 - **Plan:** `documents/ROADMAP.md`
 - **Blocker:** None
 
-### P3 progress — 6 of 8
+### P3 progress
+
+**The plan grew mid-session, deliberately.** Step 7 (third hinge) turned out to
+be a *placement rule* for hinges that had never been built. The 1E list only ever
+captured smkent's additions **over** a rugged box; this module was written from
+scratch, so the base attachment layer never came with it. Jason dispositioned it
+Keep as 1E.9–1E.13.
 
 | Item | Status |
 |------|--------|
-| Shell + parametric walls (1E.8) | ✅ 7 params, GF presets, lip land built, **border now included** |
-| Clip latch (1E.1) | ✅ exact hulls, analytic |
-| Draw latch (1E.2) | ✅ zero-interference mesh verified |
+| Shell + parametric walls (1E.8) | ✅ **rebuilt** — wall steps outward, chamfer + edge rounding added |
+| Clip latch (1E.1) | ✅ exact hulls, analytic — *not yet mountable* |
+| Draw latch (1E.2) | ✅ zero-interference mesh verified — *not yet mountable* |
 | Lip seal (1E.3) | ✅ 4 seal types, groove volume measured against material |
-| **Integrated baseplate (1E.4)** | ✅ **complete — two booleans, `GridfinityBaseplate` reused, 3 STEPs audit-clean** |
-| Third hinge (1E.6) | Next. Auto-activates at ≥5U width |
-| Hinge end stops (1E.7) | Prevents the common printed-hinge failure |
+| Integrated baseplate (1E.4) | ✅ two booleans, `GridfinityBaseplate` reused |
+| **Support ribs (1E.9)** | ✅ side + rear, upstream placement |
+| **Attachment placement (1E.10)** | ✅ shared latch/hinge framework |
+| **Screw eyelets (1E.11)** | ✅ both drill sizes |
+| **Third hinge (1E.6)** | ✅ **the rule is built and tested**; needs 1E.13 to become geometry |
+| Latch ribs (1E.12) | Next — blocked on the hull question below |
+| Hinge ribs (1E.13) | Then this, and 1E.7 falls out of it |
+| Hinge end stops (1E.7) | After 1E.13 |
 | Per-part STEP export | Jason's request |
+
+### 🔴 The open design question — 3D hull
+
+`_box_latch_rib_base` and `_box_hinge_rib_body` both `hull()` a Z-extruded rib
+prism against Y-axis eyelet cylinders. CadQuery has no 3D hull, and unlike the
+draw latch these shapes do not share a plane, so `_hull_of_circles` does not
+reach. **Decide the construction before writing 1E.12** — a loft is the likely
+answer (as with the draw latch grip) but it needs stating as a divergence.
 
 **Integrated baseplate (2026-08-15).** Four upstream styles ship as two booleans,
 `baseplate_magnets` × `baseplate_skeletonized`, per the triage decision. Upstream's
@@ -38,6 +57,30 @@ volume (a coplanar union that fails to fuse leaves two solids `isValid()` still
 passes), and the skeletonized plate is genuinely lighter than a full slab of the same
 depth. The plate's pockets vent **upward** into the receptacle, so nothing becomes a
 sealed void — `Shells() == 1`, checked against a control solid that does have one.
+
+### 🔴 Six sizing defects, all found by the next consumer — 2026-08-15
+
+The pattern is now the finding. Each defect was correct-looking, passed every
+test, and surfaced only when something downstream needed the thing it depended on:
+
+| # | Defect | Found by |
+|---|--------|----------|
+| 1 | Stacking lip 0.6mm off spec (2 years) | the rugged box asking for clearance |
+| 2 | `wall_thickness` where source says `total_lip_thickness` | the seal |
+| 3 | Lip land computed but never built | the seal |
+| 4 | Interior missing the 5mm border | the baseplate |
+| 5 | Outer heights: a 6U box held 41.35mm against a 45.55mm bin | a bin |
+| 6 | Wall cross-section inverted — stepped inward, not outward | the ribs |
+
+**#6 is the one that forced a change of method.** See
+`documents/SHELL-AUDIT-1E8.md`: the whole cross-section diffed against
+`_box_wall_shape` in one pass instead of waiting for consumer number seven.
+Three of its four findings are fixed; reinforced corners stays open as an
+unadmitted feature.
+
+Every one of these passed a test that measured the *parameter*, or measured a
+quantity that was right in both the correct and the incorrect model. The wall
+thickness was 3.00mm whichever surface moved.
 
 ### 🔴 The interior was missing smkent's 5mm border — corrected 2026-08-15
 
@@ -157,8 +200,11 @@ anylid dispositioned in 8 batches → **21 Keep, 21 Cut**. See
 
 ## Next Actions
 
-1. **Resume P3 at step 7 of 8 — third hinge (1E.6)**, then hinge end stops
-   (1E.7) and per-part STEP export
+1. **Decide the 3D-hull construction, then build latch ribs (1E.12) and hinge
+   ribs (1E.13).** 1E.7 (end stops) is an intersection against the hinge body,
+   so it falls out of 1E.13. Then per-part STEP export
+1b. **Disposition reinforced corners** — GF default is `true` upstream; we build
+   the library default `false`, so our corners are weaker than the reference
 2. **Assemble the draw latch about its pin joint** — parts are built and mesh
    with zero interference, but nothing yet poses them as a closed assembly
 3. **DoD-5 remainder** — purpose/use-case docs for the ~35 pre-existing box
@@ -200,7 +246,7 @@ The baseplate boolean lands on the same stepped void the lip land introduced.
 
 | Metric | Value |
 |--------|-------|
-| Tests | **430 passed, 1 skipped, 0 xfailed** (~3m16s) |
+| Tests | **446 passed, 1 skipped, 0 xfailed** (~3m20s) |
 | Quarantined failures | **None** — rugged box lid fixed 2026-08-11 |
 | Ship set | 32 models, 32 audit-clean, DoD-3 human-verified |
 | Local gate | `make check` (3m24s) via pre-push hook; `make check-full` |
