@@ -1,6 +1,6 @@
 # Session State
 
-**Last Updated:** 2026-08-16 (P3 geometry COMPLETE - all 14 items)
+**Last Updated:** 2026-08-16 (P3 geometry COMPLETE; test set staged for DoD-3)
 **Memory Type:** Working (transient)
 **Lifecycle:** Prune at session start per §7.0.4
 
@@ -219,8 +219,11 @@ anylid dispositioned in 8 batches → **21 Keep, 21 Cut**. See
 
 ## Next Actions
 
-1. **DoD-3: open the nine STEP exports in CAD.** Nobody has looked at this box.
-   Every claim above is machine-measured; none is eyeballed
+1. **DoD-3: open `~/Downloads/gridfinity-shipset` in CAD.** 21 models staged,
+   audit-clean, with `MANIFEST.md` listing what to check in cost-of-being-wrong
+   order. Everything previously in that folder was stale (predated the lip,
+   height and shell fixes) and was deleted. Every claim is machine-measured;
+   none is eyeballed
 2. **Disposition reinforced corners** — upstream's Gridfinity wrapper sets it
    `true`, we build the library default `false`, and it is an unadmitted
    feature. Our corners are weaker than the reference until you call it
@@ -261,7 +264,7 @@ anylid dispositioned in 8 batches → **21 Keep, 21 Cut**. See
 |--------|-------|
 | Tests | **448 passed, 1 skipped, 0 xfailed** (~3m23s) |
 | Quarantined failures | **None** — rugged box lid fixed 2026-08-11 |
-| Ship set | 32 models, 32 audit-clean, DoD-3 human-verified |
+| Ship set | P1: 32 models. Staged for DoD-3: 21 models (17 smkent + 4 core), all audit-clean |
 | Local gate | `make check` (3m24s) via pre-push hook; `make check-full` |
 | Triage | 42 features → 21 Keep, 21 Cut |
 | Modules | 12 (added `gf_divider`, `gf_holegrid`, `gf_ruggedbox_smkent`) |

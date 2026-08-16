@@ -298,3 +298,15 @@ Standard holes use `.cboreHole()` (exact upstream match). Enhanced holes use `gf
 | Pattern | Graduated To | Date |
 |---------|-------------|------|
 | (none yet) | — | — |
+
+#### An Interface Has Two Sides, and Both Were Only Ever Checked Alone (2026-08-16)
+Every dimension of the latch was verified against upstream arithmetic, and every
+dimension of its mount was too -- separately. Nobody had asked whether the part fits
+the hole. It did (28.000mm gap, 27.600mm part, 0.200mm a side, holes 16.000mm apart
+matching the box's screws), but that was luck rather than verification: the same
+session found a screw hole drilled beside its boss and a catch in two unprintable
+pieces, both in code whose own numbers checked out.
+
+**Rule:** when two parts must mate, measure the mating dimension on BOTH parts in one
+test. Per-part correctness against a spec is not the same as the parts agreeing with
+each other, and the assembly is where that difference shows up.
