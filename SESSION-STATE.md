@@ -58,7 +58,7 @@ passes), and the skeletonized plate is genuinely lighter than a full slab of the
 depth. The plate's pockets vent **upward** into the receptacle, so nothing becomes a
 sealed void — `Shells() == 1`, checked against a control solid that does have one.
 
-### 🔴 Six sizing defects, all found by the next consumer — 2026-08-15
+### 🔴 Eight sizing defects — six found by the next consumer, two by sweeping
 
 The pattern is now the finding. Each defect was correct-looking, passed every
 test, and surfaced only when something downstream needed the thing it depended on:
@@ -71,6 +71,18 @@ test, and surfaced only when something downstream needed the thing it depended o
 | 4 | Interior missing the 5mm border | the baseplate |
 | 5 | Outer heights: a 6U box held 41.35mm against a 45.55mm bin | a bin |
 | 6 | Wall cross-section inverted — stepped inward, not outward | the ribs |
+| 7 | `size_tolerance` reached no latch geometry — every part 0.4mm too wide | **the audit, not a consumer** |
+| 8 | Clip latch missing `_round_shape(edge_radius)` on its profile | **the audit, not a consumer** |
+
+**#7 and #8 broke the pattern** — found by sweeping rather than by waiting.
+Two sweeps, both in `documents/SHELL-AUDIT-1E8.md` Part 2: parameters with no
+consumer (mechanical), and a term-by-term latch diff. #7 is the worst of the
+eight in user terms: the knob our own docstring calls *"the one to reach for
+when latches do not fit"* changed nothing but the filename.
+
+**All eight are ours, not smkent's** — transcription errors against a source
+that is self-consistent at every point checked. The one exception is not
+smkent's either: the 0.6mm lip came from **cq-gridfinity**, our fork base.
 
 **#6 is the one that forced a change of method.** See
 `documents/SHELL-AUDIT-1E8.md`: the whole cross-section diffed against
@@ -246,7 +258,7 @@ The baseplate boolean lands on the same stepped void the lip land introduced.
 
 | Metric | Value |
 |--------|-------|
-| Tests | **446 passed, 1 skipped, 0 xfailed** (~3m20s) |
+| Tests | **448 passed, 1 skipped, 0 xfailed** (~3m23s) |
 | Quarantined failures | **None** — rugged box lid fixed 2026-08-11 |
 | Ship set | 32 models, 32 audit-clean, DoD-3 human-verified |
 | Local gate | `make check` (3m24s) via pre-push hook; `make check-full` |
