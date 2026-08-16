@@ -270,6 +270,11 @@ def _wire_from_hull(segs):
             wp = wp.lineTo(*p1)
         else:
             centre, radius, a0, a1 = rest
+            if radius <= EPS:
+                # A degenerate "circle" is a point: the tangent lines either
+                # side already meet there, so there is no arc to draw. Lets a
+                # polygon corner take part in a hull of circles.
+                continue
             while a1 < a0:
                 a1 += 2 * math.pi
             mid = (a0 + a1) / 2
@@ -853,7 +858,138 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
 
     # -- support ribs (1E.9) ----------------------------------------------
 
-    def _rib_profile(self, width, angle=SK_PLAIN_RIB_ANGLE):
+    # -- latch mounting ribs (1E.12) ---------------------------------------
+
+    @property
+    def effective_latch_amount_on_top(self):
+        """How much of the screw separation sits on the LID side.
+
+        smkent `_init_latch_amount_on_top()`; 0 means auto, which is our
+        default. The two halves' screw heights then differ by exactly
+        `latch_screw_separation`, which is what lets one latch span the joint.
+        """
+        if self.latch_amount_on_top > 0:
+            return self.latch_amount_on_top
+        if self.latch_type == "draw":
+            by_type = self.latch_screw_separation - self.screw_eyelet_radius * 1.25
+        else:
+            by_type = min(
+                self.screw_eyelet_radius * 2.0, self.latch_screw_separation / 2
+            )
+        return min((self.lid_int_height + self.wall_thickness) / 2, by_type)
+
+    def latch_offset_from_base(self, lid=False):
+        """Height of the latch screw above the part's own base.
+
+        smkent `_latch_offset_from_base()`: the lid keeps
+        `latch_amount_on_top`, the body the remainder of the separation.
+        """
+        height = self.lid_height if lid else self.body_height
+        top = self.effective_latch_amount_on_top
+        return height - (top if lid else self.latch_screw_separation - top)
+
+    def _latch_boss_hull_circles(self, latch_position):
+        """Hull inputs for the latch attachment boss, in the XZ plane.
+
+        smkent hulls a Z-extruded rib prism against two eyelet cylinders whose
+        axes run along Y. CadQuery has no 3D hull -- but it does not need one:
+        both bodies are prisms along Y over the SAME interval, so the 3D hull
+        restricted to that slab is exactly the 2D hull of their XZ profiles
+        swept across it. The prism contributes its four rectangle corners as
+        zero-radius circles.
+        """
+        cr = GF_CORNER_RAD
+        r = self.screw_eyelet_radius
+        h = r * 6 + cr * 2  # smkent latch_attachment_height
+        x0, x1 = self.edge_radius - cr, self.total_lip_thickness - cr
+        z0, z1 = latch_position - h / 2, latch_position + h / 2
+        xe = self.attachment_screw_offset
+        return [
+            (x0, z0, 0.0),
+            (x1, z0, 0.0),
+            (x1, z1, 0.0),
+            (x0, z1, 0.0),
+            (xe, latch_position - r / 2, r),
+            (xe, latch_position + r / 2, r),
+        ]
+
+    def _latch_boss(self, latch_position, width):
+        """The boss the latch screws into, before trimming."""
+        wire = _wire_from_hull(
+            _hull_of_circles(self._latch_boss_hull_circles(latch_position))
+        )
+        boss = wire.extrude(width)
+        # The hull was drawn in the workplane's XY; stand it up so its second
+        # axis is Z and the sweep runs along Y, centred on the rib.
+        boss = boss.rotate((0, 0, 0), (1, 0, 0), 90).translate((0, width / 2, 0))
+        return self._break_extruded_edges(
+            boss, radius=self.edge_radius, selectors=(">Y", "<Y")
+        )
+
+    def _attachment_rib_cut(self, width, height):
+        """smkent `_box_attachment_rib_cut`: keep the boss OUTSIDE the wall.
+
+        Everything inboard of the plain wall's outer face, and everything
+        below the floor, is removed -- the rib alone carries the boss into the
+        wall.
+        """
+        cr = GF_CORNER_RAD
+        inner = (
+            cq.Workplane("XY")
+            .box(2 * (cr + self.wall_thickness), 4 * width, 2 * height)
+            .translate((-cr, 0, self.wall_thickness + height))
+        )
+        below = (
+            cq.Workplane("XY")
+            .box(6 * self.latch_width, 4 * width, 2 * height)
+            .translate((0, 0, -height))
+        )
+        return inner.union(below)
+
+    def _latch_rib(self, height, width=None, lid=False):
+        """One latch rib: a support rib plus the screwed boss on top of it."""
+        width = self.rib_width if width is None else width
+        pos = self.latch_offset_from_base(lid=lid)
+        rib = self._rib_solid(height, width)
+        boss = self._latch_boss(pos, width)
+        # smkent bounds the boss with cube([cr + screw_offset*4, width,
+        # outer_height]) at x = -cr, z = 0: it may not reach above the part.
+        span = GF_CORNER_RAD + self.attachment_screw_offset * 4
+        keep = (
+            cq.Workplane("XY")
+            .box(span, width, height)
+            .translate((span / 2 - GF_CORNER_RAD, 0, height / 2))
+        )
+        boss = boss.intersect(keep).cut(self._attachment_rib_cut(width, height))
+        out = rib.union(boss)
+        # Screw hole, drilled to fit its half.
+        hole = self._screw_hole(width * 2, oversize=lid).translate(
+            (self.attachment_screw_offset, 0, pos)
+        )
+        return out.cut(hole)
+
+    def render_latch_ribs(self, height=None, lid=False):
+        """All latch ribs for one half -- smkent `_box_latch_ribs`.
+
+        They sit on the FRONT wall (-Y): upstream mirrors the shared
+        attachment placement, which the hinge ribs use unmirrored.
+        """
+        h = (self.lid_height if lid else self.body_height) if height is None else height
+        rib = self._latch_rib(h, lid=lid)
+        placed = []
+        for px in self.attachment_positions(hinge=False):
+            for off in self.attachment_pair_offsets():
+                placed.append(
+                    rib.rotate((0, 0, 0), (0, 0, 1), -90).translate(
+                        (px + off, -self.int_width / 2, 0)
+                    )
+                )
+        out = placed[0]
+        for extra in placed[1:]:
+            out = out.union(extra)
+        return out
+
+    def _rib_profile(self, width, angle=0.0):
         """smkent `_box_rib_shape`: the rib's plan-view outline.
 
         Local x runs outward from the interior surface, y along the wall. The
@@ -861,6 +997,11 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
         slightly in the wall and finishes flush with the lip land -- standing
         proud of the plain wall by exactly `lip_thickness`. That is the whole
         point of it, and why an unstepped wall left it nowhere to go.
+
+        `angle` is the draft. It defaults to NONE because only `_box_plain_rib`
+        sets `$br_angle`; the attachment ribs call `_box_rib()` directly and so
+        run undrafted. That is the sole purpose of upstream's `_box_rib_angle`
+        wrapper -- to tell the two kinds of rib apart.
         """
         x0 = self.edge_radius
         x1 = self.total_lip_thickness
@@ -875,7 +1016,7 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
         # smkent `_round_shape(edge_radius)`.
         return prof.offset2D(-x0).offset2D(2 * x0).offset2D(-x0)
 
-    def _rib_solid(self, height, width):
+    def _rib_solid(self, height, width, angle=0.0):
         """smkent `_box_rib`: the rib run up the wall, following the chamfer.
 
         Its lower `vertical_chamfer` is lofted in from `2/3` of that
@@ -891,7 +1032,7 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
         )
         hc = vc * 2 / 3
         top = height - self.edge_radius * 1.5
-        prof = self._rib_profile(width)
+        prof = self._rib_profile(width, angle=angle)
         parts = []
         if top - vc > EPS:
             parts.append(prof.extrude(top - vc).translate((0, 0, vc)))
@@ -928,7 +1069,7 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
         """All support ribs for one half, as a single solid."""
         h = self.body_height if height is None else height
         width = self.rib_width * 2  # smkent `_box_plain_rib`
-        rib = self._rib_solid(h, width)
+        rib = self._rib_solid(h, width, angle=SK_PLAIN_RIB_ANGLE)
         side, rear = self.rib_positions()
         placed = []
         for py in side:
@@ -1047,6 +1188,7 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
         # union fuses on a shared face rather than leaving a second solid.
         r = r.union(self.render_baseplate())
         r = r.union(self.render_ribs(h))
+        r = r.union(self.render_latch_ribs(h))
         groove = self.render_seal_ring()
         if groove is not None:
             r = r.cut(groove)
@@ -1068,6 +1210,7 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
         void = self._interior_void(h - self.wall_thickness, 0, lip_at_top=False)
         r = r.cut(void)
         r = r.union(self.render_ribs(h, lip_at_top=False))
+        r = r.union(self.render_latch_ribs(h, lid=True).mirror("XY").translate((0, 0, h)))
         if self.lip_seal_type != "none":
             if self.seal_is_inset:
                 r = r.cut(self.render_seal_ring(z=0.0))
@@ -1188,7 +1331,9 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
             )
             return solid
 
-    def _break_extruded_edges(self, obj, radius=SK_LATCH_EDGE_RADIUS):
+    def _break_extruded_edges(
+        self, obj, radius=SK_LATCH_EDGE_RADIUS, selectors=(">Z", "<Z")
+    ):
         """Break the sharp edges at both ends of an extrusion.
 
         DEVIATION FROM UPSTREAM, stated deliberately rather than silently.
@@ -1209,7 +1354,7 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
         Returns the object unchanged if even the fillet fails, but never
         pretends to have applied one.
         """
-        for selector in (">Z", "<Z"):
+        for selector in selectors:
             try:
                 obj = obj.faces(selector).edges().fillet(radius)
             except Exception:

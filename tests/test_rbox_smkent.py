@@ -184,11 +184,16 @@ def test_lid_renders_valid_solid():
 
 
 def test_body_outer_dimensions():
+    """The shell is box_length x box_width; the latch bosses then stand proud
+    of the FRONT wall only, by eyelet centre + radius less the wall."""
     b = _box()
     bb = b.render_body().val().BoundingBox()
     assert bb.xlen == pytest.approx(b.box_length, abs=0.01)
-    assert bb.ylen == pytest.approx(b.box_width, abs=0.01)
     assert bb.zlen == pytest.approx(b.body_height, abs=0.01)
+    boss = b.attachment_screw_offset + b.screw_eyelet_radius - b.total_lip_thickness
+    assert bb.ylen == pytest.approx(b.box_width + boss, abs=0.01)
+    # Proud at the front, flush at the back -- the hinges have not been built.
+    assert bb.ymax == pytest.approx(b.box_width / 2, abs=0.01)
 
 
 # --- Exact hull translation -------------------------------------------------
@@ -1026,6 +1031,86 @@ def test_half_eyelet_is_exactly_half():
     assert half == pytest.approx(full / 2, rel=1e-6)
 
 
+# --- Latch mounting ribs (1E.12) --------------------------------------------
+
+
+def test_the_two_halves_screws_are_one_separation_apart():
+    """The functional point of the whole assembly: measured from the joint,
+    the lid's screw and the body's screw must be `latch_screw_separation`
+    apart, because one latch spans both.
+
+    smkent gets that by giving the lid `latch_amount_on_top` and the body the
+    remainder -- `_latch_offset_from_base()`.
+    """
+    b = _box()
+    from_joint_body = b.body_height - b.latch_offset_from_base()
+    from_joint_lid = b.lid_height - b.latch_offset_from_base(lid=True)
+    assert from_joint_body + from_joint_lid == pytest.approx(
+        b.latch_screw_separation
+    )
+    assert from_joint_lid == pytest.approx(b.effective_latch_amount_on_top)
+
+
+def test_latch_amount_on_top_is_auto_but_overridable():
+    """0 means auto -- upstream `_init_latch_amount_on_top`. For the clip latch
+    that is min(eyelet_r * 2, separation / 2), capped by the lid's own depth."""
+    b = _box()
+    assert b.latch_amount_on_top == 0
+    assert b.effective_latch_amount_on_top == pytest.approx(
+        min(b.screw_eyelet_radius * 2.0, b.latch_screw_separation / 2)
+    )
+    assert _box(latch_amount_on_top=5.0).effective_latch_amount_on_top == 5.0
+    # The draw latch positions its screw differently.
+    assert _box(latch_type="draw").effective_latch_amount_on_top != pytest.approx(
+        b.effective_latch_amount_on_top
+    )
+
+
+def test_latch_ribs_come_in_pairs_at_every_attachment():
+    """Two ribs straddle each latch, so a 2-latch box gets four."""
+    b = _box()
+    assert len(b.attachment_positions()) == 2
+    assert len(b.render_latch_ribs().solids().vals()) == 4
+
+
+def test_latch_boss_stands_proud_of_the_front_wall_only():
+    b = _box()
+    bb = b.render_latch_ribs().val().BoundingBox()
+    reach = b.int_width / 2 + b.attachment_screw_offset + b.screw_eyelet_radius
+    assert bb.ymin == pytest.approx(-reach, abs=0.05)
+    assert bb.ymax < 0, "latch ribs belong on the front wall"
+
+
+def test_latch_screw_hole_is_drilled_through_the_boss():
+    """And to the right size for its half -- thread-forming in the body,
+    clearance in the lid."""
+    import cadquery as cq
+
+    b = _box()
+    pos = b.latch_offset_from_base()
+    rib = b._latch_rib(b.body_height)
+    # Probe along the screw axis: the boss must be hollow there.
+    probe = (
+        cq.Workplane("XY")
+        .circle(1.0)
+        .extrude(100)
+        .rotate((0, 0, 0), (1, 0, 0), -90)
+        .translate((b.attachment_screw_offset, 50, pos))
+    )
+    assert rib.val().intersect(probe.val()).Volume() == pytest.approx(0, abs=1e-6)
+
+
+def test_latch_boss_is_trimmed_to_the_part_height():
+    """smkent bounds it with a cube of exactly outer_height: a boss that
+    overhangs the rim would foul the other half."""
+    b = _box()
+    for lid in (False, True):
+        h = b.lid_height if lid else b.body_height
+        bb = b._latch_rib(h, lid=lid).val().BoundingBox()
+        assert bb.zmax <= h + 0.01
+        assert bb.zmin >= -0.01
+
+
 # --- Support ribs (1E.9) ----------------------------------------------------
 
 
@@ -1173,6 +1258,7 @@ def test_baseplate_actually_adds_its_own_volume():
         b._interior_void(h - b.wall_thickness, b.wall_thickness)
     )
     bare = bare.union(b.render_ribs(h))
+    bare = bare.union(b.render_latch_ribs(h))
     groove = b.render_seal_ring()
     if groove is not None:
         bare = bare.cut(groove)
