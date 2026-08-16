@@ -1,6 +1,6 @@
 # Session State
 
-**Last Updated:** 2026-08-15 (P3: integrated baseplate complete, 1E.4)
+**Last Updated:** 2026-08-16 (P3 geometry COMPLETE - all 14 items)
 **Memory Type:** Working (transient)
 **Lifecycle:** Prune at session start per §7.0.4
 
@@ -10,41 +10,46 @@
 ---
 
 ## Current Position
-- **Phase:** P3 — smkent rugged box. Shell, both latches, seal and baseplate built; **1E.4 complete**
+- **Phase:** P3 — smkent rugged box. **All geometry built.** Remaining: DoD-3 human CAD verification, and Jason's call on reinforced corners
 - **Plan:** `documents/ROADMAP.md`
 - **Blocker:** None
 
-### P3 progress
+### P3 progress — geometry COMPLETE
 
 **The plan grew mid-session, deliberately.** Step 7 (third hinge) turned out to
 be a *placement rule* for hinges that had never been built. The 1E list only ever
 captured smkent's additions **over** a rugged box; this module was written from
 scratch, so the base attachment layer never came with it. Jason dispositioned it
-Keep as 1E.9–1E.13.
+Keep as 1E.9-1E.13.
 
 | Item | Status |
 |------|--------|
-| Shell + parametric walls (1E.8) | ✅ **rebuilt** — wall steps outward, chamfer + edge rounding added |
-| Clip latch (1E.1) | ✅ exact hulls, analytic — *not yet mountable* |
-| Draw latch (1E.2) | ✅ zero-interference mesh verified — *not yet mountable* |
-| Lip seal (1E.3) | ✅ 4 seal types, groove volume measured against material |
-| Integrated baseplate (1E.4) | ✅ two booleans, `GridfinityBaseplate` reused |
-| **Support ribs (1E.9)** | ✅ side + rear, upstream placement |
-| **Attachment placement (1E.10)** | ✅ shared latch/hinge framework |
-| **Screw eyelets (1E.11)** | ✅ both drill sizes |
-| **Third hinge (1E.6)** | ✅ **the rule is built and tested**; needs 1E.13 to become geometry |
-| Latch ribs (1E.12) | Next — blocked on the hull question below |
-| Hinge ribs (1E.13) | Then this, and 1E.7 falls out of it |
-| Hinge end stops (1E.7) | After 1E.13 |
-| Per-part STEP export | Jason's request |
+| Shell + parametric walls (1E.8) | DONE - rebuilt; wall steps outward, chamfer + edge rounding |
+| Clip latch (1E.1) | DONE - exact hulls, analytic, and now mountable |
+| Draw latch (1E.2) | DONE - selectable, two printable parts, posed about the pin |
+| Lip seal (1E.3) | DONE - 4 types, groove volume measured against material |
+| Integrated baseplate (1E.4) | DONE - two booleans, `GridfinityBaseplate` reused |
+| Stacking latches (1E.5) | DONE - side mounts reuse the latch boss unchanged |
+| Third hinge (1E.6) | DONE - rule and geometry, activates at 5U |
+| Hinge end stops (1E.7) | DONE - lower-knuckle tab, body only |
+| Support ribs (1E.9) | DONE - side + rear, upstream placement |
+| Attachment placement (1E.10) | DONE - shared latch/hinge framework |
+| Screw eyelets (1E.11) | DONE - both drill sizes |
+| Latch ribs (1E.12) | DONE - what the latches bolt to |
+| Hinge ribs (1E.13) | DONE - interleaved, zero interference assembled |
+| Per-part STEP export | DONE - `parts()`, `save_step_parts()`, `bom()` |
 
-### 🔴 The open design question — 3D hull
+**Exit criteria:** watertight box, lid and both latch styles - MET (single-shell,
+single-solid, 9 STEP exports audit clean). BOM documented - MET (`bom()`).
+**DoD-3 human verification is NOT done** - nobody has opened these in CAD.
 
-`_box_latch_rib_base` and `_box_hinge_rib_body` both `hull()` a Z-extruded rib
-prism against Y-axis eyelet cylinders. CadQuery has no 3D hull, and unlike the
-draw latch these shapes do not share a plane, so `_hull_of_circles` does not
-reach. **Decide the construction before writing 1E.12** — a loft is the likely
-answer (as with the draw latch grip) but it needs stating as a divergence.
+### The 3D hull question - RESOLVED, it was never 3D
+
+`_box_latch_rib_base` and `_box_hinge_rib_body` hull a Z-extruded prism against
+Y-axis eyelet cylinders. Both are prisms along Y over the SAME interval, so the
+hull restricted to that slab is exactly the 2D hull of their XZ profiles swept
+across it - a theorem about prisms, not an approximation. `_hull_of_circles`
+does it, with prism corners passed as zero-radius circles. No divergence needed.
 
 **Integrated baseplate (2026-08-15).** Four upstream styles ship as two booleans,
 `baseplate_magnets` × `baseplate_skeletonized`, per the triage decision. Upstream's
@@ -73,6 +78,8 @@ test, and surfaced only when something downstream needed the thing it depended o
 | 6 | Wall cross-section inverted — stepped inward, not outward | the ribs |
 | 7 | `size_tolerance` reached no latch geometry — every part 0.4mm too wide | **the audit, not a consumer** |
 | 8 | Clip latch missing `_round_shape(edge_radius)` on its profile | **the audit, not a consumer** |
+| 9 | `_screw_hole` not centred: latch hole drilled beside its boss, boss left solid | the hinge pin test |
+| 10 | Draw latch catch cut into TWO disconnected pieces — unprintable | wiring up `render_latch` |
 
 **#7 and #8 broke the pattern** — found by sweeping rather than by waiting.
 Two sweeps, both in `documents/SHELL-AUDIT-1E8.md` Part 2: parameters with no
@@ -212,20 +219,14 @@ anylid dispositioned in 8 batches → **21 Keep, 21 Cut**. See
 
 ## Next Actions
 
-1. **Decide the 3D-hull construction, then build latch ribs (1E.12) and hinge
-   ribs (1E.13).** 1E.7 (end stops) is an intersection against the hinge body,
-   so it falls out of 1E.13. Then per-part STEP export
-1b. **Disposition reinforced corners** — GF default is `true` upstream; we build
-   the library default `false`, so our corners are weaker than the reference
-2. **Assemble the draw latch about its pin joint** — parts are built and mesh
-   with zero interference, but nothing yet poses them as a closed assembly
-3. **DoD-5 remainder** — purpose/use-case docs for the ~35 pre-existing box
-   parameters (the P2 additions are already documented)
-4. **DoD-6** — clasp/latch granularity audit, 0.1mm steps, scoped to P3
-
-**Before building 1E.4, re-read `_interior_void()` in `gf_ruggedbox_smkent.py`.**
-The baseplate boolean lands on the same stepped void the lip land introduced.
-
+1. **DoD-3: open the nine STEP exports in CAD.** Nobody has looked at this box.
+   Every claim above is machine-measured; none is eyeballed
+2. **Disposition reinforced corners** — upstream's Gridfinity wrapper sets it
+   `true`, we build the library default `false`, and it is an unadmitted
+   feature. Our corners are weaker than the reference until you call it
+3. **Print one.** Fit is asserted at 0.05-0.2mm; only a printer settles it
+4. **DoD-5 remainder** — purpose/use-case docs for the ~35 pre-existing box
+   parameters (P2 additions and all P3 additions are already documented)
 
 ## Open Items
 
