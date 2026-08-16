@@ -288,9 +288,10 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
         self.latch_amount_on_top = 0  # 0 = auto
         self.size_tolerance = SK_SIZE_TOL
         # -- assembly -----------------------------------------------------
-        # smkent's Top_Height default is 2. A 1U lid is shorter than the lip
-        # profile itself (ramp 4.5 + land 6.0 = 10.5mm), so its lip land gets
-        # compressed and never reaches full thickness.
+        # smkent's Top_Height default is 2, and so is ours. A 1U lid is legal
+        # once the outer height includes its wall, but has only 0.048mm to
+        # spare over the lip profile it must contain (ramp 4.5 + land 6.0 =
+        # 10.5mm, against an interior of 7 + 3.548).
         self.lid_height_u = 2  # lid depth in Gridfinity height units
         self.latch_type = "clip"  # "clip" | "draw"
         # Lip seal (1E.3). "filament-1.75mm" cuts a half-round groove in BOTH
@@ -325,6 +326,16 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
             raise ValueError(
                 "height_u must be >= 2 (a box shallower than its own lid "
                 "cannot close), got %r" % (self.height_u,)
+            )
+        if self.lid_height_u < 1:
+            raise ValueError(
+                "lid_height_u must be >= 1, got %r" % (self.lid_height_u,)
+            )
+        if self.height_u <= self.lid_height_u:
+            raise ValueError(
+                "height_u (%r) must exceed lid_height_u (%r): the lid is "
+                "carved out of the total, so the body would get no depth"
+                % (self.height_u, self.lid_height_u)
             )
         for name in ("wall_thickness", "lip_thickness"):
             v = getattr(self, name)
@@ -401,12 +412,39 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
         The integrated baseplate then pushes the floor up by its own slab
         depth, so the bins keep their full N*7 regardless of base style --
         upstream's `bottom_height = Bottom_Height * 7 + base_extra_height()`.
+
+        This is the INTERIOR across both halves. Each half's outer height adds
+        a wall_thickness on top of its own share; see `body_height`.
         """
-        return (
-            self.height_u * GRHU
-            + self.bin_lip_clearance
-            + self.baseplate_extra_depth
-        )
+        return self.body_int_height + self.lid_int_height
+
+    @property
+    def body_u(self):
+        """Gridfinity height units in the lower half -- upstream Bottom_Height.
+
+        `height_u` is the total; the lid is carved out of it rather than being
+        a second independent parameter, which is the one place this API differs
+        from upstream's separate Bottom_Height / Top_Height.
+        """
+        return self.height_u - self.lid_height_u
+
+    @property
+    def body_int_height(self):
+        """Interior depth of the lower half.
+
+        smkent `bottom_height = Bottom_Height * 7 + base_extra_height()`.
+        """
+        return self.body_u * GRHU + self.baseplate_extra_depth
+
+    @property
+    def lid_int_height(self):
+        """Interior depth of the lid.
+
+        smkent `top_height = Top_Height * 7 + h_lip`. The stacking-lip
+        headroom belongs to the LID, where the topmost bin's lip actually
+        protrudes -- not to the body.
+        """
+        return self.lid_height_u * GRHU + self.bin_lip_clearance
 
     # -- integrated baseplate (1E.4) --------------------------------------
 
@@ -466,12 +504,18 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
 
     @property
     def lid_height(self):
-        return self.lid_height_u * GRHU
+        """OUTER height of the lid: smkent `top_outer = top_inner + wall`.
+
+        Regression: this returned the interior figure and was then used as the
+        extrude height, so the ceiling was carved out of the interior instead
+        of added outside it. A 6U box came up 4.2mm short of a 6U bin.
+        """
+        return self.lid_int_height + self.wall_thickness
 
     @property
     def body_height(self):
-        """Height of the lower (box) half, excluding the lid."""
-        return self.int_height - self.lid_height
+        """OUTER height of the lower half: `bottom_outer = bottom_inner + wall`."""
+        return self.body_int_height + self.wall_thickness
 
     @property
     def corner_radius(self):

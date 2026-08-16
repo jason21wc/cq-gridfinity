@@ -171,13 +171,11 @@ The baseplate boolean lands on the same stepped void the lip land introduced.
 
 ## Open Items
 
-- **Corner radius is the next thing to check in the same family — unverified.**
-  Upstream passes `corner_radius = r_base` (kennetek's 4.0) to `rbox()`; ours
-  hardcodes 3.75 inside and computes the outer as `3.75 + wall_thickness`, while
-  every other outer dimension offsets by `total_lip_thickness`. That makes the
-  corner ~7.2mm thick where the flats are 6.0mm. Whether `rbox()`'s
-  `corner_radius` is the inner or outer radius was **not** confirmed — it needs
-  `rugged-box-library.scad` read directly, which this session did not do
+- ~~Corner radius~~ **checked and correct — closed 2026-08-15.** `rugged-box-library.scad:76`
+  documents `corner_radius` as the **interior** radius, and line 544 computes
+  `outer_radius = corner_radius + wall_thickness` — our formula exactly. The value
+  matches too: smkent passes kennetek's `r_base`, which is `BASE_TOP_RADIUS = 7.5/2
+  = 3.75`, the number we hardcode. Not every suspicion in this family is a defect
 - **`documents/FEATURE-SPEC.md` 1E rows are stale.** 1E.1/1E.2/1E.3/1E.8 are built
   and tested but still read "Not Started". Only 1E.4 was updated, since marking
   work I did not verify this session would be guessing. Jason's call

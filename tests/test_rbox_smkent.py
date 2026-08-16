@@ -96,11 +96,48 @@ def test_lip_clearance_matches_kennetek_h_lip():
 
 
 def test_a_full_height_bin_actually_fits():
-    """The point of the clearance: a 6U bin must fit a 6U box."""
+    """The point of the clearance: a 6U bin must fit a 6U box.
+
+    Measured from the rendered solids, not from `int_height`. The parameter
+    version of this test passed while the real cavity was 4.2mm short, because
+    the interior figure was being spent as the outer extrude height.
+    """
+    import cadquery as cq
+
     from cqgridfinity import GridfinityBox
 
     b = _box()
-    assert GridfinityBox(2, 2, 6).actual_height <= b.int_height + 1e-6
+
+    # Probe down a grid CELL CENTRE, not the box axis: a bin's base nests into
+    # the baseplate receptacle, so what it rests on is the receptacle floor,
+    # not the plate rim between cells.
+    px = (b.length_u // 2 - (b.length_u - 1) / 2) * 42
+    py = (b.width_u // 2 - (b.width_u - 1) / 2) * 42
+
+    def _cavity(shape, outer_h):
+        """Material spans down a column through one grid cell."""
+        probe = cq.Workplane("XY").circle(5).extrude(outer_h * 3).translate(
+            (px, py, -outer_h)
+        )
+        solid = shape.val().intersect(probe.val())
+        spans = [(s.BoundingBox().zmin, s.BoundingBox().zmax) for s in solid.Solids()]
+        assert spans, "probe found no material in the cell"
+        return spans
+
+    # Body: material from the floor up; cavity is everything above it.
+    body_spans = _cavity(b.render_body(), b.body_height)
+    floor_top = max(zmax for _, zmax in body_spans)
+    body_cavity = b.body_height - floor_top
+    # Lid: ceiling material at the top; cavity is everything below it.
+    lid_spans = _cavity(b.render_lid(), b.lid_height)
+    ceiling_bottom = min(zmin for zmin, _ in lid_spans)
+    lid_cavity = ceiling_bottom
+
+    total = body_cavity + lid_cavity
+    bin_h = GridfinityBox(2, 2, 6).actual_height
+    assert total >= bin_h - 1e-6, (
+        "6U box holds only %.3fmm; a 6U bin is %.3fmm" % (total, bin_h)
+    )
 
 
 def test_outer_size_adds_two_total_lip_thicknesses():
@@ -116,9 +153,19 @@ def test_outer_size_adds_two_total_lip_thicknesses():
     assert b.box_width == pytest.approx(inner_w + 2 * b.total_lip_thickness)
 
 
-def test_body_and_lid_heights_sum_to_interior():
+def test_body_and_lid_heights_sum_to_interior_plus_two_walls():
+    """smkent: each half's outer height is its own interior PLUS a wall.
+
+    Regression: `lid_height` returned the interior figure and was then used as
+    the extrude height, so the floor and ceiling were carved out of the
+    interior rather than added outside it -- 6mm of capacity, silently.
+    """
     b = _box()
-    assert b.body_height + b.lid_height == pytest.approx(b.int_height)
+    assert b.body_height + b.lid_height == pytest.approx(
+        b.int_height + 2 * b.wall_thickness
+    )
+    assert b.body_height == pytest.approx(b.body_int_height + b.wall_thickness)
+    assert b.lid_height == pytest.approx(b.lid_int_height + b.wall_thickness)
 
 
 # --- Shell geometry ---------------------------------------------------------
@@ -207,15 +254,10 @@ def test_lid_lip_land_is_at_the_bottom():
 
 
 def test_lid_is_tall_enough_for_the_full_lip_profile():
-    """A 1U lid is shorter than ramp + land (10.5mm), so its land never reaches
-    full thickness. smkent's Top_Height default is 2."""
+    """The lid's INTERIOR must clear ramp + land (10.5mm), or its land never
+    reaches full thickness. smkent's Top_Height default is 2."""
     b = SK(5, 4, 6)
-    assert b.lid_height >= b.lip_height + b.lip_thickness * 1.5
-
-
-def test_body_and_lid_still_sum_to_the_interior():
-    b = SK(5, 4, 6)
-    assert b.body_height + b.lid_height == pytest.approx(b.int_height)
+    assert b.lid_int_height >= b.lip_height + b.lip_thickness * 1.5
 
 
 @pytest.mark.parametrize("seal", ["none", "wedge", "square", "filament-1.75mm"])
