@@ -908,6 +908,84 @@ def test_catch_pin_boss_reaches_the_handle():
     assert cb.xmin < hb.xmax and cb.ymin < hb.ymax, "catch does not reach the handle"
 
 
+# --- Attachment placement and eyelets (1E.10, 1E.11) ------------------------
+
+
+def test_latch_count_follows_the_wrapper_rule():
+    """smkent's Gridfinity wrapper: `latch_count = (Width <= 2 ? 1 : 2)`,
+    where its Width is our length_u."""
+    assert SK(2, 2, 6).latch_count == 1
+    assert SK(3, 2, 6).latch_count == 2
+
+
+def test_attachment_positions_mirror_about_the_centre():
+    """smkent `rb_latch_hinge_position() = l_grid * (Width / 2 - 0.5)`."""
+    b = SK(5, 4, 6)
+    assert b.attachment_positions() == pytest.approx([-84.0, 84.0])
+    assert b.latch_hinge_position == pytest.approx(42 * (5 / 2 - 0.5))
+    # A single-latch box has one central site.
+    assert SK(2, 2, 6).attachment_positions() == pytest.approx([0.0])
+
+
+@pytest.mark.parametrize(
+    "length_u,expected",
+    [(3, False), (4, False), (5, True), (6, True)],
+)
+def test_third_hinge_activates_at_five_units(length_u, expected):
+    """1E.6. smkent: `third_hinge_width > 0 && inner_width >= third_hinge_width`
+    with `third_hinge_width = l_grid * 5 = 210`. The test is against the
+    INTERIOR, which carries the 5mm border -- so 5U (215) clears it and 4U
+    (173) does not."""
+    b = SK(length_u, 3, 6)
+    assert b.has_third_hinge is expected
+    assert (0.0 in b.attachment_positions(hinge=True)) is expected
+
+
+def test_third_hinge_is_hinges_only_and_can_be_turned_off():
+    """It is one extra position at x=0, and only for hinges -- a latch never
+    gets a third."""
+    b = SK(5, 4, 6)
+    assert 0.0 in b.attachment_positions(hinge=True)
+    assert 0.0 not in b.attachment_positions(hinge=False)
+    assert SK(5, 4, 6, third_hinge=False).has_third_hinge is False
+
+
+def test_attachment_geometry_matches_upstream_arithmetic():
+    b = SK(5, 4, 6)
+    assert b.screw_eyelet_radius == pytest.approx(3.0 * 3.0 / 2)
+    assert b.attachment_screw_offset == pytest.approx(
+        b.total_lip_thickness + b.screw_eyelet_radius + 0.2
+    )
+    assert b.attachment_pair_offsets() == pytest.approx(
+        [-(b.latch_width + b.rib_width) / 2, (b.latch_width + b.rib_width) / 2]
+    )
+
+
+def test_screw_holes_differ_between_the_two_halves():
+    """The bottom is undersized so the screw cuts its own thread; the top is
+    oversized so it turns freely. That difference is what makes a pair of
+    eyelets a hinge instead of a seized joint."""
+    import math
+
+    b = SK(5, 4, 6)
+    w = 12.0
+
+    def diameter(shape):
+        return 2 * math.sqrt(shape.val().Volume() / (2 * w * math.pi))
+
+    assert diameter(b._screw_hole(w)) == pytest.approx(3.0 - 0.1, abs=0.01)
+    assert diameter(b._screw_hole(w, oversize=True)) == pytest.approx(
+        3.0 + 3.0 * 0.2, abs=0.01
+    )
+
+
+def test_half_eyelet_is_exactly_half():
+    b = SK(5, 4, 6)
+    full = b._screw_eyelet(12.0).val().Volume()
+    half = b._screw_eyelet(12.0, half=True).val().Volume()
+    assert half == pytest.approx(full / 2, rel=1e-6)
+
+
 # --- Support ribs (1E.9) ----------------------------------------------------
 
 

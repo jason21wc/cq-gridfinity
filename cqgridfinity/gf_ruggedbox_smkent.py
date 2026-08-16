@@ -118,6 +118,16 @@ SK_EDGE_CHAMFER_PROP = 0.95
 # wider where it meets the wall than at its outer tip.
 SK_PLAIN_RIB_ANGLE = 8.0
 
+# -- Attachments: placement, eyelets, screws (1E.10, 1E.11) --------------
+SK_SCREW_EYELET_PROP = 3.0    # screw_eyelet_size_proportion
+SK_SCREW_HOLE_FIT = 0.2       # of the diameter; oversize so the screw turns
+SK_HINGE_EXTRA_SETBACK = 0.2  # hinge_extra_setback
+SK_HINGE_SIZE_TOL = 0.1       # hinge_size_tolerance
+SK_TOP_HINGE_EYELET_TOL = 0.1  # top_hinge_eyelet_position_tolerance
+# smkent `third_hinge_width` in the Gridfinity wrapper: l_grid * 5. A lid
+# this wide on two corner hinges racks under its own weight.
+SK_THIRD_HINGE_U = 5
+
 
 def _tangent_point(radius, point, prefer_right=True):
     """Where a line from `point` touches a circle of `radius` at the origin.
@@ -323,6 +333,10 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
         # whose whole point is being carried.
         self.baseplate_magnets = False
         self.baseplate_skeletonized = False
+        # Third hinge (1E.6). Structural, not decorative -- upstream's
+        # Gridfinity wrapper turns it on by default and it self-activates by
+        # width, so there is nothing to tune.
+        self.third_hinge = True
         for k, v in kwargs.items():
             if k in self.__dict__:
                 self.__dict__[k] = v
@@ -707,6 +721,119 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
         if not lip_at_top:
             block = block.mirror("XY").translate((0, 0, height))
         return block.translate((0, 0, z0))
+
+    # -- attachments: placement and eyelets (1E.10, 1E.11) ----------------
+
+    @property
+    def screw_eyelet_radius(self):
+        """smkent `screw_eyelet_radius = screw_hole_diameter * 3.0 / 2`."""
+        return SK_M3 * SK_SCREW_EYELET_PROP / 2
+
+    @property
+    def attachment_screw_offset(self):
+        """How far the screw axis stands off the wall.
+
+        smkent `_attachment_screw_offset() = total_lip_thickness +
+        screw_eyelet_radius + hinge_extra_setback`. Latch and hinge share it.
+        """
+        return (
+            self.total_lip_thickness
+            + self.screw_eyelet_radius
+            + SK_HINGE_EXTRA_SETBACK
+        )
+
+    @property
+    def latch_count(self):
+        """smkent's Gridfinity wrapper: `latch_count = (Width <= 2 ? 1 : 2)`.
+
+        Upstream's `Width` is our `length_u` -- the axis the latches sit
+        along.
+        """
+        return 1 if self.length_u <= 2 else 2
+
+    @property
+    def latch_hinge_position(self):
+        """smkent `rb_latch_hinge_position() = l_grid * (Width / 2 - 0.5)`."""
+        return GRU * (self.length_u / 2 - 0.5)
+
+    @property
+    def third_hinge_width(self):
+        """smkent `third_hinge_width = Third_Hinge ? l_grid * 5 : 0`."""
+        return GRU * SK_THIRD_HINGE_U if self.third_hinge else 0.0
+
+    @property
+    def has_third_hinge(self):
+        """smkent: `third_hinge_width > 0 && inner_width >= third_hinge_width`.
+
+        Note it tests the INTERIOR against the threshold, and our interior
+        carries the 5mm border -- so a 5U box (215) clears 210 and a 4U box
+        (173) does not, which is the documented "5U or wider".
+        """
+        return (
+            self.latch_count == 2
+            and self.third_hinge_width > 0
+            and self.int_length >= self.third_hinge_width
+        )
+
+    def attachment_positions(self, hinge=False):
+        """X offsets of the attachment sites -- smkent `_box_attachment_placement`.
+
+        Latches and hinges share this. With two latches the sites are mirrored
+        about the centre; **the third hinge is simply one more position at
+        x = 0**, and only for hinges. That is the whole of feature 1E.6: the
+        rule is trivial, and everything it needs underneath it is not.
+        """
+        if self.latch_count != 2:
+            return [0.0]
+        pos = [-self.latch_hinge_position, self.latch_hinge_position]
+        if hinge and self.has_third_hinge:
+            pos.append(0.0)
+        return sorted(pos)
+
+    def attachment_pair_offsets(self, inner=False):
+        """The rib pair straddling one attachment -- `_box_attachment_rib_pair`."""
+        half = (self.latch_width + self.rib_width) / 2
+        shift = -self.size_tolerance if inner else 0.0
+        return [-(half + shift), half + shift]
+
+    def _screw_eyelet(self, width, half=False):
+        """smkent `_box_screw_eyelet_body`: a boss for the M3 to pass through.
+
+        Axis along Y, `width` long, ends rounded by `edge_radius`. `half`
+        takes the 180-degree version the hinge bodies hull against.
+        """
+        r = self.screw_eyelet_radius
+        cyl = cq.Workplane("XY").circle(r).extrude(width)
+        try:
+            cyl = cyl.edges("%CIRCLE").fillet(self.edge_radius)
+        except Exception:
+            pass
+        cyl = cyl.rotate((0, 0, 0), (1, 0, 0), -90).translate((0, width / 2, 0))
+        if half:
+            keep = (
+                cq.Workplane("XY")
+                .box(4 * r, 2 * width, 2 * r)
+                .translate((-r, 0, 0))
+            )
+            cyl = cyl.intersect(keep)
+        return cyl
+
+    def _screw_hole(self, width, oversize=False):
+        """smkent `_box_screw_hole`.
+
+        The two halves are drilled differently on purpose: the bottom is
+        undersized by 0.1mm so the screw forms its own thread, the top
+        oversized by 0.2 x diameter so it turns freely. That is what makes
+        the pair act as a hinge rather than seize.
+        """
+        d = SK_M3 + (SK_M3 * SK_SCREW_HOLE_FIT if oversize else SK_SCREW_HOLE_TOL)
+        return (
+            cq.Workplane("XY")
+            .circle(d / 2)
+            .extrude(2 * width)
+            .rotate((0, 0, 0), (1, 0, 0), -90)
+            .translate((0, width, 0))
+        )
 
     # -- support ribs (1E.9) ----------------------------------------------
 
