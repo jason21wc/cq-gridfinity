@@ -342,6 +342,9 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
         # Gridfinity wrapper turns it on by default and it self-activates by
         # width, so there is nothing to tune.
         self.third_hinge = True
+        # Hinge end stops (1E.7). Bottom half only -- a physical limit on lid
+        # rotation, which is the commonest way a printed hinge dies.
+        self.hinge_end_stops = True
         for k, v in kwargs.items():
             if k in self.__dict__:
                 self.__dict__[k] = v
@@ -848,13 +851,201 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
         the pair act as a hinge rather than seize.
         """
         d = SK_M3 + (SK_M3 * SK_SCREW_HOLE_FIT if oversize else SK_SCREW_HOLE_TOL)
+        # Centred on the origin along its own axis: upstream's
+        # `translate([0, 0, -width]) cylinder(width * 2)` straddles the part.
+        # Getting this offset wrong drills a hole in mid-air next to the boss
+        # and leaves the boss solid -- which is exactly what it did.
         return (
             cq.Workplane("XY")
             .circle(d / 2)
             .extrude(2 * width)
             .rotate((0, 0, 0), (1, 0, 0), -90)
-            .translate((0, width, 0))
+            .translate((0, -width, 0))
         )
+
+    # -- hinge ribs (1E.13) and end stops (1E.7) --------------------------
+
+    @property
+    def hinge_rib_width(self):
+        """smkent `hinge_rib_width = rib_width * 2` -- the body's knuckles."""
+        return self.rib_width * 2
+
+    @property
+    def top_hinge_width(self):
+        """The lid's central knuckle, sized to drop between the body's pair.
+
+        smkent: `_latch_width() - hinge_rib_width - hinge_size_tolerance * 2`.
+        """
+        return (
+            self.latch_part_width
+            - self.hinge_rib_width
+            - SK_HINGE_SIZE_TOL * 2
+        )
+
+    def _hinge_hull_circles(self, inner=False):
+        """XZ hull inputs for one knuckle, with z=0 at the part's joint face.
+
+        Same collapse as the latch boss: web prism and eyelet cylinders are
+        both prisms along the pin axis over one interval, so the 3D hull is a
+        2D hull swept.
+
+        Upstream hulls against HALF eyelets (`angle=-180`) and unions a full
+        one on top. That is not a flourish: hulling against FULL circles fills
+        the wedge ABOVE the joint plane between the web and the knuckle --
+        which is exactly where the other half's lip land sits. Tried it; the
+        assembled halves interfered by 973mm3. The hull is therefore clipped
+        to the joint plane and the eyelet added back whole.
+        """
+        cr, r = GF_CORNER_RAD, self.screw_eyelet_radius
+        h = (
+            r * (2 if inner else 3)
+            + 2 * (self.wall_thickness + self.rib_width)
+            + cr * 1.5
+        )
+        # Web: rib profile taken only to wall_thickness, set back by cr+wall.
+        back = cr + self.wall_thickness
+        x0, x1 = self.edge_radius - back, self.wall_thickness - back
+        circles = [(x0, -h, 0.0), (x1, -h, 0.0), (x1, 0.0, 0.0), (x0, 0.0, 0.0)]
+        xe = self.attachment_screw_offset
+        circles.append((xe, 0.0, r))
+        if not inner:
+            circles.append((xe, -r, r))
+        return circles
+
+    def _hinge_eyelet_solid(self, height, width, lid=False):
+        """The knuckle proper: a full eyelet centred on the joint plane.
+
+        The lid's is drawn out by `top_hinge_eyelet_position_tolerance` into a
+        stadium, so the pivot has somewhere to turn.
+        """
+        r = self.screw_eyelet_radius
+        xe = self.attachment_screw_offset
+        if lid:
+            wire = _wire_from_hull(
+                _hull_of_circles(
+                    [(xe, 0.0, r), (xe, SK_TOP_HINGE_EYELET_TOL, r)]
+                )
+            )
+        else:
+            wire = cq.Workplane("XY").center(xe, 0.0).circle(r)
+        return (
+            wire.extrude(width)
+            .rotate((0, 0, 0), (1, 0, 0), 90)
+            .translate((0, width / 2, height))
+        )
+
+    def _hinge_rib_body(self, height, width, inner=False, lid=False):
+        """One hinge knuckle, trimmed back to the wall like the latch boss."""
+        wire = _wire_from_hull(
+            _hull_of_circles(self._hinge_hull_circles(inner=inner))
+        )
+        body = (
+            wire.extrude(width)
+            .rotate((0, 0, 0), (1, 0, 0), 90)
+            .translate((0, width / 2, height))
+        )
+        # Clip the hull to the joint plane, then put the eyelet back whole.
+        above = (
+            cq.Workplane("XY")
+            .box(8 * self.attachment_screw_offset, 4 * width, 4 * height)
+            .translate((2 * self.attachment_screw_offset, 0, height + 2 * height))
+        )
+        body = body.cut(above).union(
+            self._hinge_eyelet_solid(height, width, lid=lid)
+        )
+        body = self._break_extruded_edges(
+            body, radius=self.edge_radius, selectors=(">Y", "<Y")
+        )
+        return body.cut(self._attachment_rib_cut(width, height))
+
+    def _hinge_end_stop(self, height, width):
+        """1E.7. smkent keeps only the LOWER part of a knuckle, as a tab.
+
+        Over-rotation is the commonest failure of a printed hinge; this is the
+        physical barrier that prevents it, and it also stops the lid falling
+        open past vertical.
+        """
+        ww = self.attachment_screw_offset * 2 + self.screw_eyelet_radius * 2
+        keeper = (
+            cq.Workplane("XY")
+            .box(ww, 2 * width, 2 * ww)
+            .translate((-1.25, 0, height - 2.0 - self.screw_eyelet_radius - ww))
+        )
+        return self._hinge_rib_body(height, width).intersect(keeper)
+
+    def render_hinge_ribs(self, height=None, lid=False):
+        """All hinge knuckles for one half -- smkent `_box_hinge_ribs`.
+
+        The two halves interleave along the pin: the body takes a pair at
+        +/-(latch_width + rib_width)/2 - rib_width/2, the lid a central block
+        plus two narrower knuckles that drop into the gaps with
+        `hinge_size_tolerance` of running clearance either side.
+
+        These sit on the REAR wall (+Y) -- the shared placement unmirrored --
+        and this is where `attachment_positions(hinge=True)` puts the third
+        hinge into actual geometry.
+        """
+        h = (self.lid_height if lid else self.body_height) if height is None else height
+        pair = self.attachment_pair_offsets(inner=lid)
+        parts = []
+        if lid:
+            gap = self.hinge_rib_width + SK_HINGE_SIZE_TOL
+            knuckle = self._rib_solid(h, self.rib_width).union(
+                self._hinge_rib_body(h, self.rib_width, lid=True)
+            )
+            # The central knuckle carries a support rib of its own. Upstream
+            # gives one only to the outer pair, which leaves a small sealed
+            # pocket in the wall in the gap between them -- see the shell
+            # count test. Cheap to close, and it is more material under the
+            # hinge, not less.
+            middle = self._rib_solid(h, self.top_hinge_width).union(
+                self._hinge_rib_body(h, self.top_hinge_width, inner=True, lid=True)
+            )
+            for i, off in enumerate(pair):
+                shift = off - gap if off > 0 else off + gap
+                parts.append((knuckle, shift))
+            parts.append((middle, 0.0))
+        else:
+            knuckle = self._rib_solid(h, self.hinge_rib_width).union(
+                self._hinge_rib_body(h, self.hinge_rib_width)
+            )
+            half = self.rib_width / 2
+            for off in pair:
+                parts.append((knuckle, off - half if off > 0 else off + half))
+            if self.hinge_end_stops:
+                stop = self._rib_solid(h, self.latch_part_width).union(
+                    self._hinge_end_stop(h, self.latch_part_width)
+                )
+                parts.append((stop, 0.0))
+        placed = []
+        for px in self.attachment_positions(hinge=True):
+            for solid, off in parts:
+                placed.append(
+                    solid.rotate((0, 0, 0), (0, 0, 1), 90).translate(
+                        (px + off, self.int_width / 2, 0)
+                    )
+                )
+        out = placed[0]
+        for extra in placed[1:]:
+            out = out.union(extra)
+        # The pin: one M3 per hinge, drilled to fit its half.
+        holes = []
+        for px in self.attachment_positions(hinge=True):
+            hole = (
+                self._screw_hole(3 * self.latch_width, oversize=lid)
+                .rotate((0, 0, 0), (0, 0, 1), 90)
+                .translate(
+                    (
+                        px,
+                        self.int_width / 2 + self.attachment_screw_offset,
+                        h + (SK_TOP_HINGE_EYELET_TOL if lid else 0.0),
+                    )
+                )
+            )
+            holes.append(hole)
+        for hole in holes:
+            out = out.cut(hole)
+        return out
 
     # -- support ribs (1E.9) ----------------------------------------------
 
@@ -1189,6 +1380,7 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
         r = r.union(self.render_baseplate())
         r = r.union(self.render_ribs(h))
         r = r.union(self.render_latch_ribs(h))
+        r = r.union(self.render_hinge_ribs(h))
         groove = self.render_seal_ring()
         if groove is not None:
             r = r.cut(groove)
@@ -1211,6 +1403,7 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
         r = r.cut(void)
         r = r.union(self.render_ribs(h, lip_at_top=False))
         r = r.union(self.render_latch_ribs(h, lid=True).mirror("XY").translate((0, 0, h)))
+        r = r.union(self.render_hinge_ribs(h, lid=True).mirror("XY").translate((0, 0, h)))
         if self.lip_seal_type != "none":
             if self.seal_is_inset:
                 r = r.cut(self.render_seal_ring(z=0.0))

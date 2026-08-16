@@ -9,7 +9,11 @@ import math
 import pytest
 
 from cqgridfinity import GridfinityRuggedBoxSmkent as SK
-from cqgridfinity.gf_ruggedbox_smkent import SK_GF_BORDER, SK_M3
+from cqgridfinity.gf_ruggedbox_smkent import (
+    SK_GF_BORDER,
+    SK_HINGE_SIZE_TOL,
+    SK_M3,
+)
 from cqgridfinity.gf_ruggedbox_smkent import _tangent_point
 
 
@@ -189,11 +193,14 @@ def test_body_outer_dimensions():
     b = _box()
     bb = b.render_body().val().BoundingBox()
     assert bb.xlen == pytest.approx(b.box_length, abs=0.01)
-    assert bb.zlen == pytest.approx(b.body_height, abs=0.01)
-    boss = b.attachment_screw_offset + b.screw_eyelet_radius - b.total_lip_thickness
-    assert bb.ylen == pytest.approx(b.box_width + boss, abs=0.01)
-    # Proud at the front, flush at the back -- the hinges have not been built.
-    assert bb.ymax == pytest.approx(b.box_width / 2, abs=0.01)
+    # Knuckles straddle the joint, so the bbox runs an eyelet radius past it.
+    assert bb.zlen == pytest.approx(
+        b.body_height + b.screw_eyelet_radius, abs=0.01
+    )
+    proud = b.attachment_screw_offset + b.screw_eyelet_radius - b.total_lip_thickness
+    # Latch bosses at the front, hinge knuckles at the back, by the same reach.
+    assert bb.ylen == pytest.approx(b.box_width + 2 * proud, abs=0.01)
+    assert bb.ymax == pytest.approx(b.box_width / 2 + proud, abs=0.01)
 
 
 # --- Exact hull translation -------------------------------------------------
@@ -305,7 +312,9 @@ def test_wall_thickens_into_a_lip_land():
     lives -- without it the groove falls half outside the material."""
     b = SK(5, 4, 6, lip_seal_type="none")
     body = b.render_body().val()
-    h = body.BoundingBox().zlen
+    # The part height, NOT the bounding box: hinge knuckles straddle the joint
+    # and push the bbox above the rim.
+    h = b.body_height
     assert _wall_at(body, h * 0.4) == pytest.approx(b.wall_thickness, abs=0.05)
     assert _wall_at(body, h - 1.0) == pytest.approx(
         b.total_lip_thickness, abs=0.05
@@ -1031,6 +1040,122 @@ def test_half_eyelet_is_exactly_half():
     assert half == pytest.approx(full / 2, rel=1e-6)
 
 
+# --- Hinge ribs (1E.13) and end stops (1E.7) --------------------------------
+
+
+def _assembled(b):
+    """Body, and the lid placed on it at the joint."""
+    return b.render_body().val(), b.render_lid().val().translate(
+        (0, 0, b.body_height)
+    )
+
+
+@pytest.mark.slow
+def test_the_assembled_halves_do_not_interfere():
+    """The whole box in one number. Knuckles interleave along the pin, the
+    seal ridge seats in its groove, and nothing collides.
+
+    This caught a real error: hulling the hinge web against FULL eyelet
+    circles (rather than the half-circles upstream uses, with the full eyelet
+    unioned back) fills the wedge above the joint plane -- exactly where the
+    other half's lip land sits. 973mm3 of interference, invisible to every
+    other check.
+    """
+    body, lid = _assembled(_box())
+    assert body.intersect(lid).Volume() == pytest.approx(0.0, abs=1e-6)
+
+
+@pytest.mark.slow
+def test_the_hinge_pin_passes_through_both_halves():
+    """One M3 is the pivot, so both halves must be drilled on a common axis."""
+    import cadquery as cq
+
+    b = _box()
+    body, lid = _assembled(b)
+    pin = (
+        cq.Workplane("XY")
+        .circle(SK_M3 / 2 - 0.15)
+        .extrude(400)
+        .rotate((0, 0, 0), (0, 1, 0), 90)
+        .translate(
+            (-200, b.int_width / 2 + b.attachment_screw_offset, b.body_height)
+        )
+        .val()
+    )
+    assert body.intersect(pin).Volume() == pytest.approx(0.0, abs=1e-6)
+    assert lid.intersect(pin).Volume() == pytest.approx(0.0, abs=1e-6)
+
+
+def test_knuckles_interleave_along_the_pin():
+    """The body takes the outer pair, the lid the middle. They must abut with
+    clearance, not overlap: `hinge_size_tolerance` plus the inner offset."""
+    b = _box()
+    body_inner = abs(b.attachment_pair_offsets()[1] - b.rib_width / 2) - (
+        b.hinge_rib_width / 2
+    )
+    lid_outer = b.top_hinge_width / 2
+    assert body_inner > lid_outer, "knuckles overlap"
+    assert body_inner - lid_outer == pytest.approx(
+        b.size_tolerance + SK_HINGE_SIZE_TOL, abs=1e-9
+    )
+
+
+def test_third_hinge_becomes_real_geometry():
+    """1E.6 stops being a rule here. A 5U box grows a centre knuckle; a 4U one
+    does not, and the difference is material at x = 0 on the pin axis."""
+    import cadquery as cq
+
+    def centre_material(b):
+        # Narrow in y so the probe sits outside the rear wall entirely and
+        # can only ever find knuckle.
+        probe = (
+            cq.Workplane("XY")
+            .box(10, 2, 20)
+            .translate(
+                (0, b.int_width / 2 + b.attachment_screw_offset, b.body_height)
+            )
+            .val()
+        )
+        return b.render_body().val().intersect(probe).Volume()
+
+    assert SK(5, 3, 6).has_third_hinge
+    assert not SK(4, 3, 6).has_third_hinge
+    assert centre_material(SK(5, 3, 6)) > 20
+    assert centre_material(SK(4, 3, 6)) == pytest.approx(0.0, abs=1e-6)
+
+
+def test_end_stops_are_bottom_half_only_and_optional():
+    """smkent adds them to the box bottom, never the lid: they are what the
+    lid swings against."""
+    b = _box()
+    with_stops = b.render_hinge_ribs().val().Volume()
+    without = SK(5, 4, 6, hinge_end_stops=False).render_hinge_ribs().val().Volume()
+    assert with_stops > without, "end stops added no material"
+    # The lid is unaffected either way.
+    assert b.render_hinge_ribs(lid=True).val().Volume() == pytest.approx(
+        SK(5, 4, 6, hinge_end_stops=False).render_hinge_ribs(lid=True).val().Volume()
+    )
+
+
+def test_hinge_knuckle_straddles_the_joint_plane():
+    """A knuckle centred on the joint is what lets the halves pivot; it must
+    stand proud by its eyelet radius on each side."""
+    b = _box()
+    bb = b.render_hinge_ribs().val().BoundingBox()
+    assert bb.zmax == pytest.approx(
+        b.body_height + b.screw_eyelet_radius, abs=0.05
+    )
+
+
+def test_both_halves_are_one_solid_with_every_attachment():
+    b = SK(3, 2, 4)
+    for shape in (b.render_body(), b.render_lid()):
+        v = shape.val()
+        assert v.isValid()
+        assert len(v.Solids()) == 1
+        assert len(v.Shells()) == 1, "a sealed pocket formed"
+
+
 # --- Latch mounting ribs (1E.12) --------------------------------------------
 
 
@@ -1090,13 +1215,18 @@ def test_latch_screw_hole_is_drilled_through_the_boss():
     pos = b.latch_offset_from_base()
     rib = b._latch_rib(b.body_height)
     # Probe along the screw axis: the boss must be hollow there.
+    # Straddle the rib: this probe used to sit at y in [50, 150], nowhere near
+    # the rib at y in [-3, 3], so it passed while the hole itself was also
+    # missing the boss. Both bugs, one blind spot.
     probe = (
         cq.Workplane("XY")
         .circle(1.0)
-        .extrude(100)
+        .extrude(40)
         .rotate((0, 0, 0), (1, 0, 0), -90)
-        .translate((b.attachment_screw_offset, 50, pos))
+        .translate((b.attachment_screw_offset, -20, pos))
     )
+    assert probe.val().BoundingBox().ymin < -b.rib_width / 2, "probe misses the rib"
+    assert probe.val().BoundingBox().ymax > b.rib_width / 2, "probe misses the rib"
     assert rib.val().intersect(probe.val()).Volume() == pytest.approx(0, abs=1e-6)
 
 
@@ -1259,6 +1389,7 @@ def test_baseplate_actually_adds_its_own_volume():
     )
     bare = bare.union(b.render_ribs(h))
     bare = bare.union(b.render_latch_ribs(h))
+    bare = bare.union(b.render_hinge_ribs(h))
     groove = b.render_seal_ring()
     if groove is not None:
         bare = bare.cut(groove)
