@@ -118,6 +118,14 @@ SK_EDGE_CHAMFER_PROP = 0.95
 # wider where it meets the wall than at its outer tip.
 SK_PLAIN_RIB_ANGLE = 8.0
 
+# -- Stacking latches (1E.5) ---------------------------------------------
+# Locks boxes together vertically so a carried stack does not slide apart.
+# A latch is a latch; what differs is where it mounts and what it clamps --
+# these go on the SIDES and clamp box-to-box rather than lid-to-body.
+SK_STACK_SCREW_SEP = 20.0
+SK_STACK_CATCH_OFFSET = -10.0
+SK_STACK_GRIP_LENGTH = 8.0
+
 # -- Attachments: placement, eyelets, screws (1E.10, 1E.11) --------------
 SK_SCREW_EYELET_PROP = 3.0    # screw_eyelet_size_proportion
 SK_SCREW_HOLE_FIT = 0.2       # of the diameter; oversize so the screw turns
@@ -345,6 +353,9 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
         # Hinge end stops (1E.7). Bottom half only -- a physical limit on lid
         # rotation, which is the commonest way a printed hinge dies.
         self.hinge_end_stops = True
+        # Stacking latches (1E.5): side-mounted, box-to-box rather than
+        # lid-to-body. Upstream's Gridfinity wrapper enables them.
+        self.stacking_latches = True
         for k, v in kwargs.items():
             if k in self.__dict__:
                 self.__dict__[k] = v
@@ -862,6 +873,186 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
             .rotate((0, 0, 0), (1, 0, 0), -90)
             .translate((0, -width, 0))
         )
+
+    # -- stacking latches (1E.5) ------------------------------------------
+
+    @property
+    def stacking_latches_enabled(self):
+        """smkent `_stacking_latches_enabled()`: needs a box over 40mm tall.
+
+        Below that the two screw positions would overlap, so only the lower
+        one is built and the box takes a mount but not a full stack catch.
+        """
+        return self.body_height > SK_STACK_SCREW_SEP * 2.0
+
+    def stacking_latch_positions(self):
+        """Y positions on each side wall -- `rb_stacking_latch_positions()`.
+
+        Upstream pairs each index with its mirror across the box and collapses
+        the pair when they coincide, so a 2U box gets one central latch and a
+        6U box gets three.
+        """
+        if not self.stacking_latches:
+            return []
+        n = self.width_u
+        pts = []
+        for j in range(0, int(n / 2 - 1) + 1, 2):
+            if j == n - 2 - j:
+                pts.append(j)
+            else:
+                pts.extend([j, n - 2 - j])
+        return sorted((p + 0.5) * GRU - GRU * (n / 2 - 0.5) for p in pts)
+
+    def stacking_screw_heights(self, lid=False):
+        """Heights of the stacking latch screws on this half."""
+        base = SK_STACK_SCREW_SEP * 0.5
+        heights = [base]
+        if self.stacking_latches_enabled:
+            heights.append(base + SK_STACK_SCREW_SEP + SK_STACK_CATCH_OFFSET)
+        return heights
+
+    def _stacking_latch_rib(self, height, width=None, lid=False):
+        """One side-wall mount: a rib, a boss per screw, and the web between.
+
+        smkent builds it from `_box_latch_rib_base` at each screw height --
+        the same boss the lid latch uses, which is the point of the style x
+        context model: a mounting site, not a new mechanism.
+        """
+        width = self.rib_width if width is None else width
+        seps = self.stacking_screw_heights(lid=lid)
+        out = self._rib_solid(height, width)
+        span = GF_CORNER_RAD + self.attachment_screw_offset * 4
+        keep = (
+            cq.Workplane("XY")
+            .box(span, width, height)
+            .translate((span / 2 - GF_CORNER_RAD, 0, height / 2))
+        )
+        cut = self._attachment_rib_cut(width, height)
+        for sep in seps:
+            out = out.union(self._latch_boss(sep, width).intersect(keep).cut(cut))
+        # Web tying the screw positions together, set back by a wall thickness.
+        xe, r = self.attachment_screw_offset, self.screw_eyelet_radius
+        web_circles = [
+            (x, s, r) for s in seps for x in (xe, xe - self.wall_thickness)
+        ]
+        web = (
+            _wire_from_hull(_hull_of_circles(web_circles))
+            .extrude(width)
+            .rotate((0, 0, 0), (1, 0, 0), 90)
+            .translate((0, width / 2, 0))
+        )
+        out = out.union(web.intersect(keep).cut(cut))
+        for sep in seps:
+            out = out.cut(
+                self._screw_hole(width * 2, oversize=lid).translate((xe, 0, sep))
+            )
+        return out
+
+    def render_stacking_latch_ribs(self, height=None, lid=False):
+        """Stacking latch mounts on both side walls."""
+        h = (self.lid_height if lid else self.body_height) if height is None else height
+        sites = self.stacking_latch_positions()
+        if not sites:
+            return None
+        rib = self._stacking_latch_rib(h, lid=lid)
+        placed = []
+        for py in sites:
+            for off in self.attachment_pair_offsets():
+                placed.append(rib.translate((self.int_length / 2, py + off, 0)))
+                placed.append(
+                    rib.rotate((0, 0, 0), (0, 0, 1), 180).translate(
+                        (-self.int_length / 2, py + off, 0)
+                    )
+                )
+        out = placed[0]
+        for extra in placed[1:]:
+            out = out.union(extra)
+        return out
+
+    def _stacking_latch_hull_circles(self):
+        """The stacking latch part -- smkent `_stacking_latch_shape`.
+
+        A clip latch with a SECOND catch at the far end: one end hooks this
+        box, the other the box below it.
+        """
+        lbs = self.latch_base_size
+        bw = self.latch_body_width
+        blsep = min(SK_STACK_SCREW_SEP, SK_STACK_SCREW_SEP + SK_STACK_CATCH_OFFSET)
+        slcatch = max(SK_STACK_SCREW_SEP, SK_STACK_SCREW_SEP + SK_STACK_CATCH_OFFSET)
+        return lbs, bw, blsep, slcatch
+
+    def render_stacking_latch(self):
+        """The stacking latch as a printed part."""
+        lbs, bw, blsep, slcatch = self._stacking_latch_hull_circles()
+        h = self.latch_part_width
+        shd = self._screw_hole_d
+        # Catch chain: eyelet, stack catch, then the grip tip.
+        chain = [
+            (0.0, blsep, lbs),
+            (0.0, slcatch, lbs),
+            (0.0, slcatch + SK_STACK_GRIP_LENGTH + bw / 2, bw / 2),
+        ]
+        solid = None
+        for a, b in zip(chain, chain[1:]):
+            piece = _wire_from_hull(_hull_of_circles([a, b])).extrude(h)
+            solid = piece if solid is None else solid.union(piece)
+        # Hinge eyelet and the body reaching up to the first catch.
+        hinge = cq.Workplane("XY").circle(lbs).extrude(h)
+        spine = (
+            cq.Workplane("XY")
+            .center(-lbs + bw / 2, blsep / 2)
+            .rect(bw, blsep)
+            .extrude(h)
+        )
+        corner = (-lbs + bw, blsep)
+        tx, ty = _tangent_point(lbs, corner)
+        wedge = (
+            cq.Workplane("XY")
+            .polyline([(-lbs + bw, 0.0), (tx, ty), corner])
+            .close()
+            .extrude(h)
+        )
+        solid = solid.union(hinge).union(spine).union(wedge)
+        # Hinge hole is a running fit; the two catches are the clip latch's.
+        solid = solid.cut(
+            cq.Workplane("XY").circle((shd + SK_M3 * 0.2) / 2).extrude(h)
+        )
+        catch = (
+            cq.Workplane("XY")
+            .polyline(
+                [
+                    (0.0, blsep),
+                    (lbs + bw / 1.6, 0.0),
+                    ((shd + bw) * 2, blsep - shd),
+                ]
+            )
+            .close()
+            .offset2D(shd / 2)
+            .extrude(h)
+        )
+        stack_catch = (
+            cq.Workplane("XY")
+            .polyline(
+                [
+                    (0.0, slcatch),
+                    (-(shd + bw) * 2, slcatch - shd * 0.75),
+                    (-(shd + bw) * 2, slcatch - (shd + bw)),
+                ]
+            )
+            .close()
+            .offset2D(shd / 2)
+            .extrude(h)
+        )
+        solid = solid.cut(catch).cut(stack_catch)
+        # smkent mirrors the whole shape when the catch offset is negative.
+        if SK_STACK_CATCH_OFFSET < 0:
+            solid = solid.mirror("YZ")
+        solid = self._round_profile_edges(solid, h)
+        solid = self._break_extruded_edges(solid)
+        r = self.repair_if_invalid(solid)
+        self._cq_obj = r
+        self._obj_label = "stacking_latch"
+        return r
 
     # -- hinge ribs (1E.13) and end stops (1E.7) --------------------------
 
@@ -1381,6 +1572,9 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
         r = r.union(self.render_ribs(h))
         r = r.union(self.render_latch_ribs(h))
         r = r.union(self.render_hinge_ribs(h))
+        stack = self.render_stacking_latch_ribs(h)
+        if stack is not None:
+            r = r.union(stack)
         groove = self.render_seal_ring()
         if groove is not None:
             r = r.cut(groove)
@@ -1404,6 +1598,9 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
         r = r.union(self.render_ribs(h, lip_at_top=False))
         r = r.union(self.render_latch_ribs(h, lid=True).mirror("XY").translate((0, 0, h)))
         r = r.union(self.render_hinge_ribs(h, lid=True).mirror("XY").translate((0, 0, h)))
+        stack = self.render_stacking_latch_ribs(h, lid=True)
+        if stack is not None:
+            r = r.union(stack.mirror("XY").translate((0, 0, h)))
         if self.lip_seal_type != "none":
             if self.seal_is_inset:
                 r = r.cut(self.render_seal_ring(z=0.0))
@@ -2054,6 +2251,8 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
             out["latch_catch"] = self.render_draw_latch_catch_segmented()
         else:
             out["latch"] = self.render_latch()
+        if self.stacking_latch_positions():
+            out["stacking_latch"] = self.render_stacking_latch()
         return out
 
     def save_step_parts(self, path=".", prefix=None):
@@ -2078,11 +2277,18 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
         """
         latches = len(self.attachment_positions(hinge=False))
         hinges = len(self.attachment_positions(hinge=True))
-        return {
+        bom = {
             "M3x40 DIN 912 (latch)": latches,
             "M3x40 DIN 912 (hinge)": hinges,
             "latch assemblies": latches,
         }
+        stacking = len(self.stacking_latch_positions())
+        if stacking:
+            # Two side walls, and each latch takes a screw per screw height.
+            per_latch = len(self.stacking_screw_heights())
+            bom["M3x40 DIN 912 (stacking)"] = stacking * 2 * per_latch
+            bom["stacking latches"] = stacking * 2
+        return bom
 
     # -- naming -----------------------------------------------------------
 

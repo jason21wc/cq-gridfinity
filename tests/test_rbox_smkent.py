@@ -193,15 +193,19 @@ def test_body_outer_dimensions():
     of the FRONT wall only, by eyelet centre + radius less the wall."""
     b = _box()
     bb = b.render_body().val().BoundingBox()
-    assert bb.xlen == pytest.approx(b.box_length, abs=0.01)
+    proud = b.attachment_screw_offset + b.screw_eyelet_radius - b.total_lip_thickness
     # Knuckles straddle the joint, so the bbox runs an eyelet radius past it.
     assert bb.zlen == pytest.approx(
         b.body_height + b.screw_eyelet_radius, abs=0.01
     )
-    proud = b.attachment_screw_offset + b.screw_eyelet_radius - b.total_lip_thickness
-    # Latch bosses at the front, hinge knuckles at the back, by the same reach.
+    # Latch bosses at the front, hinge knuckles at the back, stacking latch
+    # mounts on both sides -- every attachment reaches by the same amount.
     assert bb.ylen == pytest.approx(b.box_width + 2 * proud, abs=0.01)
     assert bb.ymax == pytest.approx(b.box_width / 2 + proud, abs=0.01)
+    assert bb.xlen == pytest.approx(b.box_length + 2 * proud, abs=0.01)
+    # Without stacking latches the sides are bare shell again.
+    bare = SK(5, 4, 6, stacking_latches=False).render_body().val().BoundingBox()
+    assert bare.xlen == pytest.approx(b.box_length, abs=0.01)
 
 
 # --- Exact hull translation -------------------------------------------------
@@ -1423,6 +1427,9 @@ def test_baseplate_actually_adds_its_own_volume():
     bare = bare.union(b.render_ribs(h))
     bare = bare.union(b.render_latch_ribs(h))
     bare = bare.union(b.render_hinge_ribs(h))
+    stack = b.render_stacking_latch_ribs(h)
+    if stack is not None:
+        bare = bare.union(stack)
     groove = b.render_seal_ring()
     if groove is not None:
         bare = bare.cut(groove)
@@ -1458,6 +1465,59 @@ def test_magnet_pockets_do_not_perforate_the_box_floor():
         assert faces[0].Area() < b.plain_outer_length * b.plain_outer_width
 
 
+# --- Stacking latches (1E.5) ------------------------------------------------
+
+
+def test_stacking_latch_positions_pair_and_collapse():
+    """smkent pairs each index with its mirror across the box and collapses
+    the pair when they coincide: 2U gets one central latch, 6U gets three."""
+    assert SK(5, 2, 6).stacking_latch_positions() == pytest.approx([0.0])
+    assert SK(5, 4, 6).stacking_latch_positions() == pytest.approx([-42.0, 42.0])
+    assert SK(5, 6, 6).stacking_latch_positions() == pytest.approx(
+        [-84.0, 0.0, 84.0]
+    )
+    assert SK(5, 4, 6, stacking_latches=False).stacking_latch_positions() == []
+
+
+def test_stack_catch_needs_a_tall_enough_box():
+    """smkent `_stacking_latches_enabled()`: over two screw separations, or
+    the two screw positions would collide. A short box still takes the mount,
+    just not the second catch."""
+    short, tall = SK(5, 4, 6), SK(5, 4, 9)
+    assert short.body_height < 40 and not short.stacking_latches_enabled
+    assert tall.body_height > 40 and tall.stacking_latches_enabled
+    assert len(short.stacking_screw_heights()) == 1
+    assert len(tall.stacking_screw_heights()) == 2
+
+
+def test_stacking_latch_is_a_clip_latch_with_a_second_catch():
+    """Style x context: the mechanism is the clip latch's, mounted on the side
+    and clamping box-to-box instead of lid-to-body. So it is longer, and it
+    prints as one piece."""
+    b = _box()
+    stack = b.render_stacking_latch().val()
+    assert stack.isValid()
+    assert len(stack.Solids()) == 1
+    assert stack.BoundingBox().zlen == pytest.approx(b.latch_part_width, abs=0.01)
+    # Longer than the lid latch, because it reaches to a second catch.
+    assert stack.BoundingBox().ylen > b.render_latch().val().BoundingBox().ylen
+
+
+def test_stacking_ribs_land_on_both_side_walls():
+    b = _box()
+    bb = b.render_stacking_latch_ribs().val().BoundingBox()
+    reach = b.int_length / 2 + b.attachment_screw_offset + b.screw_eyelet_radius
+    assert bb.xmin == pytest.approx(-reach, abs=0.05)
+    assert bb.xmax == pytest.approx(reach, abs=0.05)
+
+
+def test_stacking_latches_can_be_turned_off():
+    b = SK(3, 2, 4, stacking_latches=False)
+    assert b.render_stacking_latch_ribs() is None
+    assert "stacking_latch" not in b.parts()
+    assert b.render_body().val().Volume() < SK(3, 2, 4).render_body().val().Volume()
+
+
 # --- Per-part output and BOM ------------------------------------------------
 
 
@@ -1465,8 +1525,13 @@ def test_parts_covers_everything_you_have_to_print():
     """A rugged box is not one model. Rendering only `render()` gives you the
     body and nothing to close it with."""
     clip = SK(3, 2, 4)
-    assert set(clip.parts()) == {"body", "lid", "latch"}
-    draw = SK(3, 2, 4, latch_type="draw")
+    assert set(clip.parts()) == {"body", "lid", "latch", "stacking_latch"}
+    assert set(SK(3, 2, 4, stacking_latches=False).parts()) == {
+        "body",
+        "lid",
+        "latch",
+    }
+    draw = SK(3, 2, 4, latch_type="draw", stacking_latches=False)
     assert set(draw.parts()) == {"body", "lid", "latch_handle", "latch_catch"}
     for shape in draw.parts().values():
         assert shape.val().isValid()
@@ -1474,8 +1539,9 @@ def test_parts_covers_everything_you_have_to_print():
 
 
 def test_save_step_parts_writes_a_file_each(tmp_path):
-    paths = SK(3, 2, 4).save_step_parts(path=str(tmp_path))
-    assert len(paths) == 3
+    b = SK(3, 2, 4)
+    paths = b.save_step_parts(path=str(tmp_path))
+    assert len(paths) == len(b.parts())
     for p in paths:
         assert p.endswith(".step")
         assert os.path.getsize(p) > 1000
