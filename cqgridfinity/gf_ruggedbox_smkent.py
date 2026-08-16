@@ -1896,9 +1896,18 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
         return out
 
     def render_draw_latch_catch_segmented(self):
-        """Catch reduced to its interlocking fingers."""
-        catch = self.render_draw_latch_catch()
-        return catch.intersect(self._band_solid(self.segment_bands(False)))
+        """Catch with only its pin ATTACH cut back to interlocking fingers.
+
+        Regression: this intersected the WHOLE catch with the bands, which cut
+        the part into two disconnected fingers -- a catch you could not print.
+        The meshing test still passed, because two parts that do not touch
+        interfere by exactly zero.
+
+        smkent extrudes body + hook + pin barrel at full width and segments
+        only `_draw_latch_attach_shape`. Those flanges are what bridge the pin
+        to the body, so the catch stays one solid through the odd bands.
+        """
+        return self.render_draw_latch_catch(segmented=True)
 
     def render_draw_latch_handle_segmented(self):
         """Handle with slots cut for the catch's fingers.
@@ -1941,8 +1950,13 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
         circles = self._draw_latch_pin_attach_circles()
         return _wire_from_hull(_hull_of_circles(circles)).extrude(self.latch_part_width)
 
-    def render_draw_latch_catch(self):
-        """Catch = stadium body + hook + pin boss, as smkent assembles it."""
+    def render_draw_latch_catch(self, segmented=False):
+        """Catch = stadium body + hook + pin boss, as smkent assembles it.
+
+        `segmented` keeps the pin barrel full width but reduces the attach
+        flanges to the interlocking bands -- see
+        `render_draw_latch_catch_segmented`.
+        """
         h = self.latch_part_width
         body = self.render_draw_latch_catch_body()
         hook = self._draw_latch_hook_solid(h).translate(
@@ -1952,9 +1966,20 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
                 0,
             )
         )
-        r = body.union(hook).union(self.render_draw_latch_pin_attach())
-        # Pin centre hole: smkent drills (pin_r + sep) / 5 through the joint.
         px, py = self._draw_pin_offset
+        attach = self.render_draw_latch_pin_attach()
+        if segmented:
+            barrel = (
+                cq.Workplane("XY")
+                .circle(SK_DRAW_PIN_R)
+                .extrude(h)
+                .translate((px, py, 0))
+            )
+            attach = barrel.union(
+                attach.intersect(self._band_solid(self.segment_bands(False)))
+            )
+        r = body.union(hook).union(attach)
+        # Pin centre hole: smkent drills (pin_r + sep) / 5 through the joint.
         centre_hole = (
             cq.Workplane("XY")
             .circle((SK_DRAW_PIN_R + SK_DRAW_SEP) / 5)
@@ -1973,16 +1998,36 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
         wire = _wire_from_hull(_hull_of_circles(circles))
         return wire.extrude(self.latch_part_width)
 
-    def render_latch(self):
-        """The clip latch: a single flexing part, no hardware but its screws."""
-        if self.latch_type != "clip":
-            raise NotImplementedError(
-                "Only the clip latch is implemented so far; draw latch is next. "
-                "Got latch_type=%r" % (self.latch_type,)
-            )
-        r = self._clip_latch_solid(self.latch_part_width)
-        r = self._break_extruded_edges(r)
-        r = self.repair_if_invalid(r)
+    def render_draw_latch(self, open_angle=0.0):
+        """The draw latch as the TWO printed parts it is -- `_draw_latch_part`.
+
+        Handle and catch are separate prints joined by an M3 through the pin,
+        so this returns a compound rather than pretending they are one solid.
+        `open_angle` swings the catch about the pin, as upstream's preview
+        does; 0 is the closed, over-centre position.
+        """
+        handle = self.render_draw_latch_handle_segmented()
+        catch = self.render_draw_latch_catch_segmented()
+        if abs(open_angle) > EPS:
+            px, py = self._draw_pin_offset
+            catch = catch.rotate((px, py, 0), (px, py, 1), -open_angle)
+        return cq.Workplane("XY").newObject(
+            [cq.Compound.makeCompound(handle.vals() + catch.vals())]
+        )
+
+    def render_latch(self, open_angle=0.0):
+        """The latch, whichever style is selected.
+
+        The clip latch is one flexing part; the draw latch is two, which is
+        why this can return a compound. `open_angle` applies to the draw
+        latch only.
+        """
+        if self.latch_type == "draw":
+            r = self.render_draw_latch(open_angle=open_angle)
+        else:
+            r = self._clip_latch_solid(self.latch_part_width)
+            r = self._break_extruded_edges(r)
+            r = self.repair_if_invalid(r)
         self._cq_obj = r
         self._obj_label = "latch"
         return r
@@ -1990,6 +2035,54 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
     def render(self):
         """Default render is the box body."""
         return self.render_body()
+
+    # -- per-part output ---------------------------------------------------
+
+    def parts(self):
+        """Every printable part of this box, as {label: Workplane}.
+
+        A rugged box is not one model: it is a body, a lid, and N latches,
+        each printed separately and assembled with M3 hardware. Rendering
+        only `render()` gives you a third of the object.
+        """
+        out = {
+            "body": self.render_body(),
+            "lid": self.render_lid(),
+        }
+        if self.latch_type == "draw":
+            out["latch_handle"] = self.render_draw_latch_handle_segmented()
+            out["latch_catch"] = self.render_draw_latch_catch_segmented()
+        else:
+            out["latch"] = self.render_latch()
+        return out
+
+    def save_step_parts(self, path=".", prefix=None):
+        """Write every part to its own STEP file. Returns the paths written."""
+        import os
+
+        written = []
+        base = prefix if prefix is not None else self.filename()
+        for label, shape in self.parts().items():
+            self._cq_obj = shape
+            self._obj_label = label
+            fn = os.path.join(path, "%s_%s.step" % (base, label))
+            cq.exporters.export(shape, fn)
+            written.append(fn)
+        return written
+
+    def bom(self):
+        """Screws this box needs -- smkent `rbox_bom()`.
+
+        Every attachment is an M3 through a pair of eyelets: one per latch,
+        one per hinge, and the third hinge adds one more when it activates.
+        """
+        latches = len(self.attachment_positions(hinge=False))
+        hinges = len(self.attachment_positions(hinge=True))
+        return {
+            "M3x40 DIN 912 (latch)": latches,
+            "M3x40 DIN 912 (hinge)": hinges,
+            "latch assemblies": latches,
+        }
 
     # -- naming -----------------------------------------------------------
 

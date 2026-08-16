@@ -5,6 +5,7 @@ NonCommercial work stays NonCommercial, so no code crosses between them.
 """
 
 import math
+import os
 
 import pytest
 
@@ -528,10 +529,30 @@ def test_clip_latch_profile_corners_are_rounded():
     )
 
 
-def test_draw_latch_not_yet_implemented():
-    """Explicit rather than silently producing a clip latch."""
-    with pytest.raises(NotImplementedError, match="draw latch"):
-        _box(latch_type="draw").render_latch()
+def test_render_latch_dispatches_on_style():
+    """The clip latch is one flexing part; the draw latch is two, joined by a
+    pin, so it comes back as a compound rather than a fake single solid."""
+    assert len(_box().render_latch().val().Solids()) == 1
+    draw = _box(latch_type="draw").render_latch()
+    assert len(draw.val().Solids()) == 2
+    for s in draw.val().Solids():
+        assert s.isValid()
+
+
+def test_draw_latch_opens_about_its_pin():
+    """Closing the loop on the open item: the parts are now posed, not just
+    built. Swinging the catch must move it without changing what it is."""
+    b = _box(latch_type="draw")
+    closed = b.render_latch().val()
+    opened = b.render_latch(open_angle=45).val()
+    assert len(opened.Solids()) == len(closed.Solids())
+    assert opened.Volume() == pytest.approx(closed.Volume(), rel=1e-9)
+    # The bounding box is set by the handle, which does not move -- compare
+    # where the individual parts sit instead.
+    def centres(shape):
+        return sorted(round(s.Center().y, 3) for s in shape.Solids())
+
+    assert centres(opened) != centres(closed), "the catch did not move"
 
 
 # --- Draw latch (1E.2) ------------------------------------------------------
@@ -913,10 +934,22 @@ def test_segment_bands_interleave_with_clearance():
         assert h1 == pytest.approx(c1 + SK_DRAW_VSEP)
 
 
-def test_catch_segments_into_separate_fingers():
-    cs = _box().render_draw_latch_catch_segmented().val()
+def test_catch_stays_one_printable_piece():
+    """Only the pin ATTACH is segmented; body, hook and pin barrel stay full
+    width, and the flanges bridge them through the odd bands.
+
+    Regression: this asserted the catch reduced to TWO solids -- the defect
+    written down as the expectation, while the test directly below it rightly
+    demanded the handle stay in one piece. A catch in two pieces cannot be
+    printed, and the meshing test could not see it: two parts that do not
+    touch interfere by exactly zero.
+    """
+    b = _box()
+    cs = b.render_draw_latch_catch_segmented().val()
     assert cs.isValid()
-    assert len(cs.Solids()) == 2, "catch should reduce to two fingers"
+    assert len(cs.Solids()) == 1, "catch must be one printable piece"
+    # It IS segmented, though: less material than the full-width catch.
+    assert cs.Volume() < b.render_draw_latch_catch().val().Volume()
 
 
 def test_handle_slots_do_not_sever_it():
@@ -1423,6 +1456,39 @@ def test_magnet_pockets_do_not_perforate_the_box_floor():
         assert len(faces[0].Wires()) == 1, "a pocket broke through the underside"
         # And the chamfer really pulls the base inside the wall footprint.
         assert faces[0].Area() < b.plain_outer_length * b.plain_outer_width
+
+
+# --- Per-part output and BOM ------------------------------------------------
+
+
+def test_parts_covers_everything_you_have_to_print():
+    """A rugged box is not one model. Rendering only `render()` gives you the
+    body and nothing to close it with."""
+    clip = SK(3, 2, 4)
+    assert set(clip.parts()) == {"body", "lid", "latch"}
+    draw = SK(3, 2, 4, latch_type="draw")
+    assert set(draw.parts()) == {"body", "lid", "latch_handle", "latch_catch"}
+    for shape in draw.parts().values():
+        assert shape.val().isValid()
+        assert len(shape.val().Solids()) == 1, "every part prints as one piece"
+
+
+def test_save_step_parts_writes_a_file_each(tmp_path):
+    paths = SK(3, 2, 4).save_step_parts(path=str(tmp_path))
+    assert len(paths) == 3
+    for p in paths:
+        assert p.endswith(".step")
+        assert os.path.getsize(p) > 1000
+
+
+def test_bom_counts_a_screw_for_every_attachment():
+    """P3 exit criterion. Every attachment is an M3 through a pair of eyelets,
+    and the third hinge adds one more when it activates."""
+    wide, narrow = SK(5, 4, 6), SK(4, 4, 6)
+    assert wide.bom()["M3x40 DIN 912 (hinge)"] == 3
+    assert narrow.bom()["M3x40 DIN 912 (hinge)"] == 2
+    assert wide.bom()["M3x40 DIN 912 (latch)"] == 2
+    assert SK(2, 2, 4).bom()["M3x40 DIN 912 (latch)"] == 1
 
 
 # --- Naming -----------------------------------------------------------------
