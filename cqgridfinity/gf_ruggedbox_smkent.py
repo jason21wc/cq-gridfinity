@@ -566,6 +566,22 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
         return self.outer_chamfer_horizontal * 1.5
 
     @property
+    def latch_part_width(self):
+        """Width of the latch PART -- smkent `_latch_width()`.
+
+        `latch_width` is the space reserved on the box; the part itself is
+        `size_tolerance` narrower on each side, and that difference is the
+        entire running clearance. Every latch extrusion upstream uses this,
+        never the raw parameter.
+
+        Regression: all ten latch extrusions used the raw width, so a latch
+        was 2 x size_tolerance too wide to drop between its own ribs -- and
+        `size_tolerance`, documented as the knob to reach for when a latch
+        does not fit, changed no geometry at all.
+        """
+        return self.latch_width - self.size_tolerance * 2
+
+    @property
     def latch_base_size(self):
         """smkent latch_base_size = screw_diameter * (proportion / 2)."""
         return SK_M3 * (SK_LATCH_BODY_PROPORTION / 2)
@@ -1144,7 +1160,33 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
             .offset2D(shd / 2)
             .extrude(height)
         )
-        return solid.cut(hinge_hole).cut(catch_hole)
+        solid = solid.cut(hinge_hole).cut(catch_hole)
+        return self._round_profile_edges(solid, height)
+
+    def _round_profile_edges(self, solid, height):
+        """smkent wraps `_clip_latch_shape` in `_round_shape($b_edge_radius)`.
+
+        That rounds the 2D outline before extrusion; on a prismatic solid the
+        equivalent is filleting the edges parallel to the extrusion axis. It
+        is separate from, and smaller than, the `latch_edge_radius` break on
+        the two end faces -- upstream applies both.
+        """
+        axial = [
+            e
+            for e in solid.edges().vals()
+            if abs(e.BoundingBox().zlen - height) < EPS
+        ]
+        if not axial:
+            return solid
+        try:
+            return solid.newObject(axial).fillet(self.edge_radius)
+        except Exception:
+            warnings.warn(
+                "%s: could not round the profile edges; they stay sharp"
+                % self.__class__.__name__,
+                stacklevel=2,
+            )
+            return solid
 
     def _break_extruded_edges(self, obj, radius=SK_LATCH_EDGE_RADIUS):
         """Break the sharp edges at both ends of an extrusion.
@@ -1301,7 +1343,7 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
         draw_latch_pin_offset subtracts screw_diameter * 0.1), which biases the
         pivot -- it is not a centring error.
         """
-        h = self.latch_width
+        h = self.latch_part_width
         arm = _wire_from_hull(
             _hull_of_circles(self._draw_latch_handle_hull_circles())
         ).extrude(h)
@@ -1391,7 +1433,7 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
         Flatter in the middle (14.4mm), tighter at the edges (4.45mm) -- the
         saddle that makes the grip sit in a fingertip.
         """
-        lw = self.latch_width
+        lw = self.latch_part_width
         deg = abs(y - lw / 2) / lw / 2 * 360 * 0.8
         return math.cos(math.radians(deg)) * (SK_DRAW_GRIP_CURVE_R * 0.9)
 
@@ -1434,7 +1476,7 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
         closer to the intent and better B-Rep for STEP output. Per the project
         rule that upstream is a starting point rather than gospel.
         """
-        lw = self.latch_width
+        lw = self.latch_part_width
         wires = []
         for i in range(sections):
             y = lw * i / (sections - 1)
@@ -1469,7 +1511,7 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
         Order matters and follows smkent: union first, drill after, so the
         holes are not partly filled by the elbow.
         """
-        h = self.latch_width
+        h = self.latch_part_width
         arm = _wire_from_hull(
             _hull_of_circles(self._draw_latch_handle_hull_circles())
         ).extrude(h)
@@ -1494,7 +1536,7 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
         The handle's cut is widened by draw_latch_vsep on each side, which is
         the running clearance between the meshed fingers.
         """
-        lw = self.latch_width
+        lw = self.latch_part_width
         seg = lw / SK_DRAW_SEGMENTS
         vsep = SK_DRAW_VSEP if for_handle else 0.0
         return [
@@ -1533,7 +1575,7 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
         # Both parts are prismatic in Z, so an XY offset of the cross-section
         # gives the running clearance without needing a true 3D offset.
         section = catch.faces("<Z").wires().toPending().offset2D(SK_DRAW_SEP)
-        region = section.extrude(self.latch_width)
+        region = section.extrude(self.latch_part_width)
         cutter = region.intersect(self._band_solid(self.segment_bands(True)))
         r = handle.cut(cutter)
         return self.repair_if_invalid(r)
@@ -1559,11 +1601,11 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
     def render_draw_latch_pin_attach(self):
         """The catch's pin boss as a solid."""
         circles = self._draw_latch_pin_attach_circles()
-        return _wire_from_hull(_hull_of_circles(circles)).extrude(self.latch_width)
+        return _wire_from_hull(_hull_of_circles(circles)).extrude(self.latch_part_width)
 
     def render_draw_latch_catch(self):
         """Catch = stadium body + hook + pin boss, as smkent assembles it."""
-        h = self.latch_width
+        h = self.latch_part_width
         body = self.render_draw_latch_catch_body()
         hook = self._draw_latch_hook_solid(h).translate(
             (
@@ -1591,7 +1633,7 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
         """
         circles = self._draw_latch_catch_body_circles()
         wire = _wire_from_hull(_hull_of_circles(circles))
-        return wire.extrude(self.latch_width)
+        return wire.extrude(self.latch_part_width)
 
     def render_latch(self):
         """The clip latch: a single flexing part, no hardware but its screws."""
@@ -1600,7 +1642,7 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
                 "Only the clip latch is implemented so far; draw latch is next. "
                 "Got latch_type=%r" % (self.latch_type,)
             )
-        r = self._clip_latch_solid(self.latch_width)
+        r = self._clip_latch_solid(self.latch_part_width)
         r = self._break_extruded_edges(r)
         r = self.repair_if_invalid(r)
         self._cq_obj = r

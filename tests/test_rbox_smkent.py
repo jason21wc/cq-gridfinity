@@ -455,9 +455,26 @@ def test_clip_latch_renders_valid_solid():
 
 
 def test_clip_latch_width_follows_parameter():
+    """The PART is `size_tolerance` narrower per side than the space reserved
+    for it -- smkent `_latch_width() = latch_width - size_tolerance * 2`.
+
+    Regression: this asserted the rendered latch equalled the raw parameter,
+    which is what the defect did. The latch came out 0.4mm too wide to drop
+    between its own ribs, and `size_tolerance` -- documented as the knob for
+    exactly this -- changed no geometry at all.
+    """
     for width in (22.0, 28.0, 34.0):
-        bb = _box(latch_width=width).render_latch().val().BoundingBox()
-        assert bb.zlen == pytest.approx(width, abs=0.01)
+        b = _box(latch_width=width)
+        bb = b.render_latch().val().BoundingBox()
+        assert bb.zlen == pytest.approx(width - 2 * b.size_tolerance, abs=0.01)
+
+
+def test_size_tolerance_actually_moves_the_latch():
+    """The knob must change metal, not just a stored value. Two tolerances,
+    two different parts, differing by exactly twice the change."""
+    loose = _box(size_tolerance=0.0).render_latch().val().BoundingBox().zlen
+    tight = _box(size_tolerance=0.2).render_latch().val().BoundingBox().zlen
+    assert loose - tight == pytest.approx(0.4, abs=0.01)
 
 
 def test_clip_latch_geometry_stays_analytic():
@@ -472,6 +489,29 @@ def test_clip_latch_geometry_stays_analytic():
     ]
     assert kinds.count("Cylinder") >= 4, "hinge/catch arcs must stay cylindrical"
     assert kinds.count("Torus") >= 2, "broken edges must stay analytic"
+
+
+def test_clip_latch_profile_corners_are_rounded():
+    """smkent wraps `_clip_latch_shape` in `_round_shape($b_edge_radius)`.
+
+    That is a SECOND rounding, separate from and smaller than the
+    `latch_edge_radius` break on the end faces -- upstream applies both, and
+    we applied only the end-face one. On a prismatic solid the profile
+    rounding shows up as cylinders of exactly `edge_radius`.
+    """
+    from OCP.BRepAdaptor import BRepAdaptor_Surface
+
+    b = _box()
+    radii = []
+    for f in b.render_latch().val().Faces():
+        surf = BRepAdaptor_Surface(f.wrapped)
+        if str(surf.GetType()).rsplit("_", 1)[-1] == "Cylinder":
+            radii.append(surf.Cylinder().Radius())
+    assert any(
+        abs(r - b.edge_radius) < 1e-6 for r in radii
+    ), "no profile corner was rounded at edge_radius (got %s)" % sorted(
+        set(round(r, 3) for r in radii)
+    )
 
 
 def test_draw_latch_not_yet_implemented():
@@ -511,7 +551,7 @@ def test_draw_latch_catch_body_is_an_exact_stadium():
     span = abs(circles[1][1] - circles[0][1])
     t = circles[0][2]
     vol = b.render_draw_latch_catch_body().val().Volume()
-    expected = (_m.pi * t * t + 2 * t * span) * b.latch_width
+    expected = (_m.pi * t * t + 2 * t * span) * b.latch_part_width
     assert vol == pytest.approx(expected, rel=1e-6)
 
 
@@ -533,7 +573,7 @@ def test_draw_latch_catch_body_renders_valid():
 
 def test_draw_latch_hook_renders_valid():
     b = _box()
-    r = b._draw_latch_hook_solid(b.latch_width)
+    r = b._draw_latch_hook_solid(b.latch_part_width)
     assert r.val().isValid()
     assert len(r.solids().vals()) == 1
 
@@ -547,7 +587,7 @@ def test_draw_latch_hook_dimensions_follow_source():
     b = _box()
     outr = SK_DRAW_SCREW_EYELET_R + SK_DRAW_THICKNESS * 2
     assert outr == pytest.approx(7.8)
-    bb = b._draw_latch_hook_solid(b.latch_width).val().BoundingBox()
+    bb = b._draw_latch_hook_solid(b.latch_part_width).val().BoundingBox()
     assert bb.ylen == pytest.approx(outr, abs=0.01)
     assert bb.xlen == pytest.approx(outr + outr * 0.65, abs=0.01)
 
@@ -563,7 +603,7 @@ def test_draw_latch_throat_is_asymmetric():
     import cadquery as _cq
 
     b = _box()
-    h = b.latch_width
+    h = b.latch_part_width
     hook = b._draw_latch_hook_solid(h).val()
     er, cr = 3.3, 0.52
     cx = -er * cr
@@ -595,7 +635,7 @@ def test_draw_latch_hook_keeps_ellipses_analytic():
     b = _box()
     kinds = [
         str(BRepAdaptor_Surface(f.wrapped).GetType()).rsplit("_", 1)[-1]
-        for f in b._draw_latch_hook_solid(b.latch_width).val().Faces()
+        for f in b._draw_latch_hook_solid(b.latch_part_width).val().Faces()
     ]
     assert kinds.count("Cylinder") >= 3, "circular arcs must stay cylindrical"
     assert "SurfaceOfExtrusion" in kinds, "ellipse arcs must stay analytic"
@@ -624,7 +664,7 @@ def test_draw_latch_handle_arm_dimensions():
     bb = b.render_draw_latch_handle_arm().val().BoundingBox()
     assert bb.xlen == pytest.approx(9.6, abs=0.01)
     assert bb.ylen == pytest.approx(22.725, abs=0.01)
-    assert bb.zlen == pytest.approx(b.latch_width, abs=0.01)
+    assert bb.zlen == pytest.approx(b.latch_part_width, abs=0.01)
 
 
 def test_draw_latch_handle_arm_hull_area_matches_sampled_hull():
@@ -670,7 +710,7 @@ def test_draw_latch_handle_arm_has_both_holes():
     b = _box()
     solid_hull = _wire_from_hull(
         _hull_of_circles(b._draw_latch_handle_hull_circles())
-    ).extrude(b.latch_width).val().Volume()
+    ).extrude(b.latch_part_width).val().Volume()
     drilled = b.render_draw_latch_handle_arm().val().Volume()
     assert drilled < solid_hull, "no material removed"
     # Two through-holes of known radius.
@@ -682,7 +722,7 @@ def test_draw_latch_handle_arm_has_both_holes():
     pin_a = _m.pi * (SK_DRAW_PIN_R + SK_DRAW_SEP) ** 2
     screw_a = _m.pi * ((SK_M3 + SK_SCREW_HOLE_TOL + SK_M3 * 0.2) / 2) ** 2
     assert solid_hull - drilled == pytest.approx(
-        (pin_a + screw_a) * b.latch_width, rel=1e-6
+        (pin_a + screw_a) * b.latch_part_width, rel=1e-6
     )
 
 
@@ -714,7 +754,7 @@ def test_draw_latch_curve_closing_fills_concave_junctions():
     """smkent's offset(-r) offset(r) is a CLOSING: it must ADD material in the
     concave corners while leaving the outer extent unchanged."""
     b = _box()
-    h = b.latch_width
+    h = b.latch_part_width
     closed = b._draw_latch_curve_solid(h).val()
     # Rebuild the un-closed union to compare against.
     import cadquery as _cq
@@ -764,7 +804,7 @@ def test_draw_latch_handle_holes_survive_the_union():
     from cqgridfinity.gf_ruggedbox_smkent import SK_DRAW_PIN_R, SK_DRAW_SEP
 
     b = _box()
-    h = b.latch_width
+    h = b.latch_part_width
     handle = b.render_draw_latch_handle().val()
     # Probe the pin hole centre -- must be empty.
     import cadquery as _cq
@@ -785,7 +825,7 @@ def test_grip_curve_radius_is_a_symmetric_saddle():
     flatter in the middle, tighter at the edges. That is what makes the grip
     sit in a fingertip rather than being a plain extruded rib."""
     b = _box()
-    lw = b.latch_width
+    lw = b.latch_part_width
     mid = b._grip_curve_radius(lw / 2)
     edge = b._grip_curve_radius(0.0)
     assert mid == pytest.approx(14.4, abs=0.05)
@@ -807,7 +847,7 @@ def test_grip_lofts_to_a_valid_solid():
 def test_grip_spans_the_full_latch_width():
     b = _box()
     bb = b._draw_latch_grip_solid().val().BoundingBox()
-    assert bb.zlen == pytest.approx(b.latch_width, abs=0.01)
+    assert bb.zlen == pytest.approx(b.latch_part_width, abs=0.01)
 
 
 def test_grip_is_lofted_not_faceted():
@@ -852,7 +892,7 @@ def test_segment_bands_interleave_with_clearance():
     catch = b.segment_bands(False)
     handle = b.segment_bands(True)
     assert len(catch) == 2 and len(handle) == 2
-    seg = b.latch_width / 5
+    seg = b.latch_part_width / 5
     assert catch[0] == pytest.approx((seg, 2 * seg))
     for (c0, c1), (h0, h1) in zip(catch, handle):
         assert h0 == pytest.approx(c0 - SK_DRAW_VSEP)

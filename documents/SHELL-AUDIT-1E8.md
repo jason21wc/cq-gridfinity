@@ -1,4 +1,11 @@
-# Shell Audit — smkent Rugged Box Wall Cross-Section (1E.8)
+# Module Audit — smkent Rugged Box (1E.8 shell, then everything else)
+
+> **Part 2 (the latch and the parameter sweep) is at the bottom of this file.**
+> Part 1 audits the shell cross-section, which is what triggered the exercise.
+
+---
+
+# Part 1 — Wall Cross-Section (1E.8)
 
 **Created:** 2026-08-15
 **Scope:** every term of `gf_ruggedbox_smkent.py`'s shell, diffed against
@@ -99,3 +106,66 @@ Finding 4 remains open by design — see above.
 Verification must be **measured, not asserted**: outer width sampled at a
 low z and at the lip, and the interior sampled at both, since the defect this
 replaces was invisible to every dimensional test in the suite.
+
+---
+
+# Part 2 — The Rest of the Module (2026-08-15)
+
+Part 1 fixed the shell but answered only the question it was asked. The
+follow-up question — *are we sure that is all of them?* — needed a different
+method, because a cross-section diff only covers geometry that exists. Two
+sweeps were run instead.
+
+## Sweep A — parameters with no consumer
+
+Mechanical: for every `__init__` attribute and every `@property`, count the
+uses elsewhere in the module. This catches the failure mode that produced the
+missing lip land — a value computed, exposed, unit-tested, and read by nothing.
+
+| Name | Uses | Verdict |
+|------|------|---------|
+| `latch_amount_on_top` | **0** | ⏳ **scheduled** — upstream consumes it in `_latch_offset_from_base()` to set the screw height per half. Its consumer is the latch rib (1E.12), not yet built. Deliberately left as a bare parameter rather than given a computed property, since another computed-but-unbuilt value is the very thing this sweep exists to find |
+| `size_tolerance` | 5 | ❌ **defect — fixed** (see below) |
+| everything else | ≥1 | ✅ consumed by geometry |
+
+## Sweep B — term-by-term, clip latch
+
+| # | Term | Upstream | Ours | Status |
+|---|------|----------|------|--------|
+| 14 | **Latch part width** | every latch extrusion uses `_latch_width() = latch_width − size_tolerance × 2` (10 call sites: 1662, 1670, 1758, 1830, 1847, 1978, 1995, 2101) | used the **raw** `latch_width` at all ten of ours | ❌ **fixed** |
+| 15 | **Profile rounding** | `_round_shape($b_edge_radius)` wraps `_clip_latch_shape` — a second, smaller rounding than the end-face break | only the end-face break was applied | ❌ **fixed** |
+| 16 | `bw = latch_base_size − screw_hole_diameter / 2` | 3.0 | same | ✅ |
+| 17 | `shd = screw_hole_diameter + (−0.1)` | 2.9 | same | ✅ |
+| 18 | Hinge hole `shd + screw_hole_diameter_fit` | 3.5 | same | ✅ |
+| 19 | Catch hole: hull of three `shd` circles | at `(0,sep)`, `(r + bw/1.6, 0)`, `((shd+bw)·2, sep−shd)` | same | ✅ |
+| 20 | Hull of hinge circle + short spine | tangent to the corner `(−r+bw, sep)` | same, exact tangent | ✅ |
+| 21 | Grip saddle `deg = |y−lw/2|/lw/2·360·0.8`, `cos(deg)·R·0.9` | `lw = _latch_width()` | same (and `lw` now the part width) | ✅ |
+| 22 | Draw latch constants (thickness, handle length, eyelet/pin radii, sep, vsep, angles, curve radii, 5 segments) | lines 484–510, 1672 | all match | ✅ |
+| 23 | Seal position / thickness / four types | `corner_radius + total_lip_thickness/2`, `total_lip/3` or 1.75 | same | ✅ |
+
+### #14 — the one that mattered
+
+`size_tolerance` is documented in our own class docstring as *"the one to reach
+for when latches or hinges do not fit on your printer"*. It reached **no latch
+geometry at all**. Every latch part came out `2 × size_tolerance` (0.4mm at the
+Gridfinity preset) too wide to drop between its own ribs, and turning the knob
+changed nothing but the filename.
+
+The test that should have caught it asserted the rendered latch width equalled
+the raw parameter — encoding the defect as the expectation. It now asserts the
+clearance, and a second test checks that changing the tolerance actually moves
+metal.
+
+This is also DoD-6: the fine-granularity requirement is worthless if the knob
+is not wired to anything.
+
+## Where the defects came from
+
+**All of them are ours, not smkent's.** Every finding above is a transcription
+error between `rugged-box-library.scad` and our port — a term dropped, a
+direction reversed, a function used where upstream uses a different one.
+smkent's source is self-consistent at every point checked.
+
+The single exception is not a smkent defect either: the 0.6mm stacking-lip
+error came from **cq-gridfinity**, our fork base, which disagreed with the
+official Gridfinity drawings from its first commit. That one we inherited.
