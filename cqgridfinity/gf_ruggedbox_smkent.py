@@ -113,6 +113,11 @@ GF_CORNER_RAD = 3.75
 # end of each half: proportion of corner_radius horizontally, 1.5x vertically.
 SK_EDGE_CHAMFER_PROP = 0.95
 
+# -- Support ribs (1E.9) -------------------------------------------------
+# smkent `plain_ribs_angle`: draft on the plan-view outline, so a rib is
+# wider where it meets the wall than at its outer tip.
+SK_PLAIN_RIB_ANGLE = 8.0
+
 
 def _tangent_point(radius, point, prefer_right=True):
     """Where a line from `point` touches a circle of `radius` at the origin.
@@ -703,6 +708,106 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
             block = block.mirror("XY").translate((0, 0, height))
         return block.translate((0, 0, z0))
 
+    # -- support ribs (1E.9) ----------------------------------------------
+
+    def _rib_profile(self, width, angle=SK_PLAIN_RIB_ANGLE):
+        """smkent `_box_rib_shape`: the rib's plan-view outline.
+
+        Local x runs outward from the interior surface, y along the wall. The
+        rib spans `edge_radius` to `total_lip_thickness`, so it buries itself
+        slightly in the wall and finishes flush with the lip land -- standing
+        proud of the plain wall by exactly `lip_thickness`. That is the whole
+        point of it, and why an unstepped wall left it nowhere to go.
+        """
+        x0 = self.edge_radius
+        x1 = self.total_lip_thickness
+        add = math.tan(math.radians(angle)) * width
+        pts = [
+            (x0, width / 2 + add),
+            (x1, width / 2),
+            (x1, -width / 2),
+            (x0, -(width / 2 + add)),
+        ]
+        prof = cq.Workplane("XY").polyline(pts).close()
+        # smkent `_round_shape(edge_radius)`.
+        return prof.offset2D(-x0).offset2D(2 * x0).offset2D(-x0)
+
+    def _rib_solid(self, height, width):
+        """smkent `_box_rib`: the rib run up the wall, following the chamfer.
+
+        Its lower `vertical_chamfer` is lofted in from `2/3` of that
+        horizontally, so the rib rakes back with the box's own outer chamfer
+        instead of overhanging it. It stops `edge_radius * 1.5` below the rim.
+        """
+        vc = min(
+            self.outer_chamfer_vertical,
+            max(
+                0.0,
+                height - self.lip_height - self.lip_thickness - self.wall_thickness,
+            ),
+        )
+        hc = vc * 2 / 3
+        top = height - self.edge_radius * 1.5
+        prof = self._rib_profile(width)
+        parts = []
+        if top - vc > EPS:
+            parts.append(prof.extrude(top - vc).translate((0, 0, vc)))
+        if vc > EPS:
+            lo = prof.translate((-hc, 0, 0)).vals()[0]
+            hi = prof.translate((0, 0, vc)).vals()[0]
+            parts.append(
+                cq.Workplane("XY").newObject([cq.Solid.makeLoft([lo, hi], ruled=True)])
+            )
+        rib = parts[0]
+        for extra in parts[1:]:
+            rib = rib.union(extra)
+        return rib
+
+    def rib_positions(self):
+        """(side, rear) rib positions, from the Gridfinity wrapper's overrides.
+
+        `rb_side_rib_positions()` puts one rib per grid unit along each side.
+        `rb_rear_rib_positions()` puts one on each INTERIOR grid line at the
+        rear only -- `i = 1 .. Width-2` -- because the rear corners are where
+        the hinges go.
+
+        Upstream's axes are transposed against ours: its `Width` is our
+        `length_u` (X), its `Length` our `width_u` (Y).
+        """
+        side = [GRU * (i - self.width_u / 2 + 0.5) for i in range(self.width_u)]
+        rear = [
+            GRU * (i - self.length_u / 2 + 0.5)
+            for i in range(1, max(self.length_u - 1, 1))
+        ]
+        return side, rear
+
+    def render_ribs(self, height=None, lip_at_top=True):
+        """All support ribs for one half, as a single solid."""
+        h = self.body_height if height is None else height
+        width = self.rib_width * 2  # smkent `_box_plain_rib`
+        rib = self._rib_solid(h, width)
+        side, rear = self.rib_positions()
+        placed = []
+        for py in side:
+            placed.append(rib.translate((self.int_length / 2, py, 0)))
+            placed.append(
+                rib.rotate((0, 0, 0), (0, 0, 1), 180).translate(
+                    (-self.int_length / 2, py, 0)
+                )
+            )
+        for px in rear:
+            placed.append(
+                rib.rotate((0, 0, 0), (0, 0, 1), 90).translate(
+                    (px, self.int_width / 2, 0)
+                )
+            )
+        out = placed[0]
+        for extra in placed[1:]:
+            out = out.union(extra)
+        if not lip_at_top:
+            out = out.mirror("XY").translate((0, 0, h))
+        return out
+
     def _round_outer_edges(self, block):
         """smkent rounds the whole wall cross-section by `edge_radius`.
 
@@ -798,6 +903,7 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
         # with it. Its underside is coplanar with the interior floor, so the
         # union fuses on a shared face rather than leaving a second solid.
         r = r.union(self.render_baseplate())
+        r = r.union(self.render_ribs(h))
         groove = self.render_seal_ring()
         if groove is not None:
             r = r.cut(groove)
@@ -818,6 +924,7 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
         r = self._outer_block(h, lip_at_top=False)
         void = self._interior_void(h - self.wall_thickness, 0, lip_at_top=False)
         r = r.cut(void)
+        r = r.union(self.render_ribs(h, lip_at_top=False))
         if self.lip_seal_type != "none":
             if self.seal_is_inset:
                 r = r.cut(self.render_seal_ring(z=0.0))

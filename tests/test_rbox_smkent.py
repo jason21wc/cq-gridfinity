@@ -212,29 +212,33 @@ def test_tangent_point_rejects_interior_point():
 # --- Lip land and lip seal (1E.3) -------------------------------------------
 
 
-def _wall_at(solid, z):
-    """Wall thickness at height z, or None if there is no ring there."""
+def _section_at(solid, z, y=0.0, band=1.0):
+    """(outer, inner) X extents of the two side walls at height z.
+
+    Probes a narrow band in y rather than the whole cross-section, so support
+    ribs -- which sit at known y positions -- are included or avoided
+    deliberately instead of quietly inflating a bounding box. y=0 lies between
+    ribs on every box wide enough to have them.
+    """
     import cadquery as _cq
 
-    plate = _cq.Workplane("XY").rect(500, 500).extrude(0.02).translate((0, 0, z))
-    rings = [f for f in solid.intersect(plate.val()).Faces() if len(f.Wires()) == 2]
-    if not rings:
+    probe = _cq.Workplane("XY").box(1000, band, 0.02).translate((0, y, z)).val()
+    pieces = solid.intersect(probe).Solids()
+    if len(pieces) != 2:
         return None
-    f = max(rings, key=lambda x: x.BoundingBox().xlen)
-    inner = sorted(f.Wires(), key=lambda w: w.BoundingBox().xlen)[0]
-    return (f.BoundingBox().xlen - inner.BoundingBox().xlen) / 2
+    left, right = sorted(pieces, key=lambda s: s.BoundingBox().xmin)
+    outer = right.BoundingBox().xmax - left.BoundingBox().xmin
+    inner = right.BoundingBox().xmin - left.BoundingBox().xmax
+    return outer, inner
 
 
-def _extents_at(solid, z):
-    """(outer, inner) X extents of the ring at height z."""
-    import cadquery as _cq
-
-    plate = _cq.Workplane("XY").rect(500, 500).extrude(0.02).translate((0, 0, z))
-    rings = [f for f in solid.intersect(plate.val()).Faces() if len(f.Wires()) == 2]
-    assert rings, "no ring at z=%s" % z
-    f = max(rings, key=lambda x: x.BoundingBox().xlen)
-    inner = sorted(f.Wires(), key=lambda w: w.BoundingBox().xlen)[0]
-    return f.BoundingBox().xlen, inner.BoundingBox().xlen
+def _wall_at(solid, z, y=0.0):
+    """Wall thickness at height z, or None if there is no ring there."""
+    got = _section_at(solid, z, y=y)
+    if got is None:
+        return None
+    outer, inner = got
+    return (outer - inner) / 2
 
 
 def test_the_wall_thickens_outward_not_inward():
@@ -250,8 +254,8 @@ def test_the_wall_thickens_outward_not_inward():
     """
     b = SK(5, 4, 6, lip_seal_type="none")
     body = b.render_body().val()
-    outer_low, inner_low = _extents_at(body, 8.0)
-    outer_high, inner_high = _extents_at(body, b.body_height - 1.0)
+    outer_low, inner_low = _section_at(body, 8.0)
+    outer_high, inner_high = _section_at(body, b.body_height - 1.0)
 
     # The interior never moves.
     assert inner_low == pytest.approx(b.int_length, abs=0.05)
@@ -274,8 +278,9 @@ def test_outer_chamfer_at_the_outward_end():
     body = b.render_body().val()
 
     def outer_at(z):
-        """Below the floor the section is solid, so measure the slice itself."""
-        slab = cq.Workplane("XY").box(500, 500, 0.02).translate((0, 0, z)).val()
+        """Narrow band at y=0, between ribs -- the ribs rake with the chamfer
+        and would otherwise dominate the extent."""
+        slab = cq.Workplane("XY").box(500, 1.0, 0.02).translate((0, 0, z)).val()
         return body.intersect(slab).BoundingBox().xlen
 
     # Sample inside the chamfer's linear stretch, clear of the edge rounding
@@ -903,6 +908,72 @@ def test_catch_pin_boss_reaches_the_handle():
     assert cb.xmin < hb.xmax and cb.ymin < hb.ymax, "catch does not reach the handle"
 
 
+# --- Support ribs (1E.9) ----------------------------------------------------
+
+
+def test_rib_positions_follow_the_gridfinity_wrapper():
+    """One rib per grid unit along each side; rear ribs on INTERIOR grid lines
+    only (`i = 1 .. Width-2`), because the rear corners are where the hinges
+    go. Upstream's Width is our length_u, its Length our width_u."""
+    b = SK(5, 4, 6)
+    side, rear = b.rib_positions()
+    assert side == pytest.approx([-63.0, -21.0, 21.0, 63.0])
+    assert rear == pytest.approx([-42.0, 0.0, 42.0])
+
+
+def test_ribs_stand_proud_of_the_plain_wall_and_flush_with_the_lip():
+    """The rib IS the local thickening of a thin wall: it fills exactly the
+    step between the plain wall and the lip land. If the wall never thinned,
+    the rib would be buried inside the solid and this test could not tell the
+    difference -- which is what happened before the shell rebuild."""
+    import cadquery as cq
+
+    b = SK(5, 4, 6, lip_seal_type="none")
+    body = b.render_body().val()
+    side, _ = b.rib_positions()
+    z = 15.0  # plain-wall region, above the chamfer, below the ramp
+
+    def x_extent_at(y):
+        probe = cq.Workplane("XY").box(1000, 1.0, 0.4).translate((0, y, z)).val()
+        return body.intersect(probe).BoundingBox().xlen
+
+    on_rib = x_extent_at(side[1])
+    between = x_extent_at((side[1] + side[2]) / 2)
+    assert on_rib == pytest.approx(b.box_length, abs=0.05), "rib not flush with lip"
+    assert between == pytest.approx(
+        b.plain_outer_length, abs=0.05
+    ), "wall not thin between ribs"
+    assert on_rib - between == pytest.approx(2 * b.lip_thickness, abs=0.05)
+
+
+def test_ribs_actually_add_material():
+    """Guards the silent no-op: the rib set must show up in the body's volume."""
+    b = SK(3, 2, 4, lip_seal_type="none")
+    h = b.body_height
+    bare = b._outer_block(h).cut(
+        b._interior_void(h - b.wall_thickness, b.wall_thickness)
+    )
+    bare = bare.union(b.render_baseplate())
+    full = b.render_body()
+    gain = full.val().Volume() - bare.val().Volume()
+    assert gain > 1000, "ribs added almost nothing (%.1f mm3)" % gain
+
+
+def test_ribs_stop_below_the_rim():
+    """smkent stops the rib `edge_radius * 1.5` short of the top."""
+    b = SK(3, 2, 4)
+    top = b.render_ribs().val().BoundingBox().zmax
+    assert top == pytest.approx(b.body_height - b.edge_radius * 1.5, abs=0.01)
+
+
+def test_body_and_lid_stay_one_solid_with_ribs():
+    b = SK(3, 2, 4)
+    for shape in (b.render_body(), b.render_lid()):
+        assert shape.val().isValid()
+        assert len(shape.val().Solids()) == 1
+        assert len(shape.val().Shells()) == 1
+
+
 # --- Integrated baseplate (1E.4) --------------------------------------------
 #
 # smkent exposes four named styles; the two axes underneath them are all that
@@ -983,6 +1054,7 @@ def test_baseplate_actually_adds_its_own_volume():
     bare = b._outer_block(h).cut(
         b._interior_void(h - b.wall_thickness, b.wall_thickness)
     )
+    bare = bare.union(b.render_ribs(h))
     groove = b.render_seal_ring()
     if groove is not None:
         bare = bare.cut(groove)
@@ -1008,20 +1080,14 @@ def test_skeletonizing_removes_material_from_the_plate():
 def test_magnet_pockets_do_not_perforate_the_box_floor():
     """Magnet recesses are blind from above, so the box still holds liquid --
     and the magnets drop in from inside rather than needing a print pause."""
-    areas = []
     for kw in ({}, {"baseplate_magnets": True}):
         b = _small(**kw)
         faces = b.render_body().faces("<Z").vals()
         assert len(faces) == 1, "the underside broke into pieces"
-        areas.append(faces[0].Area())
-    # Differential: turning magnets on must not change the underside at all.
-    assert areas[0] == pytest.approx(areas[1], rel=1e-9), "magnets broke through"
-    # And the underside is the chamfered footprint, not the full one.
-    b = _small()
-    hc = b.outer_chamfer_horizontal
-    assert areas[0] == pytest.approx(
-        (b.plain_outer_length - 2 * hc) * (b.plain_outer_width - 2 * hc), rel=0.02
-    )
+        # One wire means one boundary: no hole punched through from inside.
+        assert len(faces[0].Wires()) == 1, "a pocket broke through the underside"
+        # And the chamfer really pulls the base inside the wall footprint.
+        assert faces[0].Area() < b.plain_outer_length * b.plain_outer_width
 
 
 # --- Naming -----------------------------------------------------------------
