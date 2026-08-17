@@ -128,6 +128,30 @@
 | 12 | **smkent outer size uses `total_lip_thickness`, not `wall_thickness`** — upstream is `outer = inner + total_lip_thickness * 2`. Using the wall made the box 6mm undersized in each direction, with every test still green. | Diff porting expressions against the upstream source term by term |
 | 13 | **A moulded ridge must be embedded past its own clearance offset** — `offset2D(-clearance)` shrinks the profile in every direction, so an embed smaller than the clearance is pulled back above the mating plane and never contacts. Result is a second disconnected solid that `isValid()` still passes. | `embed = clearance + embed_depth`; assert `len(Solids()) == 1` |
 
+### P3 — smkent Rugged Box — CLOSED 2026-08-16
+
+**Gate:** all 14 items built; watertight and single-shell both halves; zero
+assembled interference across four configurations; 21 STEP models audit-clean;
+**DoD-3 verified by Jason** against the full set; BOM documented via `bom()`.
+
+**Decisions that stuck:**
+- Four upstream baseplate styles ship as **two booleans**, not four names.
+  Upstream's "thick" is deliberately unreachable — ballast in a carried box.
+- The attachment layer (ribs, eyelets, latch and hinge mounts) was **admitted
+  mid-phase as 1E.9-1E.13** when 1E.6 turned out to be a placement rule for
+  hinges that had never been built. The 1E list only ever captured smkent's
+  additions *over* a rugged box; this module was written from scratch.
+- **No 3D-hull divergence was needed.** The hulls upstream builds in 3D are
+  prisms along one axis over a common interval, so they reduce exactly to a 2D
+  hull swept — `_hull_of_circles` handles them with zero-radius circles for
+  polygon corners.
+- **Reinforced corners left unbuilt** (unadmitted feature; upstream's GF
+  wrapper sets it true). Open for disposition.
+
+**Cost:** eleven sizing defects found and fixed. Six surfaced when a later part
+needed the thing it depended on, two by a deliberate sweep, two while wiring up
+work already marked done, and one by human review in CAD.
+
 ## Phase Gates
 
 ### Phase 1A: Foundation — COMPLETE (2026-02-26)

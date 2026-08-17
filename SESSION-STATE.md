@@ -1,6 +1,6 @@
 # Session State
 
-**Last Updated:** 2026-08-16 (P3 geometry COMPLETE; test set staged for DoD-3)
+**Last Updated:** 2026-08-16 (P3 CLOSED — DoD-3 verified; starting P4)
 **Memory Type:** Working (transient)
 **Lifecycle:** Prune at session start per §7.0.4
 
@@ -10,11 +10,11 @@
 ---
 
 ## Current Position
-- **Phase:** P3 — smkent rugged box. **All geometry built.** Remaining: DoD-3 human CAD verification, and Jason's call on reinforced corners
+- **Phase:** **P4 — bin feature layers.** P3 closed 2026-08-16 with DoD-3 verified across all 21 models
 - **Plan:** `documents/ROADMAP.md`
 - **Blocker:** None
 
-### P3 progress — geometry COMPLETE
+### P3 — CLOSED 2026-08-16
 
 **The plan grew mid-session, deliberately.** Step 7 (third hinge) turned out to
 be a *placement rule* for hinges that had never been built. The 1E list only ever
@@ -220,18 +220,21 @@ anylid dispositioned in 8 batches → **21 Keep, 21 Cut**. See
 
 ## Next Actions
 
-1. **DoD-3 IN PROGRESS.** Jason is reviewing `~/Downloads/gridfinity-shipset`;
-   first pass found defect 11 (fixed, files regenerated). 21 models staged,
-   audit-clean, with `MANIFEST.md` listing what to check in cost-of-being-wrong
-   order. Everything previously in that folder was stale (predated the lip,
-   height and shell fixes) and was deleted. Every claim is machine-measured;
-   none is eyeballed
-2. **Disposition reinforced corners** — upstream's Gridfinity wrapper sets it
-   `true`, we build the library default `false`, and it is an unadmitted
-   feature. Our corners are weaker than the reference until you call it
-3. **Print one.** Fit is asserted at 0.05-0.2mm; only a printer settles it
-4. **DoD-5 remainder** — purpose/use-case docs for the ~35 pre-existing box
-   parameters (P2 additions and all P3 additions are already documented)
+**P4 — bin feature layers.** All Keep from triage, all independent of P3:
+
+1. **Cullenect click-in labels (1D.3/1D.4)** — MIT, and a *real source* rather
+   than dimensions only. Relabel by reprinting a 2g tile instead of a 6-hour bin
+2. **Finger slide on any wall (1C.8)** — the current scoop is front-wall-only at
+   a fixed radius. An upgrade to an existing slot, not a new feature
+3. **Minimum lip (1C.7)** — drawer bins that never stack should not carry 6.6mm
+   of interlock. Very low cost, one tuple
+4. **Bottom size text (1C.16)** — answers "what size is this" when empty. **Must
+   bundle a font** and use `fontPath`; never a system lookup
+
+**Still open from P3, neither blocking:**
+- **Reinforced corners** — Jason's disposition. Our corners are weaker than
+  smkent's Gridfinity default until called
+- **Nothing has been printed.** Fit asserted at 0.05-0.2mm
 
 ## Open Items
 

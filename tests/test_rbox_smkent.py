@@ -1465,6 +1465,80 @@ def test_magnet_pockets_do_not_perforate_the_box_floor():
         assert faces[0].Area() < b.plain_outer_length * b.plain_outer_width
 
 
+# --- Counts (the class of defect nothing was checking) ----------------------
+
+
+def _hole_segments(shape, axis):
+    """Distinct screw-hole segments running along `axis`.
+
+    Identified by the two perpendicular coordinates of the axis line PLUS the
+    segment's extent along it, so collinear holes in separate ribs count
+    separately -- which is the whole point. All four latch holes share one
+    axis line; only their extents tell them apart.
+    """
+    from OCP.BRepAdaptor import BRepAdaptor_Surface
+
+    i = {"X": 0, "Y": 1, "Z": 2}[axis]
+    out = set()
+    for f in shape.Faces():
+        s = BRepAdaptor_Surface(f.wrapped)
+        if str(s.GetType()).rsplit("_", 1)[-1] != "Cylinder":
+            continue
+        c = s.Cylinder()
+        if not (1.3 <= c.Radius() <= 1.9):
+            continue
+        d = c.Axis().Direction()
+        if abs((d.X(), d.Y(), d.Z())[i]) < 0.9:
+            continue
+        loc = (c.Location().X(), c.Location().Y(), c.Location().Z())
+        bb = f.BoundingBox()
+        lo = (bb.xmin, bb.ymin, bb.zmin)[i]
+        hi = (bb.xmax, bb.ymax, bb.zmax)[i]
+        out.add(
+            tuple(round(v, 1) for j, v in enumerate(loc) if j != i)
+            + (round(lo, 1), round(hi, 1))
+        )
+    return out
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize(
+    "length_u,width_u,height_u", [(5, 4, 6), (3, 2, 4), (6, 4, 9)]
+)
+def test_every_attachment_gets_exactly_its_screws(length_u, width_u, height_u):
+    """Defect 11 was a COUNT error -- the lid took the body's answer and came
+    out with twice the stacking holes. Nothing here counted anything, so
+    nothing caught it; a human did, by eye.
+
+    Counts are derived from the rules, not recorded from the output.
+    """
+    b = SK(length_u, width_u, height_u)
+    for lid in (False, True):
+        shape = (b.render_lid() if lid else b.render_body()).val()
+        along_x = _hole_segments(shape, "X")
+        front = [h for h in along_x if h[0] < 0]  # latch wall
+        rear = [h for h in along_x if h[0] > 0]  # hinge wall
+        stacking = _hole_segments(shape, "Y")
+
+        assert len(front) == 2 * len(b.attachment_positions()), "latch screws"
+
+        # The body pierces its PAIR of knuckles at each hinge; the lid's
+        # central block is one piece, so one segment. The end stop takes no
+        # part -- it lives below the pin, which is what makes it a stop.
+        per_hinge = 1 if lid else 2
+        assert len(rear) == per_hinge * len(
+            b.attachment_positions(hinge=True)
+        ), "hinge screws"
+
+        expected_stack = (
+            2  # side walls
+            * len(b.stacking_latch_positions())
+            * 2  # ribs straddling each site
+            * len(b.stacking_screw_heights(lid=lid))
+        )
+        assert len(stacking) == expected_stack, "stacking screws"
+
+
 # --- Does it actually go together? ------------------------------------------
 
 

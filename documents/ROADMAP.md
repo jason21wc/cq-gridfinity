@@ -280,6 +280,22 @@ the first commit.
 **Exit criteria:** watertight box, lid, and every latch style; DoD-3 verified;
 BOM documented (M3×40 DIN 912; M3×55 where handles attach).
 
+> **CLOSED 2026-08-16.** All 14 items built (1E.1-1E.13 plus per-part export).
+> Watertight and single-shell on both halves, 0.000000 mm³ assembled
+> interference across four configurations, 21 STEP models audit-clean.
+> **DoD-3 verified by Jason** against the full set — one defect found by eye
+> (stacking screw count taken per box rather than per half), fixed and
+> regenerated.
+>
+> Scope grew mid-phase: 1E.6 turned out to be a placement rule for hinges that
+> had never been built, so the attachment layer was admitted as 1E.9-1E.13.
+> Eleven sizing defects were found and fixed along the way — see
+> `documents/SHELL-AUDIT-1E8.md` and SESSION-STATE.
+>
+> **Left open by decision:** reinforced corners (upstream's Gridfinity wrapper
+> sets it `true`; we build the library default `false`). Unadmitted feature,
+> Jason's call. Nothing has been printed.
+
 ---
 
 ### P4 — Bin Feature Layers
