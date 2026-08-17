@@ -89,3 +89,4 @@ The following project is used as a **specification reference only**. No code has
 | Module | Source | Status |
 |--------|--------|--------|
 | `cqgridfinity/lids/anylid.py` | Independent implementation (rngcntr spec ref) | **BLOCKED** — No GitHub repo (MakerWorld only), license unclear. Implementation cannot begin until license is resolved. |
+| `cqgridfinity/gf_labels.py` | **MIT** | Cullenect swappable labels — design by Cullen J Webb ([Cullenect-Labels](https://github.com/CullenJWebb/Cullenect-Labels)), Copyright (c) 2024, MIT. Translated from readable source rather than reconstructed from dimensions |
