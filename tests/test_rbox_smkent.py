@@ -1465,6 +1465,59 @@ def test_magnet_pockets_do_not_perforate_the_box_floor():
         assert faces[0].Area() < b.plain_outer_length * b.plain_outer_width
 
 
+# --- Structural guard: geometry the parameters allow but cannot be built -----
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize(
+    "kwargs,why",
+    [
+        (dict(length_u=1, width_u=1, height_u=8), "footprint too small for its attachments"),
+        (dict(length_u=10, width_u=1, height_u=4), "1U deep leaves nothing for the side ribs"),
+        (dict(length_u=3, width_u=2, height_u=3, lid_height_u=2), "body too short for its own attachments"),
+        (dict(length_u=3, width_u=2, height_u=4, rib_width=20), "ribs merge with their neighbours"),
+        (dict(length_u=1, width_u=1, height_u=4, latch_width=50), "latch wider than the wall it mounts on"),
+    ],
+)
+def test_unbuildable_combinations_raise_instead_of_shipping_junk(kwargs, why):
+    """Range checks per parameter cannot catch these: every value is legal on
+    its own, and the COMBINATION is what fails. Before the guard these
+    rendered several disconnected lumps, or a solid with sealed voids, and
+    every dimensional assertion still passed.
+
+    That is the shape of six of this module's defects, so the invariant is
+    asserted directly rather than through a proxy for it.
+    """
+    b = SK(**kwargs)
+    with pytest.raises(ValueError, match="one closed solid"):
+        b.render_body()
+
+
+def test_the_guard_names_what_to_change():
+    """An error that does not say which knob to turn is barely better than
+    bad geometry."""
+    b = SK(1, 1, 8)
+    with pytest.raises(ValueError) as exc:
+        b.render_body()
+    msg = str(exc.value)
+    for expected in ("length_u", "rib_width", "wall_thickness", "height_u"):
+        assert expected in msg
+
+
+def test_every_shipped_configuration_passes_the_guard():
+    """The guard must not reject anything real. These are the four runs of
+    the reference set plus both presets' Gridfinity values."""
+    for kw in (
+        dict(length_u=2, width_u=2, height_u=4, stacking_latches=False),
+        dict(length_u=3, width_u=2, height_u=6, latch_type="draw"),
+        dict(length_u=5, width_u=4, height_u=6, baseplate_magnets=True,
+             baseplate_skeletonized=True),
+        dict(length_u=6, width_u=4, height_u=9, latch_type="draw"),
+    ):
+        b = SK(**kw)
+        assert len(b.render_body().val().Solids()) == 1
+
+
 # --- Reinforced corners -----------------------------------------------------
 
 

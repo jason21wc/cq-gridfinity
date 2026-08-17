@@ -1633,6 +1633,67 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
             void = void.mirror("XY").translate((0, 0, height))
         return void.translate((0, 0, z0))
 
+    # -- structural guard --------------------------------------------------
+
+    def _assert_sound(self, shape, what):
+        """Refuse to hand back geometry that is not a single closed solid.
+
+        Parameter RANGE checks cannot catch this class of failure. An
+        attachment that lands past its wall's corner, ribs wide enough to
+        merge with their neighbours, or a wall too thin to carry its own
+        chamfer all produce a render that *looks* like it worked -- several
+        disconnected lumps, or a solid with a sealed void -- and every
+        dimensional assertion still passes. Six of this module's defects were
+        of exactly that shape.
+
+        So the invariant is checked directly rather than through a proxy: one
+        solid, one shell, or it does not ship. The message names the
+        parameters most likely to be responsible, since the geometry cannot
+        say which one the caller got wrong.
+        """
+        v = shape.val()
+        solids, shells = v.Solids(), v.Shells()
+        if len(solids) == 1 and len(shells) == 1 and v.isValid():
+            return shape
+        detail = []
+        if not v.isValid():
+            detail.append("the solid is not valid")
+        if len(solids) != 1:
+            detail.append(
+                "%d disconnected pieces (something is not touching the wall)"
+                % len(solids)
+            )
+        if len(shells) > 1:
+            detail.append(
+                "%d shells -- %d sealed void(s) inside the material"
+                % (len(shells), len(shells) - 1)
+            )
+        raise ValueError(
+            "%s: the %s did not come out as one closed solid: %s.\n"
+            "This is a combination the parameters allow but the geometry "
+            "cannot build. Usual causes, in order:\n"
+            "  * footprint too small for its attachments -- length_u=%g, "
+            "width_u=%g. Latch and hinge ribs reach %.1fmm either side of "
+            "each mounting point and must still land on a wall\n"
+            "  * rib_width=%g too large -- a plain rib spans %.1fmm of the "
+            "42mm grid pitch, and neighbours merge before they fill it\n"
+            "  * wall_thickness=%g / lip_thickness=%g too thin to carry the "
+            "%.2fmm outer chamfer\n"
+            "  * height_u=%g against lid_height_u=%g leaves too little body "
+            "for its own attachments"
+            % (
+                self.__class__.__name__, what, "; ".join(detail),
+                self.length_u, self.width_u,
+                abs(self.attachment_pair_offsets()[1]) + self.rib_width / 2,
+                self.rib_width,
+                self.rib_width * 2
+                * (1 + 2 * math.tan(math.radians(SK_PLAIN_RIB_ANGLE))),
+                self.wall_thickness, self.lip_thickness,
+                self.outer_chamfer_horizontal,
+                self.height_u, self.lid_height_u,
+            )
+        )
+
     def render_body(self):
         """Lower half of the box: floor, walls, baseplate, and lower lip land.
 
@@ -1658,6 +1719,7 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
         groove = self.render_seal_ring()
         if groove is not None:
             r = r.cut(groove)
+        r = self._assert_sound(r, "body")
         self._cq_obj = r
         self._obj_label = "body"
         return r
@@ -1691,6 +1753,7 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
                     embed=SK_SEAL_CLEARANCE + SK_SEAL_EMBED,
                 )
                 r = r.union(ridge)
+        r = self._assert_sound(r, "lid")
         self._cq_obj = r
         self._obj_label = "lid"
         return r
