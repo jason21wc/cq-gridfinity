@@ -80,14 +80,19 @@ def audit_shape(shape, label: str = "<shape>") -> dict:
     valid = BRepCheck_Analyzer(shape.wrapped).IsValid()
 
     flags = []
+    notes = []
     if not valid:
         flags.append("INVALID")
     if n_faces >= TESSELLATION_FACE_FLOOR and planar_frac >= TESSELLATION_PLANAR_FRAC:
         flags.append("TESSELLATION_SUSPECT")
     if n_faces and n_analytic / n_faces < 0.5:
-        # Majority free-form surfaces is legitimate for a lofted shape but
-        # unexpected for Gridfinity geometry, which is prisms + cylinders.
-        flags.append("MOSTLY_FREEFORM")
+        # Majority free-form surfaces is legitimate for a lofted shape, and
+        # for ENGRAVED TEXT -- glyph outlines are genuinely curves. It is a
+        # NOTE rather than a failure: this tool's real job is catching a
+        # planar facet explosion (triangles wearing a .step extension), and a
+        # B-spline surface is the opposite of that. Failing CI on legitimate
+        # text would just train people to ignore the tool.
+        notes.append("MOSTLY_FREEFORM")
     if not n_faces:
         flags.append("EMPTY")
 
@@ -104,6 +109,7 @@ def audit_shape(shape, label: str = "<shape>") -> dict:
         "surface_types": dict(sorted(histogram.items(), key=lambda kv: -kv[1])),
         "bbox_mm": bbox,
         "flags": flags,
+        "notes": notes,
     }
 
 
@@ -117,6 +123,7 @@ def audit_file(path: Path) -> dict:
             "path": str(path),
             "valid": False,
             "flags": ["IMPORT_FAILED"],
+            "notes": [],
             "error": f"{type(exc).__name__}: {exc}",
         }
 
@@ -172,7 +179,7 @@ def main(argv=None) -> int:
 
     failed = 0
     for r in results:
-        flagged = bool(r.get("flags"))
+        flagged = bool(r.get("flags"))  # notes do not fail the gate
         if flagged:
             failed += 1
         if args.quiet and not flagged:
@@ -183,6 +190,8 @@ def main(argv=None) -> int:
         tail = _fmt_types(r["surface_types"])
         if flagged:
             tail += "  [" + ",".join(r["flags"]) + "]"
+        if r.get("notes"):
+            tail += "  (" + ",".join(r["notes"]) + ")"
         print(
             f"{r['label'][:44]:<44} {r['faces']:>6} "
             f"{r['planar_fraction'] * 100:>5.1f}% {r['file_kb']:>7.1f}  {tail}"
