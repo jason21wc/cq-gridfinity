@@ -198,3 +198,49 @@ def test_bundled_font_is_a_real_font_file():
 def test_filenames_distinguish_width_and_style():
     assert CullenectLabel(1).filename() == "cullenect_label_1u"
     assert "2u" in CullenectLabel(2).filename()
+
+
+# --- Socket on the bin (1D.5) -----------------------------------------------
+
+
+def test_socket_needs_a_label_shelf_to_cut_into():
+    from cqgridfinity import GridfinityBox
+
+    with pytest.raises(ValueError, match="label shelf"):
+        GridfinityBox(3, 2, 6, cullenect_socket=True, fillet_interior=False).render()
+
+
+def test_bin_socket_accepts_the_tile():
+    """The half that was missing: 1D.3/1D.4 gave a tile and a negative volume,
+    but nothing put the socket ON a bin, so there was no way to bring them
+    together. Measured on the real bin, not a test block."""
+    from cqgridfinity import GridfinityBox
+
+    b = GridfinityBox(3, 2, 6, labels=True, cullenect_socket=True,
+                      fillet_interior=False)
+    binned = b.render().val()
+    assert binned.isValid()
+    assert len(binned.Solids()) == 1
+
+    shelf = b.render_labels().val().BoundingBox()
+    tile = CullenectLabel(b.cullenect_label_u)
+    placed = tile.render().val().translate(
+        ((shelf.xmin + shelf.xmax) / 2,
+         (shelf.ymin + shelf.ymax) / 2,
+         shelf.zmax - tile.thickness)
+    )
+    assert binned.intersect(placed).Volume() == pytest.approx(0.0, abs=1e-6)
+    # Sits flush with the shelf rather than proud of it.
+    assert placed.BoundingBox().zmax == pytest.approx(shelf.zmax, abs=1e-6)
+
+
+def test_socket_removes_exactly_the_negative_volume():
+    from cqgridfinity import GridfinityBox
+
+    plain = GridfinityBox(3, 2, 6, labels=True, fillet_interior=False).render().val()
+    socketed = GridfinityBox(3, 2, 6, labels=True, cullenect_socket=True,
+                             fillet_interior=False).render().val()
+    tile = CullenectLabel(3)
+    assert plain.Volume() - socketed.Volume() == pytest.approx(
+        tile.socket_negative().val().Volume(), rel=1e-6
+    )

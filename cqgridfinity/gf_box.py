@@ -139,6 +139,7 @@ class GridfinityBox(GridfinityObject):
         self.wall_th = GR_WALL
         self.hole_diam = GR_HOLE_D  # magnet/bolt hole diameter
         self.label_style = None  # None=auto; "full"/"auto"/"left"/"center"/"right"/"none"
+        self.cullenect_socket = False  # click-in label socket in the shelf (1D.5)
         self.compartment_depth = 0  # raise compartment floor (mm), 0=full depth
         self.height_internal = 0  # override internal height (mm), 0=default
         self.cylindrical = False  # cut cylindrical compartments
@@ -666,6 +667,11 @@ class GridfinityBox(GridfinityObject):
                 for e in (rd, rl, rs):
                     if e is not None:
                         r = r.union(e)
+                # Cullenect socket is cut AFTER the shelf is unioned in: it
+                # is a pocket in that shelf, not a feature of its own.
+                sock = self.render_cullenect_socket()
+                if sock is not None:
+                    r = r.cut(sock)
             if (
                 not self.solid
                 and not self.cylindrical
@@ -1062,6 +1068,54 @@ class GridfinityBox(GridfinityObject):
                 rsc = rsc.translate((tab_x, yo, z_top))
                 r = rsc if r is None else r.union(rsc)
             return r
+
+    def render_cullenect_socket(self):
+        """Socket for a click-in Cullenect label, cut into the label shelf (1D.5).
+
+        1D.3 and 1D.4 give you a tile and a negative volume; this is what puts
+        the socket on a bin, so the tile has somewhere to go. Without it the
+        feature is two parts and no way to bring them together.
+
+        The shelf's top face is flat and horizontal, so the socket is a plain
+        pocket in it: a label lying there reads from above, which is how bins
+        in a drawer are read. The tile is sized to the bin's own width in grid
+        units, and the pocket is centred on the shelf.
+        """
+        if not self.cullenect_socket:
+            return None
+        if not self.labels or self.solid or self.label_style == "none":
+            raise ValueError(
+                "cullenect_socket needs a label shelf to cut into: set "
+                "labels=True (and not solid, and label_style != 'none')"
+            )
+        from cqgridfinity.gf_labels import CullenectLabel
+
+        shelf = self.render_labels()
+        if shelf is None:
+            return None
+        bb = shelf.val().BoundingBox()
+        tile = CullenectLabel(self.cullenect_label_u)
+        if tile.socket_length > bb.xlen or tile.socket_width > bb.ylen:
+            raise ValueError(
+                "a %gU Cullenect socket is %.1f x %.1f mm and will not fit the "
+                "%.1f x %.1f mm label shelf"
+                % (self.cullenect_label_u, tile.socket_length,
+                   tile.socket_width, bb.xlen, bb.ylen)
+            )
+        neg = tile.socket_negative()
+        # Drop the pocket into the shelf's top face, centred on it.
+        return neg.translate(
+            (
+                (bb.xmin + bb.xmax) / 2,
+                (bb.ymin + bb.ymax) / 2,
+                bb.zmax - tile.thickness,
+            )
+        )
+
+    @property
+    def cullenect_label_u(self):
+        """Tile width in grid units -- the bin's own width, capped by the shelf."""
+        return max(int(self.length_u), 1)
 
     def render_labels(self):
         if not self.labels or self.solid or self.label_style == "none":

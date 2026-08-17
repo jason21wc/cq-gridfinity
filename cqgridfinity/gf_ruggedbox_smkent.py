@@ -356,6 +356,11 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
         # Stacking latches (1E.5): side-mounted, box-to-box rather than
         # lid-to-body. Upstream's Gridfinity wrapper enables them.
         self.stacking_latches = True
+        # Reinforced corners (smkent `reinforced_corners`). The Gridfinity
+        # wrapper sets it TRUE; the library default is false. Corners keep
+        # full total_lip_thickness for their whole height instead of stepping
+        # in with the flats -- the box gets dropped on its corners.
+        self.reinforced_corners = True
         for k, v in kwargs.items():
             if k in self.__dict__:
                 self.__dict__[k] = v
@@ -752,6 +757,15 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
         for extra in parts[1:]:
             block = block.union(extra)
         block = self._cut_outer_chamfer(block, height)
+        if self.reinforced_corners:
+            # The corners carry their own chamfer, measured from the lip
+            # footprint, before joining the stepped wall.
+            pillars = self._cut_outer_chamfer(
+                self._corner_pillars(height),
+                height,
+                outer=(self.box_length, self.box_width, self.corner_radius),
+            )
+            block = block.union(pillars)
         block = self._round_outer_edges(block)
         if not lip_at_top:
             block = block.mirror("XY").translate((0, 0, height))
@@ -1496,21 +1510,89 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
         try:
             return block.newObject(edges).fillet(self.edge_radius)
         except Exception:
-            # Never trade a valid solid for a cosmetic radius.
+            pass
+        # Reinforced corners leave a step at each corner-tangent line -- as
+        # upstream does too -- and OCC will not fillet the whole set across
+        # it. Fall back to one loop at a time so most of the rounding
+        # survives, rather than trading it all for one awkward edge.
+        done, failed = block, []
+        for z in sorted({round(e.BoundingBox().zmin, 4) for e in edges}):
+            loop = [
+                e
+                for e in done.edges().vals()
+                if abs(e.BoundingBox().zlen) < EPS
+                and abs(e.BoundingBox().zmin - z) < 1e-3
+            ]
+            if not loop:
+                continue
+            try:
+                done = done.newObject(loop).fillet(self.edge_radius)
+            except Exception:
+                failed.append(z)
+        if failed:
+            # Never trade a valid solid for a cosmetic radius, but say which
+            # edges kept their corners rather than reporting a blanket failure.
             warnings.warn(
-                "%s: outer edge rounding failed, leaving edges sharp"
-                % self.__class__.__name__,
+                "%s: outer edge rounding skipped %d of %d loops (z=%s); those "
+                "edges stay sharp. Geometry is otherwise valid."
+                % (
+                    self.__class__.__name__,
+                    len(failed),
+                    len(failed) + len(set(round(e.BoundingBox().zmin, 4) for e in edges)) - len(failed),
+                    ", ".join("%.2f" % z for z in failed),
+                ),
                 stacklevel=2,
             )
-            return block
+        return done
 
-    def _cut_outer_chamfer(self, block, height):
+    def _corner_pillars(self, height):
+        """smkent `_box_sides()` with `reinforced_corners`.
+
+        Upstream sweeps a second wall profile around the CORNERS only, with
+        the subtraction polygon shifted out by `lip_thickness`, so the corners
+        never step in with the flats. Expressed here as the full-size prism
+        restricted to the four corner arcs -- same solid, and it composes with
+        the stepped block by union.
+        """
+        full = (
+            cq.Workplane("XY")
+            .placeSketch(
+                rounded_rect_sketch(
+                    self.box_length, self.box_width, self.corner_radius
+                )
+            )
+            .extrude(height)
+        )
+        r = self.corner_radius
+        cx, cy = self.box_length / 2 - r, self.box_width / 2 - r
+        keep = None
+        for sx in (-1, 1):
+            for sy in (-1, 1):
+                # Exactly the corner arc's quadrant: an r x r square whose
+                # inner corner sits on the arc centre.
+                corner = (
+                    cq.Workplane("XY")
+                    .box(r, r, height, centered=(True, True, False))
+                    .translate((sx * (cx + r / 2), sy * (cy + r / 2), 0))
+                )
+                keep = corner if keep is None else keep.union(corner)
+        return full.intersect(keep)
+
+    def _cut_outer_chamfer(self, block, height, outer=None):
         """Chamfer the bottom outer edge -- smkent `_box_wall_outer_chamfer_shape`.
 
         Horizontal `edge_chamfer_proportion * corner_radius`, vertical 1.5x
         that. It faces the part's outward end, so on the assembled box the
         body chamfers at the base and the lid at the top.
         """
+        # smkent applies `translate([reinforced ? lip_thickness : 0, 0, 0])` to
+        # the chamfer as well as the wall polygon, so a reinforced corner's
+        # chamfer is measured from the LIP footprint, not the plain wall.
+        ol, ow, orad = outer or (
+            self.plain_outer_length,
+            self.plain_outer_width,
+            self.plain_corner_radius,
+        )
         hc = self.outer_chamfer_horizontal
         vc = self.outer_chamfer_vertical
         # Upstream clamps the chamfer so it cannot eat into the lip region.
@@ -1520,18 +1602,8 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
         hc = hc * (vc / self.outer_chamfer_vertical)
         # Ring between the chamfered-in footprint and the full plain wall,
         # lofted so it opens out to nothing at the top of the chamfer.
-        lo = _rounded_rect_wire(
-            self.plain_outer_length - 2 * hc,
-            self.plain_outer_width - 2 * hc,
-            max(self.plain_corner_radius - hc, 0.1),
-            0.0,
-        )
-        hi = _rounded_rect_wire(
-            self.plain_outer_length,
-            self.plain_outer_width,
-            self.plain_corner_radius,
-            vc,
-        )
+        lo = _rounded_rect_wire(ol - 2 * hc, ow - 2 * hc, max(orad - hc, 0.1), 0.0)
+        hi = _rounded_rect_wire(ol, ow, orad, vc)
         keep = cq.Workplane("XY").newObject([cq.Solid.makeLoft([lo, hi], ruled=True)])
         below = (
             cq.Workplane("XY")

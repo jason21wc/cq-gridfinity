@@ -47,7 +47,7 @@ small square block is added back so the inner floor edge stays crisp.
 | 1 | **Wall direction** | interior constant at `inner` for the full height; the **outer** steps out at the lip | was: outer constant, interior widening below the lip | ✅ **fixed** — inverted to match |
 | 2 | Edge rounding | entire cross-section rounded by `edge_radius = wall/5 = 0.6` | was: none | ✅ fixed — the five section-change loops are filleted |
 | 3 | Outer bottom chamfer | 3.5625 horizontal × 5.34375 vertical, at the part's outward end | was: none, a plain extrusion | ✅ fixed |
-| 4 | Reinforced corners | a flag; **the Gridfinity wrapper sets it true** | not implemented (library default `false`) | ⚠ **open** — unadmitted feature, Jason's call |
+| 4 | Reinforced corners | a flag; **the Gridfinity wrapper sets it true** | implemented, default true | ✅ **fixed 2026-08-16** — admitted as 1E.14 |
 | 5 | Ramp height | `1.5 × lip_thickness` (from `outer_h − 3.5·lip_th` to `outer_h − lip_height`) | `1.5 × lip_thickness` | ✅ |
 | 6 | Lip land height | `lip_height = 2 × lip_thickness` | same | ✅ |
 | 7 | Interior corner radius | `corner_radius` = kennetek `r_base` = `BASE_TOP_RADIUS` = 3.75 | 3.75 | ✅ |
@@ -89,7 +89,7 @@ body, not asserted: outer 221.0 below the lip and 227.0 at the land, interior
 a constant 215.0 at both heights, chamfer slope `2·hc/vc` through its linear
 stretch. 431 tests pass; three STEP exports audit clean.
 
-Finding 4 remains open by design — see above.
+Finding 4 was dispositioned Keep by Jason and built on 2026-08-16 (row 1E.14). Implementing it exposed a further gap in the same term: upstream shifts the outer CHAMFER out by `lip_thickness` for reinforced corners as well as the wall polygon. Cutting the plain-wall chamfer through the corner pillars both lost material and defeated the 0.6mm edge rounding; measuring the chamfer from the lip footprint fixed both.
 
 ## Rebuild plan (executed)
 

@@ -1465,6 +1465,72 @@ def test_magnet_pockets_do_not_perforate_the_box_floor():
         assert faces[0].Area() < b.plain_outer_length * b.plain_outer_width
 
 
+# --- Reinforced corners -----------------------------------------------------
+
+
+def _reach(body, z, ang):
+    """Outer reach along a given bearing. A rounded rect's extreme point lies
+    toward its corner ARC CENTRE, not at 45 degrees -- probing 45 misses it."""
+    import math
+
+    import cadquery as cq
+
+    bar = (
+        cq.Workplane("XY")
+        .box(400, 2, 0.4)
+        .rotate((0, 0, 0), (0, 0, 1), ang)
+        .translate((0, 0, z))
+        .val()
+    )
+    sl = body.intersect(bar)
+    return max(math.hypot(v.Center().x, v.Center().y) for v in sl.Vertices())
+
+
+def _corner_bearing(b):
+    import math
+
+    return math.degrees(
+        math.atan2(b.box_width / 2 - b.corner_radius,
+                   b.box_length / 2 - b.corner_radius)
+    )
+
+
+def test_reinforced_corners_are_on_by_default():
+    """smkent's Gridfinity wrapper sets Reinforced_Corners = true. The library
+    default is false, but a Gridfinity rugged box is the carried case."""
+    assert SK(5, 4, 6).reinforced_corners is True
+
+
+@pytest.mark.slow
+def test_reinforced_corners_keep_full_thickness_down_the_wall():
+    """Upstream sweeps a second wall profile around the corners with the
+    subtraction shifted out by lip_thickness, so corners never step in with
+    the flats. The box gets dropped on its corners."""
+    plain = SK(5, 4, 6, reinforced_corners=False)
+    reinf = SK(5, 4, 6, reinforced_corners=True)
+    pv, rv = plain.render_body().val(), reinf.render_body().val()
+    ang = _corner_bearing(plain)
+
+    # Down the plain wall the reinforced corner stands proud by lip_thickness.
+    low = 15.0
+    assert _reach(rv, low, ang) - _reach(pv, low, ang) == pytest.approx(
+        plain.lip_thickness, abs=0.05
+    )
+    # At the lip land both are already full thickness, so they agree.
+    high = plain.body_height - 1.0
+    assert _reach(rv, high, ang) == pytest.approx(_reach(pv, high, ang), abs=0.02)
+    # And it is additive: reinforcement only ever adds material.
+    assert rv.Volume() > pv.Volume()
+
+
+def test_reinforced_corners_stay_one_valid_solid():
+    for rc in (False, True):
+        b = SK(3, 2, 4, reinforced_corners=rc)
+        for shape in (b.render_body(), b.render_lid()):
+            assert shape.val().isValid()
+            assert len(shape.val().Solids()) == 1
+
+
 # --- Counts (the class of defect nothing was checking) ----------------------
 
 
