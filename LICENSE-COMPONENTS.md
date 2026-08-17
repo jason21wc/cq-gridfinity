@@ -90,3 +90,4 @@ The following project is used as a **specification reference only**. No code has
 |--------|--------|--------|
 | `cqgridfinity/lids/anylid.py` | Independent implementation (rngcntr spec ref) | **BLOCKED** — No GitHub repo (MakerWorld only), license unclear. Implementation cannot begin until license is resolved. |
 | `cqgridfinity/gf_labels.py` | **MIT** | Cullenect swappable labels — design by Cullen J Webb ([Cullenect-Labels](https://github.com/CullenJWebb/Cullenect-Labels)), Copyright (c) 2024, MIT. Translated from readable source rather than reconstructed from dimensions |
+| `cqgridfinity/fonts/OpenSans.ttf` | **SIL OFL 1.1** | Open Sans, Copyright 2020 The Open Sans Project Authors. Bundled so engraved text is reproducible rather than machine-dependent. Licence travels with the font in `cqgridfinity/fonts/OFL.txt`, as the OFL requires. Not sold separately |

@@ -35,6 +35,8 @@ setuptools.setup(
     author="Michael Gale",
     author_email="michael@fxbricks.com",
     python_requires=">=3.9",
+    package_data={"cqgridfinity": ["fonts/*.ttf", "fonts/*.txt"]},
+    include_package_data=True,
     packages=setuptools.find_packages(),
     long_description=long_description,
     long_description_content_type="text/markdown",

@@ -31,6 +31,7 @@ import cadquery as cq
 from cqkit.cq_helpers import rounded_rect_sketch
 
 from cqgridfinity.constants import GRU
+from cqgridfinity.gf_fonts import font_path
 from cqgridfinity.gf_obj import GridfinityObject
 
 __all__ = ["CullenectLabel"]
@@ -76,7 +77,7 @@ class CullenectLabel(GridfinityObject):
         self.width_u = width_u
         self.label_length = 0.0  # >0 overrides the grid-derived width, in mm
         self.text = ""
-        self.font_path = None  # bundled font path; None renders a blank tile
+        self.font_path = None  # None uses the bundled Open Sans
         self.font_size = 5.0
         self.text_depth = CL_LAYER
         self.deboss = False  # True cuts the text in rather than raising it
@@ -92,11 +93,8 @@ class CullenectLabel(GridfinityObject):
     def _validate(self):
         if self.label_length <= 0 and self.width_u < 1:
             raise ValueError("width_u must be >= 1, got %r" % (self.width_u,))
-        if self.text and self.font_path is None:
-            raise ValueError(
-                "text=%r needs font_path: a system font lookup makes the "
-                "output depend on the machine that ran it" % (self.text,)
-            )
+        # No validation needed: text falls back to the BUNDLED font, never to
+        # a system lookup. See gf_fonts.
 
     # -- dimensions -------------------------------------------------------
 
@@ -162,9 +160,15 @@ class CullenectLabel(GridfinityObject):
         return r
 
     def _apply_text(self, obj):
-        """Raise or sink the label text on the top face."""
-        if not self.text or self.font_path is None:
+        """Raise or sink the label text on the top face.
+
+        An unset `font_path` uses the bundled Open Sans rather than whatever
+        the machine happens to have installed -- CadQuery would accept a bad
+        path and silently substitute a system font.
+        """
+        if not self.text:
             return obj
+        fp = self.font_path or font_path()
         solid = (
             cq.Workplane("XY")
             .workplane(offset=self.thickness)
@@ -172,7 +176,7 @@ class CullenectLabel(GridfinityObject):
                 self.text,
                 self.font_size,
                 self.text_depth,
-                fontPath=self.font_path,
+                fontPath=fp,
                 combine=False,
                 halign="center",
                 valign="center",

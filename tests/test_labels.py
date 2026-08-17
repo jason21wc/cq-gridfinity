@@ -164,12 +164,35 @@ def test_embossed_text_stands_proud_and_debossed_text_does_not():
     assert deboss.Volume() < blank.Volume()
 
 
-def test_text_refuses_a_system_font_lookup():
-    """A system font makes the output depend on the machine that ran it."""
-    with pytest.raises(ValueError, match="font_path"):
-        CullenectLabel(1, text="M3")
-    # Without text, no font is needed.
-    assert CullenectLabel(1).render().val().isValid()
+def test_text_uses_the_bundled_font_by_default():
+    """No font_path means the BUNDLED font, never a system lookup -- the
+    output must not depend on what the machine happens to have installed."""
+    from cqgridfinity.gf_fonts import font_path
+
+    label = CullenectLabel(1, text="M3")
+    assert label.font_path is None
+    assert label.render().val().isValid()
+    assert font_path().endswith(".ttf")
+
+
+def test_a_missing_bundled_font_is_fatal_not_silent():
+    """CadQuery accepts a bad fontPath and quietly substitutes a system font,
+    so a font missing from the wheel would engrave the wrong typeface on every
+    part without raising. gf_fonts checks the file itself."""
+    from cqgridfinity.gf_fonts import font_path
+
+    with pytest.raises((FileNotFoundError, ValueError)):
+        font_path("NoSuchFont.ttf")
+
+
+def test_bundled_font_is_a_real_font_file():
+    """Guards the failure that actually happened while bundling it: the file
+    arrived base64-encoded, and CadQuery rendered it 'successfully' by falling
+    back to a system font."""
+    from cqgridfinity.gf_fonts import font_path
+
+    with open(font_path(), "rb") as fp:
+        assert fp.read(4) == b"\x00\x01\x00\x00"
 
 
 def test_filenames_distinguish_width_and_style():
