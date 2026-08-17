@@ -80,6 +80,7 @@ test, and surfaced only when something downstream needed the thing it depended o
 | 8 | Clip latch missing `_round_shape(edge_radius)` on its profile | **the audit, not a consumer** |
 | 9 | `_screw_hole` not centred: latch hole drilled beside its boss, boss left solid | the hinge pin test |
 | 10 | Draw latch catch cut into TWO disconnected pieces — unprintable | wiring up `render_latch` |
+| 11 | Stacking-latch screw count taken from the body for BOTH halves — lid had 2x the holes | **Jason, by eye in CAD** |
 
 **#7 and #8 broke the pattern** — found by sweeping rather than by waiting.
 Two sweeps, both in `documents/SHELL-AUDIT-1E8.md` Part 2: parameters with no
@@ -219,7 +220,8 @@ anylid dispositioned in 8 batches → **21 Keep, 21 Cut**. See
 
 ## Next Actions
 
-1. **DoD-3: open `~/Downloads/gridfinity-shipset` in CAD.** 21 models staged,
+1. **DoD-3 IN PROGRESS.** Jason is reviewing `~/Downloads/gridfinity-shipset`;
+   first pass found defect 11 (fixed, files regenerated). 21 models staged,
    audit-clean, with `MANIFEST.md` listing what to check in cost-of-being-wrong
    order. Everything previously in that folder was stale (predated the lip,
    height and shell fixes) and was deleted. Every claim is machine-measured;

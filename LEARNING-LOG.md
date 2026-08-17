@@ -310,3 +310,14 @@ pieces, both in code whose own numbers checked out.
 **Rule:** when two parts must mate, measure the mating dimension on BOTH parts in one
 test. Per-part correctness against a spec is not the same as the parts agreeing with
 each other, and the assembly is where that difference shows up.
+
+#### A Threshold Evaluated on the Wrong Subject (2026-08-16)
+`_stacking_latches_enabled()` reads `$b_outer_height` -- the CURRENT part's height --
+so upstream answers it per half. We hardcoded `body_height` for both, and the lid of a
+box tall enough to cross the 40mm threshold came out with twice the screw holes.
+Invisible on every box below the threshold, which was every box tested.
+
+**Rule:** when porting a predicate that reads a context variable (`$b_part`,
+`$b_outer_height`), ask *whose* value it reads before substituting one of ours. And
+the tell was local: the function accepted a `lid` argument it never used -- the
+unconsumed-parameter smell again, this time on an argument rather than an attribute.
