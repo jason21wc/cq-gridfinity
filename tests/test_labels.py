@@ -119,6 +119,51 @@ def test_the_label_actually_seats_in_its_socket():
     assert clearance == pytest.approx(0.15, abs=0.01)
 
 
+def _a_font():
+    """Any font file, for exercising the text path.
+
+    A TEST may use a system font; OUTPUT may not, which is why `font_path` is
+    required rather than looked up. Skips where no font is found so the suite
+    stays portable.
+    """
+    import glob
+
+    for pattern in (
+        "/System/Library/Fonts/Supplemental/Arial.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/**/*.ttf",
+    ):
+        found = sorted(glob.glob(pattern, recursive=True))
+        if found:
+            return found[0]
+    return None
+
+
+def test_embossed_text_stands_proud_and_debossed_text_does_not():
+    """The text path had no coverage at all until this test: `font_size`,
+    `text_depth` and `deboss` were parameters whose geometry nothing ran.
+    That is the failure mode this project keeps hitting.
+    """
+    font = _a_font()
+    if font is None:
+        pytest.skip("no font available to exercise the text path")
+
+    blank = CullenectLabel(1).render().val()
+    emboss = CullenectLabel(1, text="M3x12", font_path=font).render().val()
+    deboss = CullenectLabel(1, text="M3x12", font_path=font, deboss=True).render().val()
+
+    for shape in (emboss, deboss):
+        assert shape.isValid()
+        assert len(shape.Solids()) == 1
+
+    # Embossed text rises exactly `text_depth` above the tile and adds material.
+    assert emboss.BoundingBox().zmax == pytest.approx(1.2 + 0.2, abs=1e-3)
+    assert emboss.Volume() > blank.Volume()
+    # Debossed text cuts in: no protrusion, less material.
+    assert deboss.BoundingBox().zmax == pytest.approx(1.2, abs=1e-3)
+    assert deboss.Volume() < blank.Volume()
+
+
 def test_text_refuses_a_system_font_lookup():
     """A system font makes the output depend on the machine that ran it."""
     with pytest.raises(ValueError, match="font_path"):

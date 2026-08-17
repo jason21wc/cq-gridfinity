@@ -62,9 +62,13 @@ class CullenectLabel(GridfinityObject):
     convention, so the tile drops straight into a centred socket.
 
     NOTE: this builds the **V2** label. Upstream also carries a segmented V1
-    base for backward compatibility with 1U sockets printed before the
-    revision. We generate both halves of the interface, so V2 is
-    self-consistent; V1 is deliberately not built.
+    base, and makes it the DEFAULT for 1U tiles (`backward_compatible = true`),
+    so most Cullenect labels in the wild are V1-shaped.
+
+    Our tiles are verified against our own sockets. Upstream's socket module
+    is common to both revisions, so a V2 tile very likely fits a socket
+    printed from upstream too -- but that is **not verified here**, and anyone
+    with existing Cullenect bins should test one tile before printing a set.
     """
 
     def __init__(self, width_u=1, **kwargs):

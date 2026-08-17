@@ -321,3 +321,15 @@ Invisible on every box below the threshold, which was every box tested.
 `$b_outer_height`), ask *whose* value it reads before substituting one of ours. And
 the tell was local: the function accepted a `lid` argument it never used -- the
 unconsumed-parameter smell again, this time on an argument rather than an attribute.
+
+#### A New Module Ships With Its Own Untested Parameters (2026-08-16)
+`gf_labels.py` was written, tested (9 tests) and committed with the entire text path
+unexercised — `font_size`, `text_depth` and `deboss` were parameters no test ran,
+because no font was bundled. The geometry it produces turned out correct, but that was
+luck: it is the same "parameters computed ≠ geometry built" failure the rest of this
+project keeps hitting, reintroduced in brand-new code hours after writing the lesson.
+
+**Rule:** a parameter blocked from testing by a missing ASSET is still untested. Use a
+system asset in the test (never in output) and skip where absent, rather than shipping
+the path unrun. Run the no-consumer sweep on a new module *before* committing it, not
+only on the old one that taught you to.
