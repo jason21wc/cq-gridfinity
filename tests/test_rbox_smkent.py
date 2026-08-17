@@ -1538,10 +1538,33 @@ def test_stack_catch_needs_a_tall_enough_box():
     the two screw positions would collide. A short box still takes the mount,
     just not the second catch."""
     short, tall = SK(5, 4, 6), SK(5, 4, 9)
-    assert short.body_height < 40 and not short.stacking_latches_enabled
-    assert tall.body_height > 40 and tall.stacking_latches_enabled
+    assert short.body_height < 40 and not short.stacking_latches_enabled()
+    assert tall.body_height > 40 and tall.stacking_latches_enabled()
     assert len(short.stacking_screw_heights()) == 1
     assert len(tall.stacking_screw_heights()) == 2
+
+
+def test_stack_catch_is_decided_per_half_not_per_box():
+    """Upstream reads `$b_outer_height` -- the CURRENT PART's height -- so the
+    question is answered per half. A lid is never 40mm tall, so it always
+    takes a single screw however tall the body is.
+
+    Regression: this hardcoded `body_height` for both halves, so the lid of a
+    tall box came out with twice the screw holes it should have. The tell was
+    that `stacking_screw_heights()` accepted a `lid` argument it never used.
+    Found by eye in CAD, not by any test here.
+    """
+    tall = SK(6, 4, 9)
+    assert tall.body_height > 40 and tall.lid_height < 40
+    assert tall.stacking_latches_enabled() is True
+    assert tall.stacking_latches_enabled(lid=True) is False
+    assert len(tall.stacking_screw_heights()) == 2
+    assert len(tall.stacking_screw_heights(lid=True)) == 1
+    # And that reaches the geometry: the lid gets half the side holes.
+    sites = len(tall.stacking_latch_positions())
+    body_holes = 2 * sites * 2 * len(tall.stacking_screw_heights())
+    lid_holes = 2 * sites * 2 * len(tall.stacking_screw_heights(lid=True))
+    assert (body_holes, lid_holes) == (16, 8)
 
 
 def test_stacking_latch_is_a_clip_latch_with_a_second_catch():

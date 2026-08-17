@@ -876,14 +876,22 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
 
     # -- stacking latches (1E.5) ------------------------------------------
 
-    @property
-    def stacking_latches_enabled(self):
-        """smkent `_stacking_latches_enabled()`: needs a box over 40mm tall.
+    def stacking_latches_enabled(self, lid=False):
+        """smkent `_stacking_latches_enabled()`: needs 40mm+ of THIS HALF.
 
-        Below that the two screw positions would overlap, so only the lower
-        one is built and the box takes a mount but not a full stack catch.
+        Upstream reads `$b_outer_height`, which is the current part's own
+        height, so the question is answered per half -- and a lid is never
+        40mm tall, so it always takes a single screw. Below the threshold the
+        two screw positions would overlap, and the half gets a mount but not
+        a full stack catch.
+
+        Regression: this hardcoded `body_height` for both halves, so on a box
+        tall enough to cross the threshold the LID got the body's answer and
+        came out with twice the screw holes it should have. Found by eye in
+        CAD, on the one reference model tall enough to show it.
         """
-        return self.body_height > SK_STACK_SCREW_SEP * 2.0
+        height = self.lid_height if lid else self.body_height
+        return height > SK_STACK_SCREW_SEP * 2.0
 
     def stacking_latch_positions(self):
         """Y positions on each side wall -- `rb_stacking_latch_positions()`.
@@ -907,7 +915,7 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
         """Heights of the stacking latch screws on this half."""
         base = SK_STACK_SCREW_SEP * 0.5
         heights = [base]
-        if self.stacking_latches_enabled:
+        if self.stacking_latches_enabled(lid=lid):
             heights.append(base + SK_STACK_SCREW_SEP + SK_STACK_CATCH_OFFSET)
         return heights
 
