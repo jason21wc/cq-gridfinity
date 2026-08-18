@@ -13,6 +13,7 @@
 - **Phase:** **P4 — bin feature layers.** P3 closed 2026-08-16, DoD-3 verified. P4: Cullenect labels (1D.3/1D.4), socket on the bin (1D.5) and reinforced corners (1E.14) shipped
 - **Plan:** `documents/ROADMAP.md`
 - **Blocker:** None
+- **Pushed:** all 30 commits on `origin/p3-integrated-baseplate` (fork). `main` is 30 behind — merge is Jason's call
 
 ### P3 — CLOSED 2026-08-16
 
@@ -285,9 +286,9 @@ sizes or bridging. See `documents/GEOMETRY-RULES.md`.
 
 | Metric | Value |
 |--------|-------|
-| Tests | **448 passed, 1 skipped, 0 xfailed** (~3m23s) |
+| Tests | **508 passed, 1 skipped, 0 xfailed** (~5m45s) |
 | Quarantined failures | **None** — rugged box lid fixed 2026-08-11 |
-| Ship set | P1: 32 models. Staged for DoD-3: 21 models (17 smkent + 4 core), all audit-clean |
+| Ship set | P1: 32 models. Review set: **20 models** (screening design, 4 runs + size-invariant parts + 4 Cullenect + 4 core), all audit-clean, DoD-3 **verified** |
 | Local gate | `make check` (3m24s) via pre-push hook; `make check-full` |
 | Triage | 42 features → 21 Keep, 21 Cut |
 | Modules | 14 (added `gf_labels`, `gf_fonts`) |
