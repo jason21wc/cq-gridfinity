@@ -139,6 +139,22 @@ the guard now backs it up rather than standing in for it.
 Recorded because it is the same failure this project keeps finding, one level
 up: a rule can be stated, documented and believed while nothing exercises it.
 
+## Empirical limits worth knowing
+
+Found by sweeping, not derived. The guard catches them; these are the numbers
+so nobody has to rediscover them.
+
+| Parameter | Limit | What happens past it |
+|-----------|-------|----------------------|
+| `wall_thickness` = `lip_thickness` | **≥ 1.0mm** for the LID | below this the lid collapses during construction (the outer chamfer is a fixed 3.5625mm, set by `corner_radius`, not by the wall). The body still builds |
+| `rib_width` | **≤ 12mm** at default `latch_width=28` | 13+ the body's hinge knuckles run together. Between 7 and 12 the lid switches to the single-module hinge branch, which is correct |
+| `length_u`, `width_u` | **≥ 2** with attachments | a 1U side leaves no flat wall for its ribs; they land past the corner and detach |
+| `height_u` − `lid_height_u` | **≥ 2U** of body | less leaves too little body to carry its own attachments |
+
+These are the values at the Gridfinity preset. They move with `latch_width` and
+`corner_radius`, which is exactly why they are recorded as observations rather
+than encoded as rules — see the section above on thresholds derived wrongly.
+
 ## What is still NOT guarded
 
 Honest list, so nobody assumes more than is true:

@@ -1,6 +1,6 @@
 # Session State
 
-**Last Updated:** 2026-08-17 (P4 in flight: labels + socket + reinforced corners; transcript audit done)
+**Last Updated:** 2026-08-17 (transcript audit + loose-end sweep; guard on every render path)
 **Memory Type:** Working (transient)
 **Lifecycle:** Prune at session start per §7.0.4
 
@@ -83,6 +83,8 @@ test, and surfaced only when something downstream needed the thing it depended o
 | 11 | Stacking-latch screw count taken from the body for BOTH halves — lid had 2x the holes | **Jason, by eye in CAD** |
 | 12 | Cullenect tile sized from the bin, not the shelf — a tab label_style refused to build | re-testing my own documented rules |
 | 13 | `_box_hinge_ribs_top`'s single-module branch never ported — wrong hinge topology for rib_width 7-12 | a sweep aimed at a different rule |
+| 14 | Screw-together baseplate: Y screw holes a whole hole-length out of place, sealed inside the plate | the guard, the day it was extended |
+| 15 | Screw-together holes ended flush with the face, so OCC never broke them through | same |
 
 **#7 and #8 broke the pattern** — found by sweeping rather than by waiting.
 Two sweeps, both in `documents/SHELL-AUDIT-1E8.md` Part 2: parameters with no
