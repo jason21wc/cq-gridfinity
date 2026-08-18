@@ -713,6 +713,7 @@ class GridfinityBox(GridfinityObject):
             r = r.translate((-self.half_l, -self.half_w, GR_BASE_HEIGHT))
             if self.unsupported_holes:
                 r = self.render_hole_fillers(r)
+            r = self.assert_sound(r, "bin")
             return r
         finally:
             self.length_div = orig_length_div

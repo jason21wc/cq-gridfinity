@@ -118,6 +118,13 @@ SK_EDGE_CHAMFER_PROP = 0.95
 # wider where it meets the wall than at its outer tip.
 SK_PLAIN_RIB_ANGLE = 8.0
 
+# A boolean between three near-coincident planes can leave a sliver shell a
+# few hundredths of a millimetre across. It is an OpenCASCADE artifact, not a
+# cavity: below this diagonal a void is smaller than a third of one 0.2mm
+# layer and cannot exist in a printed part. Real voids found in this module
+# were 13mm3 -- four orders of magnitude above it.
+SK_VOID_TOL = 0.1
+
 # -- Stacking latches (1E.5) ---------------------------------------------
 # Locks boxes together vertically so a carried stack does not slide apart.
 # A latch is a latch; what differs is where it mounts and what it clamps --
@@ -1724,9 +1731,17 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
         say which one the caller got wrong.
         """
         v = shape.val()
-        solids, shells = v.Solids(), v.Shells()
-        if len(solids) == 1 and len(shells) == 1 and v.isValid():
+        solids = v.Solids()
+        shells = v.Shells()
+        real_shells, slivers = [], 0
+        for sh in shells:
+            if sh.BoundingBox().DiagonalLength < SK_VOID_TOL:
+                slivers += 1
+            else:
+                real_shells.append(sh)
+        if len(solids) == 1 and len(real_shells) == 1 and v.isValid():
             return shape
+        shells = real_shells
         detail = []
         if not v.isValid():
             detail.append("the solid is not valid")
@@ -1737,8 +1752,9 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
             )
         if len(shells) > 1:
             detail.append(
-                "%d shells -- %d sealed void(s) inside the material"
-                % (len(shells), len(shells) - 1)
+                "%d shells -- %d sealed void(s) inside the material, each "
+                "larger than %gmm across" % (len(shells), len(shells) - 1,
+                                             SK_VOID_TOL)
             )
         raise ValueError(
             "%s: the %s did not come out as one closed solid: %s.\n"

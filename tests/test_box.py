@@ -461,3 +461,35 @@ def test_fillet_rad_custom():
     r2 = b2.render()
     assert r2.val().isValid()
     assert _almost_same(size_3d(r2), (41.5, 41.5, b2.actual_height))
+
+
+def test_bin_refuses_geometry_that_is_not_one_closed_solid():
+    """The bin had no structural guard while the rugged box did -- a gap this
+    project's own rules document called out. Every shipped configuration
+    passes it; a solid with a real cavity does not."""
+    import cadquery as cq
+    import pytest
+
+    from cqgridfinity import GridfinityBox
+
+    hollow = cq.Workplane("XY").box(20, 20, 20).cut(
+        cq.Workplane("XY").box(5, 5, 5)
+    )
+    with pytest.raises(ValueError, match="one closed solid"):
+        GridfinityBox(2, 2, 3).assert_sound(hollow, "bin")
+
+
+def test_every_bin_configuration_passes_the_guard():
+    from cqgridfinity import GridfinityBox
+
+    for kw in (
+        dict(),
+        dict(scoops=True, labels=True),
+        dict(length_div=1, width_div=1),
+        dict(lite_style=True),
+        dict(holes=True),
+        dict(no_lip=True),
+        dict(solid=True),
+        dict(labels=True, label_style="left"),
+    ):
+        assert GridfinityBox(3, 2, 6, fillet_interior=False, **kw).render() is not None

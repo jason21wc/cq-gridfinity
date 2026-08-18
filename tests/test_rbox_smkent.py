@@ -1849,3 +1849,27 @@ def test_filename_distinguishes_from_pred_box():
 
 def test_filename_records_non_default_tolerance():
     assert "tol0.05" in SK(5, 4, 6, size_tolerance=0.05).filename()
+
+
+def test_generic_preset_builds():
+    """smkent's non-Gridfinity preset. Previously refused: the guard counted
+    four boolean SLIVERS (0.058mm across, a third of one layer) as sealed
+    voids. They are an OpenCASCADE artifact where three planes meet, not a
+    design defect -- the earlier diagnosis was wrong.
+    """
+    b = SK(3, 2, 4, wall_thickness=2.4, lip_thickness=2.0)
+    for shape in (b.render_body(), b.render_lid()):
+        assert shape.val().isValid()
+        assert len(shape.val().Solids()) == 1
+
+
+def test_a_real_void_is_still_rejected():
+    """The sliver tolerance must not become a hole in the guard. Real voids
+    found in this module were 13mm3 -- four orders of magnitude above it."""
+    import cadquery as cq
+
+    hollow = cq.Workplane("XY").box(20, 20, 20).cut(
+        cq.Workplane("XY").box(5, 5, 5)
+    )
+    with pytest.raises(ValueError, match="one closed solid"):
+        SK(3, 2, 4)._assert_sound(hollow, "test")

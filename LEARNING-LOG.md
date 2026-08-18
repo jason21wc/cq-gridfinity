@@ -383,3 +383,14 @@ curves — so the first debossed label failed the gate.
 from a proxy that correlates with it. `MOSTLY_FREEFORM` is now a note; INVALID,
 TESSELLATION_SUSPECT and EMPTY still fail. A gate that fails on legitimate output
 trains people to ignore it, which costs more than the check is worth.
+
+#### Count the Shells, Then MEASURE Them (2026-08-17)
+Four extra shells in the generic preset were reported as "sealed voids... a real
+defect rather than an over-strict guard." Measured afterwards they were 0.058mm
+across — a third of one layer, ~24 nanolitres — an OpenCASCADE artifact where three
+planes meet. `ShapeFix` left them alone because nothing was wrong. A whole
+configuration was refused, and a limitation written into a document, on a count.
+**Rule:** a topology count says something exists, never that it matters. Measure the
+size before concluding, and set structural tolerances by what the process can hold —
+here 0.1mm, a third of a layer, four orders of magnitude below the 13mm³ voids that
+were real defects.

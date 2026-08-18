@@ -42,7 +42,7 @@ cannot be printed:
 | `height_u=3` with `lid_height_u=2` | **3 disconnected pieces** — the body is too short to carry its own attachments |
 | `rib_width` ≥ 13 | **3 pieces** — measured: 12 builds, 13 does not. Not the rib pitch as first assumed (a plain rib spans only 79% of it); the body's own hinge knuckles are what run together |
 | `latch_width=50` on a 1U box | **5 pieces** — the latch is wider than the wall it mounts on |
-| `wall_thickness=2.4`, `lip_thickness=2.0` | 1 solid but **4 sealed voids**, one per hinge knuckle |
+| ~~`wall_thickness=2.4`, `lip_thickness=2.0`~~ | **Withdrawn.** Not a defect — see below |
 
 Every one passed `isValid()`. Every dimensional assertion still held. This is
 the same shape as six of this module's earlier defects: the failure is
@@ -79,20 +79,28 @@ document does not list.
 
 ---
 
-## Known limitation, stated rather than hidden
+## A limitation I claimed that was not one
 
-`wall_thickness=2.4` with `lip_thickness=2.0` — smkent's **generic (non-
-Gridfinity) preset** — produces four sealed voids where the hinge knuckles
-meet the wall, and is therefore refused. The Gridfinity preset (3.0 / 3.0,
-which this module defaults to and exists to build) is unaffected, as are
-1.0/1.0, 1.5/1.5, 2.0/2.0, 2.0/1.0 and 1.5/2.5.
+`wall_thickness=2.4` / `lip_thickness=2.0` — smkent's **generic preset** — was
+reported here as producing "four sealed voids where the hinge knuckles meet the
+wall... a real defect rather than an over-strict guard."
 
-The cause is the knuckle/rib/wall interaction at reduced wall thickness; it is
-a real defect rather than an over-strict guard, and it is **not fixed**. It is
-refused loudly instead of shipped quietly. Anyone who needs the generic preset
-should treat this as the open item it is.
+**That was wrong.** Measured, the four shells are **0.058mm across** — a third
+of one 0.2mm layer, seven times smaller than a nozzle bead, about 24 nanolitres
+each. They are an OpenCASCADE boolean artifact where the rib-cut plane meets the
+floor plane, not cavities; `ShapeFix` leaves them untouched because there is
+nothing wrong to fix. The guard was too strict, not the geometry wrong.
 
----
+Voids below `SK_VOID_TOL = 0.1mm` across are now ignored as slivers. The real
+voids this project has found were **13mm³** — four orders of magnitude above the
+threshold — and a synthetic 125mm³ cavity is still rejected, which is asserted
+by a test so the tolerance cannot quietly become a hole in the guard.
+
+The generic preset now builds. Both presets are supported.
+
+**Why this is recorded rather than quietly corrected:** the mistake was
+diagnosing from a shell COUNT without measuring the shell SIZE, and then
+reporting the conclusion with more confidence than the evidence carried.
 
 ## A branch of the upstream design that was never ported
 
@@ -135,10 +143,10 @@ up: a rule can be stated, documented and believed while nothing exercises it.
 
 Honest list, so nobody assumes more than is true:
 
-- **The bin (`GridfinityBox`) has no equivalent structural guard.** Only the
-  smkent rugged box does. The bin's own combinations — dividers, scoops,
-  raised floors and label shelves interacting — are covered by tests but not
-  by a runtime invariant.
+- ~~The bin has no equivalent structural guard.~~ **Closed 2026-08-17.**
+  `GridfinityObject.assert_sound()` now guards `GridfinityBox.render()` too,
+  and all eight shipped bin configurations pass it. The tolerance for boolean
+  slivers lives in the base class so both use the same rule.
 - **Print manufacturability is not checked at all.** Overhang angles, minimum
   feature sizes against a nozzle diameter, and bridging distances are not
   modelled. The generator guarantees a closed solid, not a printable one.

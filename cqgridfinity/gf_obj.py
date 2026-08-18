@@ -203,6 +203,45 @@ class GridfinityObject:
             )
             return obj
 
+    #: A boolean between near-coincident planes can leave a sliver shell a few
+    #: hundredths of a millimetre across. It is an OpenCASCADE artifact, not a
+    #: cavity -- below this it is a third of one 0.2mm layer and cannot exist
+    #: in a printed part. Real voids found in this project were 13mm3.
+    VOID_TOL = 0.1
+
+    def assert_sound(self, obj, what="model"):
+        """Refuse to return geometry that is not a single closed solid.
+
+        Range checks on parameters cannot catch this: a feature that lands
+        past the wall it was meant to sit on, or two features that merge into
+        each other, produce a render that *looks* like it worked -- several
+        disconnected lumps, or a solid with a cavity sealed inside it -- while
+        every dimensional assertion still passes.
+
+        Voids smaller than `VOID_TOL` across are ignored as boolean slivers.
+        Subclasses may catch this and re-raise with parameter-specific advice.
+        """
+        v = obj.val() if hasattr(obj, "val") else obj
+        solids = v.Solids()
+        shells = [
+            sh for sh in v.Shells()
+            if sh.BoundingBox().DiagonalLength >= self.VOID_TOL
+        ]
+        if len(solids) == 1 and len(shells) == 1 and v.isValid():
+            return obj
+        problems = []
+        if not v.isValid():
+            problems.append("the solid is not valid")
+        if len(solids) != 1:
+            problems.append("%d disconnected pieces" % len(solids))
+        if len(shells) > 1:
+            problems.append("%d sealed void(s)" % (len(shells) - 1))
+        raise ValueError(
+            "%s: the %s did not come out as one closed solid: %s. This is a "
+            "combination the parameters allow but the geometry cannot build."
+            % (self.__class__.__name__, what, "; ".join(problems))
+        )
+
     def repair_if_invalid(self, obj):
         """Repair a solid with OCC's ShapeFix, but only if it is actually invalid.
 
