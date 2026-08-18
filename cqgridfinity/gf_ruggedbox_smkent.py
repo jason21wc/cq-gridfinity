@@ -1202,6 +1202,46 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
         pair = self.attachment_pair_offsets(inner=lid)
         parts = []
         if lid:
+            if self.top_hinge_width <= 0:
+                raise ValueError(
+                    "%s: rib_width=%g leaves no width for the lid's hinge "
+                    "(top_hinge_width = latch_width - 2*size_tolerance - "
+                    "2*rib_width - 2*hinge_size_tolerance = %.2f). Reduce "
+                    "rib_width or raise latch_width."
+                    % (self.__class__.__name__, self.rib_width,
+                       self.top_hinge_width)
+                )
+            if self.top_hinge_width - self.rib_width * 2 <= 0:
+                # smkent's SINGLE MODULE hinge. Once the centre knuckle is no
+                # wider than the pair that would flank it, interleaving stops
+                # being possible and upstream builds one knuckle spanning the
+                # whole width instead. Omitting this branch survived to
+                # rib_width=12 and collapsed into loose pieces at 13.
+                single = self._rib_solid(h, self.top_hinge_width).union(
+                    self._hinge_rib_body(h, self.top_hinge_width, lid=True)
+                )
+                parts = [(single, 0.0)]
+                placed = []
+                for px in self.attachment_positions(hinge=True):
+                    for solid, off in parts:
+                        placed.append(
+                            solid.rotate((0, 0, 0), (0, 0, 1), 90).translate(
+                                (px + off, self.int_width / 2, 0)
+                            )
+                        )
+                out = placed[0]
+                for extra in placed[1:]:
+                    out = out.union(extra)
+                for px in self.attachment_positions(hinge=True):
+                    out = out.cut(
+                        self._screw_hole(3 * self.latch_width, oversize=True)
+                        .rotate((0, 0, 0), (0, 0, 1), 90)
+                        .translate(
+                            (px, self.int_width / 2 + self.attachment_screw_offset,
+                             h + SK_TOP_HINGE_EYELET_TOL)
+                        )
+                    )
+                return out
             gap = self.hinge_rib_width + SK_HINGE_SIZE_TOL
             knuckle = self._rib_solid(h, self.rib_width).union(
                 self._hinge_rib_body(h, self.rib_width, lid=True)
@@ -1635,6 +1675,38 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
 
     # -- structural guard --------------------------------------------------
 
+    def _guarded(self, build, what):
+        """Run a build, turning a raw kernel failure into a useful error.
+
+        Some combinations do not survive far enough to be checked: a wall too
+        thin to carry its own chamfer collapses a sketch and CadQuery raises
+        "No pending wires present", which tells the caller nothing about which
+        knob to turn. The structural guard cannot help if the shape never gets
+        built, so the same diagnosis is attached here.
+        """
+        try:
+            return build()
+        except ValueError as exc:
+            if "one closed solid" in str(exc) or "rib_width" in str(exc):
+                raise
+            raise ValueError(
+                "%s: the %s could not be built at these dimensions (%s: %s).\n"
+                "The geometry collapsed before it could be checked. Most "
+                "likely wall_thickness=%g / lip_thickness=%g are too thin to "
+                "carry the %.2fmm outer chamfer and the %.2fmm edge rounding."
+                % (self.__class__.__name__, what, type(exc).__name__,
+                   str(exc)[:60], self.wall_thickness, self.lip_thickness,
+                   self.outer_chamfer_horizontal, self.edge_radius)
+            ) from exc
+        except Exception as exc:  # OCC Standard_Failure and friends
+            raise ValueError(
+                "%s: the %s could not be built at these dimensions (%s).\n"
+                "The kernel failed before the shape could be checked. Suspect "
+                "rib_width=%g, wall_thickness=%g, lip_thickness=%g."
+                % (self.__class__.__name__, what, type(exc).__name__,
+                   self.rib_width, self.wall_thickness, self.lip_thickness)
+            ) from exc
+
     def _assert_sound(self, shape, what):
         """Refuse to hand back geometry that is not a single closed solid.
 
@@ -1695,6 +1767,9 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
         )
 
     def render_body(self):
+        return self._guarded(self._render_body, "body")
+
+    def _render_body(self):
         """Lower half of the box: floor, walls, baseplate, and lower lip land.
 
         The body always receives the GROOVE, whichever seal type is chosen.
@@ -1725,6 +1800,9 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
         return r
 
     def render_lid(self):
+        return self._guarded(self._render_lid, "lid")
+
+    def _render_lid(self):
         """Upper half. Rendered at the origin, not in assembled position.
 
         Moulded seals put a RIDGE here, undersized by SK_SEAL_CLEARANCE so it

@@ -333,3 +333,53 @@ project keeps hitting, reintroduced in brand-new code hours after writing the le
 system asset in the test (never in output) and skip where absent, rather than shipping
 the path unrun. Run the no-consumer sweep on a new module *before* committing it, not
 only on the old one that taught you to.
+
+#### CadQuery Silently Substitutes a Font on a Bad fontPath (2026-08-17)
+`Workplane.text(..., fontPath=...)` does not validate the path. A nonexistent path,
+or a base64-encoded file that `file` reports as "ASCII text", both render happily in
+whatever font the machine has. So a font missing from a wheel engraves the WRONG
+typeface on every part and raises nothing.
+**Rule:** validate the font yourself before handing the path over — exists, and carries
+TrueType/OpenType magic (`\x00\x01\x00\x00`, `true`, `ttcf`, `OTTO`). See
+`gf_fonts.font_path()`. The same applies to any library that accepts a resource path
+and has a fallback: a fallback is a silent failure with good manners.
+
+#### OCC Will Not Fillet an Edge Loop Across a Section Discontinuity (2026-08-17)
+Reinforced corners leave a step where the corner profile meets the flats, and
+`fillet()` over the whole horizontal edge set then fails — all of it, not just the
+awkward loop. The real cause was upstream fidelity: smkent shifts the outer CHAMFER by
+`lip_thickness` for reinforced corners too, and cutting the plain-wall chamfer through
+the corner pillars created the discontinuity.
+**Rule:** when a fillet fails on a shape you just changed, suspect the change before
+the kernel. The fidelity fix and the geometry fix were the same fix. Keep a per-loop
+fallback anyway, so a future failure costs one loop rather than all of them.
+
+#### Prefer an Invariant Over Thresholds You Derived (2026-08-17)
+Asked to capture the rules that stop the generator building broken geometry, the first
+instinct was to enumerate them analytically. Two derived thresholds were wrong within
+the hour: a 1U x 2U box survives its ribs overhanging the corner arc while 2U x 1U does
+not, and the thin-wall failure was in the LID, not the body. A rule derived from partial
+understanding gives false confidence in both directions.
+**Rule:** when the failure has a clean invariant — one solid, one shell, valid — assert
+the invariant and let it catch the combinations you have not thought of. Enumerated
+thresholds are worth adding only as friendlier early errors on top of it, never instead.
+
+#### Probes Are Geometry Too, and Get Aimed Wrong (2026-08-17)
+Four measurement probes in this session were wrong before the geometry was: one sat
+inside the drilled hole it was meant to measure, one picked up fillet cylinders as if
+they were screw holes, one hit the baseplate rim instead of the receptacle floor a bin
+rests on, and one looked along 45 degrees for a rounded rectangle's extreme point —
+which lies toward the corner ARC CENTRE (38.6 degrees on that box), not the diagonal.
+**Rule:** a probe that finds nothing, or finds the same answer for two configurations
+that must differ, is a suspect instrument — check it before concluding anything about
+the part. Assert the probe hit what it was aimed at (`assert spans`, "probe straddles
+the rib") before asserting anything about the material.
+
+#### A QA Gate That Cries Wolf Gets Ignored (2026-08-17)
+The STEP audit flags models whose faces are mostly free-form, to catch a mesh wearing a
+`.step` extension. Engraved text is legitimately mostly free-form — letterforms are
+curves — so the first debossed label failed the gate.
+**Rule:** distinguish the thing you are actually detecting (a planar facet explosion)
+from a proxy that correlates with it. `MOSTLY_FREEFORM` is now a note; INVALID,
+TESSELLATION_SUSPECT and EMPTY still fail. A gate that fails on legitimate output
+trains people to ignore it, which costs more than the check is worth.

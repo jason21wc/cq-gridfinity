@@ -223,7 +223,7 @@ def test_bin_socket_accepts_the_tile():
     assert len(binned.Solids()) == 1
 
     shelf = b.render_labels().val().BoundingBox()
-    tile = CullenectLabel(b.cullenect_label_u)
+    tile = CullenectLabel(b.cullenect_label_u_for(shelf.xlen))
     placed = tile.render().val().translate(
         ((shelf.xmin + shelf.xmax) / 2,
          (shelf.ymin + shelf.ymax) / 2,
@@ -244,3 +244,39 @@ def test_socket_removes_exactly_the_negative_volume():
     assert plain.Volume() - socketed.Volume() == pytest.approx(
         tile.socket_negative().val().Volume(), rel=1e-6
     )
+
+
+def test_tile_is_sized_from_the_shelf_not_the_bin():
+    """With label_style="full" the shelf spans the bin and the two agree. Every
+    TAB style gives a shelf about one grid unit long whatever the bin's width,
+    and sizing the tile off the bin then demanded a 120mm tile for a 42mm tab
+    and refused to build at all.
+
+    Found by re-testing a rule this project had DOCUMENTED as enforced: the
+    "socket must fit the shelf" check could not fire, because the only thing
+    that set the tile size was derived from the bin.
+    """
+    from cqgridfinity import GridfinityBox
+
+    wide = GridfinityBox(3, 2, 6, labels=True, cullenect_socket=True,
+                         fillet_interior=False)
+    assert len(wide.render().val().Solids()) == 1
+    shelf = wide.render_labels().val().BoundingBox()
+    assert wide.cullenect_label_u_for(shelf.xlen) == 3
+
+    for style in ("auto", "left", "center", "right"):
+        tab = GridfinityBox(3, 2, 6, labels=True, label_style=style,
+                            cullenect_socket=True, fillet_interior=False)
+        bb = tab.render_labels().val().BoundingBox()
+        # A one-unit tab takes a one-unit tile, and still builds.
+        assert tab.cullenect_label_u_for(bb.xlen) == 1
+        assert len(tab.render().val().Solids()) == 1
+
+
+def test_an_explicit_tile_size_overrides_the_shelf_fit():
+    from cqgridfinity import GridfinityBox
+
+    b = GridfinityBox(3, 2, 6, labels=True, cullenect_socket=True,
+                      cullenect_label_u=2, fillet_interior=False)
+    assert b.cullenect_label_u_for(999.0) == 2
+    assert len(b.render().val().Solids()) == 1

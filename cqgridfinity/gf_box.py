@@ -140,6 +140,7 @@ class GridfinityBox(GridfinityObject):
         self.hole_diam = GR_HOLE_D  # magnet/bolt hole diameter
         self.label_style = None  # None=auto; "full"/"auto"/"left"/"center"/"right"/"none"
         self.cullenect_socket = False  # click-in label socket in the shelf (1D.5)
+        self.cullenect_label_u = 0  # 0 = size the tile to the shelf
         self.compartment_depth = 0  # raise compartment floor (mm), 0=full depth
         self.height_internal = 0  # override internal height (mm), 0=default
         self.cylindrical = False  # cut cylindrical compartments
@@ -1094,13 +1095,14 @@ class GridfinityBox(GridfinityObject):
         if shelf is None:
             return None
         bb = shelf.val().BoundingBox()
-        tile = CullenectLabel(self.cullenect_label_u)
+        tile = CullenectLabel(self.cullenect_label_u_for(bb.xlen))
         if tile.socket_length > bb.xlen or tile.socket_width > bb.ylen:
             raise ValueError(
                 "a %gU Cullenect socket is %.1f x %.1f mm and will not fit the "
-                "%.1f x %.1f mm label shelf"
-                % (self.cullenect_label_u, tile.socket_length,
-                   tile.socket_width, bb.xlen, bb.ylen)
+                "%.1f x %.1f mm label shelf. Even a 1U tile needs %.1fmm; use "
+                "a wider label_style or a deeper label_width"
+                % (tile.width_u, tile.socket_length, tile.socket_width,
+                   bb.xlen, bb.ylen, CullenectLabel(1).socket_length)
             )
         neg = tile.socket_negative()
         # Drop the pocket into the shelf's top face, centred on it.
@@ -1112,10 +1114,23 @@ class GridfinityBox(GridfinityObject):
             )
         )
 
-    @property
-    def cullenect_label_u(self):
-        """Tile width in grid units -- the bin's own width, capped by the shelf."""
-        return max(int(self.length_u), 1)
+    def cullenect_label_u_for(self, shelf_length):
+        """Largest tile that fits the shelf, in grid units.
+
+        Sized from the SHELF, not from `length_u`. With `label_style="full"`
+        the shelf spans the bin and the two agree, but every tab style
+        ("auto", "left", "center", "right") gives a shelf about one grid unit
+        long whatever the bin's width -- and sizing the tile off the bin then
+        demanded a 120mm tile for a 42mm tab and refused to build at all.
+        """
+        if self.cullenect_label_u > 0:
+            return self.cullenect_label_u
+        from cqgridfinity.gf_labels import CullenectLabel
+
+        u = 1
+        while CullenectLabel(u + 1).socket_length <= shelf_length:
+            u += 1
+        return u
 
     def render_labels(self):
         if not self.labels or self.solid or self.label_style == "none":

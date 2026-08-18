@@ -26,7 +26,8 @@ Checked in `_validate()` at construction. These were always present.
 | `height_u` > `lid_height_u` — the lid is carved out of the total | raises |
 | `lid_height_u` ≥ 1 | raises |
 | Cullenect socket needs a label shelf to cut into | raises |
-| Cullenect socket must fit the shelf it is cut into | raises |
+| Cullenect socket must fit the shelf it is cut into | raises — **and is reachable**: a tab `label_style` gives a ~42mm shelf |
+| Cullenect tile is sized from the SHELF, not the bin | `cullenect_label_u = 0` (auto) picks the largest tile that fits |
 
 ### 2. Combination rules — every value is legal, the COMBINATION is not
 
@@ -39,7 +40,7 @@ cannot be printed:
 | 1U × 1U box | **5 disconnected pieces** — the latch and hinge ribs land past the wall's corner and never touch it |
 | 10U × 1U box | **5 disconnected pieces** — 1U deep leaves no flat wall for the side ribs |
 | `height_u=3` with `lid_height_u=2` | **3 disconnected pieces** — the body is too short to carry its own attachments |
-| `rib_width=20` | **3 pieces** — a plain rib spans 51.2mm of a 42mm grid pitch, so neighbours merge and detach |
+| `rib_width` ≥ 13 | **3 pieces** — measured: 12 builds, 13 does not. Not the rib pitch as first assumed (a plain rib spans only 79% of it); the body's own hinge knuckles are what run together |
 | `latch_width=50` on a 1U box | **5 pieces** — the latch is wider than the wall it mounts on |
 | `wall_thickness=2.4`, `lip_thickness=2.0` | 1 solid but **4 sealed voids**, one per hinge knuckle |
 
@@ -93,6 +94,43 @@ should treat this as the open item it is.
 
 ---
 
+## A branch of the upstream design that was never ported
+
+Sweeping `rib_width` to find the pitch threshold found something better than a
+threshold. `_box_hinge_ribs_top` has **two** branches: the interleaved pair we
+built, and a **single-module hinge** used when
+`top_hinge_width - rib_width*2 <= 0` — once the centre knuckle is no wider than
+the pair that would flank it, interleaving is no longer possible.
+
+Only the first branch was ported. At the Gridfinity default (`rib_width=6`,
+`top_hinge_width=15.4`) the interleaved branch is the correct one, so nothing
+ever exercised the other. Between `rib_width` 7 and 12 the port silently built
+the wrong hinge topology and got away with it; at 13 it collapsed into loose
+pieces. Both branches now exist, and `top_hinge_width <= 0` raises rather than
+producing a degenerate knuckle.
+
+The lesson is about how it was found: a sweep aimed at one rule (rib pitch)
+surfaced a different and more important one, because the sweep tested the
+GEOMETRY rather than the rule being hypothesised. The pitch hypothesis was
+wrong — a rib spans only 79% of the pitch at the failure point.
+
+## A rule I documented that was not true
+
+The first version of this file listed "socket must fit the shelf" as an enforced
+rule. Re-testing every claim in it against the code found the check **could not
+fire**: the tile was sized from `length_u`, the shelf spans the bin, so the two
+always agreed by construction. A guard that cannot fire is not a guard.
+
+It became reachable — and immediately useful — once `label_style` was varied. A
+tab style ("auto", "left", "center", "right") gives a shelf about one grid unit
+long whatever the bin's width, and the socket then demanded a 120mm tile for a
+42mm tab and refused to build. The real rule was the opposite of what was
+written down: **the tile is sized from the shelf, not from the bin.** Fixed, and
+the guard now backs it up rather than standing in for it.
+
+Recorded because it is the same failure this project keeps finding, one level
+up: a rule can be stated, documented and believed while nothing exercises it.
+
 ## What is still NOT guarded
 
 Honest list, so nobody assumes more than is true:
@@ -104,5 +142,10 @@ Honest list, so nobody assumes more than is true:
 - **Print manufacturability is not checked at all.** Overhang angles, minimum
   feature sizes against a nozzle diameter, and bridging distances are not
   modelled. The generator guarantees a closed solid, not a printable one.
+- **Kernel failures short of the guard.** Combinations that collapse a sketch
+  before the shape exists (very thin walls on the lid) cannot reach the
+  structural check. They are now wrapped with the same diagnosis rather than
+  surfacing as `No pending wires present`, but they are caught later and more
+  crudely than the invariant.
 - **Fit is asserted, not measured.** Clearances are correct by construction at
   0.05–0.2mm; only a printer settles whether they are right.

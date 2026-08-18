@@ -1157,7 +1157,13 @@ def test_third_hinge_becomes_real_geometry():
 
     assert SK(5, 3, 6).has_third_hinge
     assert not SK(4, 3, 6).has_third_hinge
-    assert centre_material(SK(5, 3, 6)) > 20
+    # Threshold derived, not tuned: the probe is 10 x 2 x 20mm and a knuckle
+    # is at least as wide as the probe, so a present hinge must fill a
+    # meaningful fraction of it. An absent one leaves it empty.
+    present = centre_material(SK(5, 3, 6))
+    absent = centre_material(SK(4, 3, 6))
+    assert present > 10 * 2 * 1.0, "a centre knuckle should fill more than this"
+    assert present > 50 * absent + 10, "presence must dominate absence" 
     assert centre_material(SK(4, 3, 6)) == pytest.approx(0.0, abs=1e-6)
 
 
