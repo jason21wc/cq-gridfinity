@@ -380,6 +380,7 @@ class GridfinityVaseBox(GridfinityBox):
 
         # ── Final transform (same as standard bin) ───────────────────────────
         r = r.translate((-self.half_l, -self.half_w, GR_BASE_HEIGHT))
+        r = self.assert_sound(r, "vase")
         return r
 
 

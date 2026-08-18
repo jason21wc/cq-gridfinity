@@ -366,3 +366,39 @@ def test_fit_to_drawer_no_padding():
     assert bp_fit.length_u == 4
     assert bp_fit.width_u == 3
     assert _almost_same(size_3d(r_fit), size_3d(r_std), tol=0.1)
+
+
+def test_screw_together_holes_open_to_the_outside():
+    """A screw hole you cannot get a screw into is a buried tunnel.
+
+    Two defects here, both pre-existing and both invisible to the previous
+    tests, which counted holes without asking whether they broke the surface:
+
+    1. `Workplane("XZ").extrude()` goes -Y, so the Y-direction hole template
+       needed +hole_len/2 to centre it, not -. The +Y holes landed a whole
+       hole-length inboard, sealed inside the plate; the -Y holes landed
+       outside it.
+    2. A cut ending exactly flush with the outer face does not break through:
+       OpenCASCADE leaves it as a sealed cavity.
+    """
+    import cadquery as cq
+
+    from cqgridfinity import GridfinityBaseplate
+
+    for lu, wu in ((3, 2), (6, 5)):
+        for n in (1, 2, 3):
+            b = GridfinityBaseplate(lu, wu, screw_together=True, n_screws=n)
+            v = b.render().val()
+            assert len(v.Solids()) == 1
+            assert len(v.Shells()) == 1, "a screw hole is sealed inside the plate"
+
+    # And the holes really do reach every edge: an outer face with holes in
+    # it has more than one wire. Counting solids would not show this -- holes
+    # in a slab do not sever it.
+    b = GridfinityBaseplate(3, 2, screw_together=True)
+    v = b.render().val()
+    for selector, edge in ((">Y", "+Y"), ("<Y", "-Y"), (">X", "+X"), ("<X", "-X")):
+        faces = b.render().faces(selector).vals()
+        assert faces, "no %s face" % edge
+        wires = max(len(f.Wires()) for f in faces)
+        assert wires > 1, "the %s edge has no screw openings" % edge

@@ -345,6 +345,7 @@ class GridfinityBaseplate(GridfinityObject):
             r = self._render_baseplate_holes(r)
         if self.weighted and not self.skeleton:
             r = self._render_weight_pockets(r)
+        r = self.assert_sound(r, "baseplate")
         return r
 
     @property
@@ -429,7 +430,12 @@ class GridfinityBaseplate(GridfinityObject):
         edges) so they align with adjacent standard baseplates.
         """
         hole_r = GR_ST_SCREW_D / 2
-        hole_len = GRU2  # 21mm, extends inward from edge
+        # Extend past the outer face by EPS. A cut whose end face is exactly
+        # coincident with the surface does not break through: OpenCASCADE
+        # leaves it as a SEALED cavity, so the screw hole becomes a buried
+        # tunnel with no opening to drive a screw into. This is the project's
+        # oldest recorded CadQuery lesson, and this path violated it.
+        hole_len = GRU2 + EPS  # 21mm inward from the edge, plus break-through
         hole_z = GR_ST_ADDITIONAL_H / 2  # Z-center in extra-height section
         half_lx = self.length / 2  # grid edge, not outer block
         half_ly = self.width / 2   # grid edge, not outer block
@@ -452,11 +458,16 @@ class GridfinityBaseplate(GridfinityObject):
             .translate((-hole_len / 2, 0, 0))
         )
         # Y-direction: cylinder along Y-axis
+        # Workplane("XZ").extrude() goes -Y, so this spans [-hole_len, 0]
+        # before translation; centring it needs +hole_len/2, not -. Getting
+        # the sign wrong put the +Y screw holes a whole hole-length inboard --
+        # buried in the middle of the plate with no opening -- and the -Y ones
+        # outside it. See LEARNING-LOG, "CadQuery Workplane Extrude Directions".
         y_hole = (
             cq.Workplane("XZ")
             .circle(hole_r)
             .extrude(hole_len)
-            .translate((0, -hole_len / 2, 0))
+            .translate((0, hole_len / 2, 0))
         )
 
         x_pts = []  # positions for X-direction holes
@@ -466,15 +477,15 @@ class GridfinityBaseplate(GridfinityObject):
         for j in range(self.width_u):
             cy = (j - (self.width_u - 1) / 2) * GRU
             for off in offsets:
-                x_pts.append((ox + half_lx - hole_len / 2, oy + cy + off, hole_z))
-                x_pts.append((ox - half_lx + hole_len / 2, oy + cy + off, hole_z))
+                x_pts.append((ox + half_lx - hole_len / 2 + EPS, oy + cy + off, hole_z))
+                x_pts.append((ox - half_lx + hole_len / 2 - EPS, oy + cy + off, hole_z))
 
         # ±Y edges: holes at each grid unit along X, extending inward along Y
         for i in range(self.length_u):
             cx = (i - (self.length_u - 1) / 2) * GRU
             for off in offsets:
-                y_pts.append((ox + cx + off, oy + half_ly - hole_len / 2, hole_z))
-                y_pts.append((ox + cx + off, oy - half_ly + hole_len / 2, hole_z))
+                y_pts.append((ox + cx + off, oy + half_ly - hole_len / 2 + EPS, hole_z))
+                y_pts.append((ox + cx + off, oy - half_ly + hole_len / 2 - EPS, hole_z))
 
         if x_pts:
             obj = obj.cut(composite_from_pts(x_hole, x_pts))

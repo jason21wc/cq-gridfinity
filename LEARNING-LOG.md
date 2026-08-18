@@ -394,3 +394,18 @@ configuration was refused, and a limitation written into a document, on a count.
 size before concluding, and set structural tolerances by what the process can hold —
 here 0.1mm, a third of a layer, four orders of magnitude below the 13mm³ voids that
 were real defects.
+
+#### A Guard Earns Its Keep the Day You Add It (2026-08-17)
+The single-solid/single-shell guard was extended from the rugged box to every render
+path. It immediately failed the screw-together baseplate — a feature that had shipped,
+been tested, and been exported for human review. Two real defects underneath: the
+Y-direction hole template was built with `Workplane("XZ").extrude()`, which goes **-Y**,
+so centring it needed `+hole_len/2` and got `-` — putting the +Y screw holes a whole
+hole-length inboard, sealed inside the plate, and the -Y ones outside it. And the
+surviving holes ended exactly flush with the outer face, which OpenCASCADE does not
+treat as breaking through.
+**Rule:** both root causes were already written in this file (extrude directions;
+coplanar cuts need an EPS overshoot) — knowing a rule is not the same as having a check
+that enforces it. When you write a lesson down, ask what test would have caught it, and
+whether that test exists anywhere it applies. Also: the old tests counted the holes
+without asking whether any of them broke the surface.

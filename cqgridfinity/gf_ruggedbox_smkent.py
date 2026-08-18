@@ -1078,7 +1078,7 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
             solid = solid.mirror("YZ")
         solid = self._round_profile_edges(solid, h)
         solid = self._break_extruded_edges(solid)
-        r = self.repair_if_invalid(solid)
+        r = self.assert_sound(self.repair_if_invalid(solid), "stacking latch")
         self._cq_obj = r
         self._obj_label = "stacking_latch"
         return r
@@ -2462,6 +2462,7 @@ class GridfinityRuggedBoxSmkent(GridfinityObject):
             r = self._clip_latch_solid(self.latch_part_width)
             r = self._break_extruded_edges(r)
             r = self.repair_if_invalid(r)
+            r = self.assert_sound(r, "clip latch")
         self._cq_obj = r
         self._obj_label = "latch"
         return r

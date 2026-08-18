@@ -155,6 +155,7 @@ class CullenectLabel(GridfinityObject):
         )
         r = base.union(middle).union(cap)
         r = self._apply_text(r)
+        r = self.assert_sound(r, "label")
         self._cq_obj = r
         self._obj_label = "label"
         return r

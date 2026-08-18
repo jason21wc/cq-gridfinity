@@ -144,9 +144,15 @@ up: a rule can be stated, documented and believed while nothing exercises it.
 Honest list, so nobody assumes more than is true:
 
 - ~~The bin has no equivalent structural guard.~~ **Closed 2026-08-17.**
-  `GridfinityObject.assert_sound()` now guards `GridfinityBox.render()` too,
-  and all eight shipped bin configurations pass it. The tolerance for boolean
-  slivers lives in the base class so both use the same rule.
+  `GridfinityObject.assert_sound()` now guards **every** render path — bin,
+  baseplate, vase, rugged box, both latches and the label — with the sliver
+  tolerance in the base class so they all use one rule.
+  It found a real defect the day it was added: screw-together baseplates had
+  their Y-direction screw holes a full hole-length out of position (sealed
+  inside the plate on one edge, outside it on the other) **and** the surviving
+  holes ended flush with the outer face, which OpenCASCADE does not treat as
+  breaking through. Both are fixed; the openings are now asserted by face
+  topology, not by counting holes.
 - **Print manufacturability is not checked at all.** Overhang angles, minimum
   feature sizes against a nozzle diameter, and bridging distances are not
   modelled. The generator guarantees a closed solid, not a printable one.
