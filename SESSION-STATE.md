@@ -1,6 +1,6 @@
 # Session State
 
-**Last Updated:** 2026-08-16 (P3 CLOSED — DoD-3 verified; starting P4)
+**Last Updated:** 2026-08-17 (P4 in flight: labels + socket + reinforced corners; transcript audit done)
 **Memory Type:** Working (transient)
 **Lifecycle:** Prune at session start per §7.0.4
 
@@ -10,7 +10,7 @@
 ---
 
 ## Current Position
-- **Phase:** **P4 — bin feature layers.** P3 closed 2026-08-16 with DoD-3 verified across all 21 models
+- **Phase:** **P4 — bin feature layers.** P3 closed 2026-08-16, DoD-3 verified. P4: Cullenect labels (1D.3/1D.4), socket on the bin (1D.5) and reinforced corners (1E.14) shipped
 - **Plan:** `documents/ROADMAP.md`
 - **Blocker:** None
 
@@ -81,6 +81,8 @@ test, and surfaced only when something downstream needed the thing it depended o
 | 9 | `_screw_hole` not centred: latch hole drilled beside its boss, boss left solid | the hinge pin test |
 | 10 | Draw latch catch cut into TWO disconnected pieces — unprintable | wiring up `render_latch` |
 | 11 | Stacking-latch screw count taken from the body for BOTH halves — lid had 2x the holes | **Jason, by eye in CAD** |
+| 12 | Cullenect tile sized from the bin, not the shelf — a tab label_style refused to build | re-testing my own documented rules |
+| 13 | `_box_hinge_ribs_top`'s single-module branch never ported — wrong hinge topology for rib_width 7-12 | a sweep aimed at a different rule |
 
 **#7 and #8 broke the pattern** — found by sweeping rather than by waiting.
 Two sweeps, both in `documents/SHELL-AUDIT-1E8.md` Part 2: parameters with no
@@ -218,6 +220,20 @@ anylid dispositioned in 8 batches → **21 Keep, 21 Cut**. See
 | D6 | **STEP output is the differentiator, not feature breadth** — Perplexing Labs already ships a polished web generator on smkent's box, with STL output |
 | D7 | **Fine dimensional granularity is a first-class requirement** — floats everywhere, ≤0.1mm on fit-critical dims, 0.05mm for press/sliding fits. Perplexing Labs' 1mm latch increments are a real observed weakness; shrinkage corrections are 0.04–0.18mm |
 
+## Verification posture (what each layer actually catches)
+
+| Layer | Catches | Blind to |
+|-------|---------|----------|
+| Range checks (`_validate`) | a parameter nonsense on its own | any combination |
+| **Structural guard** (`_assert_sound`) | disconnected pieces, sealed voids — including combinations nobody listed | anything that collapses before the shape exists |
+| `_guarded` wrapper | kernel failures short of the guard | — |
+| Tests (503) | what someone thought to ask | what nobody thought to ask |
+| STEP audit | tessellation masquerading as B-Rep | whether the geometry is *sensible* |
+| **Human in CAD (DoD-3)** | sensible-ness — found defect 11 when 10 measurements had not | anything not looked at |
+
+Nothing above catches **printability**: no overhang angles, minimum feature
+sizes or bridging. See `documents/GEOMETRY-RULES.md`.
+
 ## Next Actions
 
 **P4 — bin feature layers.** All Keep from triage, all independent of P3:
@@ -272,7 +288,7 @@ anylid dispositioned in 8 batches → **21 Keep, 21 Cut**. See
 | Ship set | P1: 32 models. Staged for DoD-3: 21 models (17 smkent + 4 core), all audit-clean |
 | Local gate | `make check` (3m24s) via pre-push hook; `make check-full` |
 | Triage | 42 features → 21 Keep, 21 Cut |
-| Modules | 12 (added `gf_divider`, `gf_holegrid`, `gf_ruggedbox_smkent`) |
+| Modules | 14 (added `gf_labels`, `gf_fonts`) |
 
 
 ## Environment
